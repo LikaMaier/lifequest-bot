@@ -493,7 +493,7 @@ async def start_survey(callback: CallbackQuery, state: FSMContext):
     await state.set_state(SurveyStates.q1)
     q = SURVEY_QUESTIONS[0]
     await callback.message.edit_text(
-        f"🧭 <b>Диагностика: где ты сейчас?</b>
+        "🧭 <b>Диагностика: где ты сейчас?</b>
 
 "
         f"<b>{q['sphere']}</b>
