@@ -490,51 +490,18 @@ async def generate_and_send_profile(message, user_id: int):
     answers_json = json.dumps(answers, ensure_ascii=False)
 
     # Промпт для профиля (обращение на "ты")
-    profile_prompt = """Ты — LifeQuest, тёплый и внимательный коуч. 
-Проанализируй ответы пользователя и напиши профиль, обращаясь к нему напрямую на "ты".
-Используй тёплый, поддерживающий тон. Не диагностируй, а делись наблюдениями.
-Укажи одну сильную сторону и одну зону роста.
-
-Ответы пользователя:
-{}
-
-Напиши 2-3 предложения. Обращайся к нему лично.""".format(answers_json)
+    profile_prompt = "Ты — LifeQuest, тёплый и внимательный коуч.\nПроанализируй ответы пользователя и напиши профиль, обращаясь к нему напрямую на 'ты'.\nИспользуй тёплый, поддерживающий тон. Не диагностируй, а делись наблюдениями.\nУкажи одну сильную сторону и одну зону роста.\n\nОтветы пользователя:\n" + answers_json + "\n\nНапиши 2-3 предложения. Обращайся к нему лично."
 
     # Промпт для оценок сфер
-    scores_prompt = """На основе этих ответов (1-4 шкала) оцени 7 сфер жизни в процентах (0-100).
-Сферы: Социальность, Приключения, Смелость, Саморазвитие, Энергия, Дисциплина, Творчество.
-Верни ТОЛЬКО JSON: {"Социальность": 58, ...}""".format(answers_json)
+    scores_prompt = "На основе этих ответов (1-4 шкала) оцени 7 сфер жизни в процентах (0-100).\nСферы: social, adventure, courage, growth, energy, discipline, creativity.\nВерни ТОЛЬКО JSON с английскими ключами: {\"social\": 58, \"adventure\": 83, \"courage\": 67, \"growth\": 75, \"energy\": 92, \"discipline\": 42, \"creativity\": 70}\n\nОтветы:\n" + answers_json
 
     # Промпт для персональных заданий
-    tasks_prompt = """Ты — LifeQuest, мотивационный коуч и игровой дизайнер.
-Создай 9 персональных челленджей для бинго-карты на неделю.
-
-Профиль пользователя:
-{}
-
-Правила:
-1. Каждое задание конкретное, выполнимое за 1 день
-2. Учитывай слабые сферы — там чуть сложнее
-3. Учитывай сильные сферы — там для закрепления
-4. Добавь элемент игры или случайности
-5. Формат: короткое название (2-4 слова) + описание (1-2 предложения)
-
-Верни JSON в формате:
-{
-  "morning": "30 мин без телефона после пробуждения. Выпей воды, сделай 5 вдохов.",
-  "plan": "Запиши 3 дела на завтра. Одно — то, что откладывал больше недели.",
-  "move": "15 мин растяжки или прогулка без цели. Не слушай подкасты — просто иди.",
-  "adventure1": "Дойди до незнакомого места в радиусе 3 км. Посиди там 15 мин без телефона.",
-  "frog": "Закрой самое тяжёлое висящее дело. Сделай фото «до/после».",
-  "random": "Кинь кубик: 1-3 = приготовь новое блюдо, 4-6 = новый маршрут домой.",
-  "fear": "Сделай то, что давно боишься: звонок, разговор, первый шаг. Отметь в дневнике.",
-  "challenge": "Согласись на спонтанное предложение сегодня. Или сам предложи кому-то встречу.",
-  "expression": "Опубликуй что-то своё без фильтров: рисунок, мысль, фото. Честно. Для себя."
-}""".format(answers_json)
+    tasks_prompt = "Ты — LifeQuest, мотивационный коуч и игровой дизайнер.\nСоздай 9 персональных челленджей для бинго-карты на неделю.\n\nПрофиль пользователя:\n" + answers_json + "\n\nПравила:\n1. Каждое задание конкретное, выполнимое за 1 день\n2. Учитывай слабые сферы — там чуть сложнее\n3. Учитывай сильные сферы — там для закрепления\n4. Добавь элемент игры или случайности\n5. Формат: короткое описание (1-2 предложения)\n\nВерни JSON в формате:\n{\n  \"morning\": \"30 мин без телефона после пробуждения. Выпей воды, сделай 5 вдохов.\",\n  \"plan\": \"Запиши 3 дела на завтра. Одно — то, что откладывал больше недели.\",\n  \"move\": \"15 мин растяжки или прогулка без цели. Не слушай подкасты — просто иди.\",\n  \"adventure1\": \"Дойди до незнакомого места в радиусе 3 км. Посиди там 15 мин без телефона.\",\n  \"frog\": \"Закрой самое тяжёлое висящее дело. Сделай фото 'до/после'.\",\n  \"random\": \"Кинь кубик: 1-3 = приготовь новое блюдо, 4-6 = новый маршрут домой.\",\n  \"fear\": \"Сделай то, что давно боишься: звонок, разговор, первый шаг. Отметь в дневнике.\",\n  \"challenge\": \"Согласись на спонтанное предложение сегодня. Или сам предложи кому-то встречу.\",\n  \"expression\": \"Опубликуй что-то своё без фильтров: рисунок, мысль, фото. Честно. Для себя.\"\n}"
 
     try:
-        # Генерируем профиль с таймаутом
         print("Starting profile generation for user {}".format(user_id))
+        
+        # Генерируем профиль с таймаутом
         profile_response = await asyncio.wait_for(
             client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
@@ -558,10 +525,29 @@ async def generate_and_send_profile(message, user_id: int):
             timeout=30.0
         )
         scores_content = scores_response.choices[0].message.content
+        print("Scores raw response: {}".format(scores_content[:200]))
+        
+        # Извлекаем JSON
         json_start = scores_content.find("{")
         json_end = scores_content.rfind("}") + 1
-        scores = json.loads(scores_content[json_start:json_end])
-        print("Scores generated successfully")
+        if json_start == -1 or json_end == 0:
+            raise ValueError("No JSON found in scores response")
+        scores_raw = json.loads(scores_content[json_start:json_end])
+        
+        # Маппим английские ключи на русские для отображения
+        key_mapping = {
+            "social": "Социальность",
+            "adventure": "Приключения",
+            "courage": "Смелость",
+            "growth": "Саморазвитие",
+            "energy": "Энергия",
+            "discipline": "Дисциплина",
+            "creativity": "Творчество"
+        }
+        scores = {}
+        for eng, rus in key_mapping.items():
+            scores[rus] = scores_raw.get(eng, 50)
+        print("Scores parsed successfully: {}".format(scores))
 
         # Генерируем персональные задания с таймаутом
         tasks_response = await asyncio.wait_for(
@@ -574,10 +560,14 @@ async def generate_and_send_profile(message, user_id: int):
             timeout=30.0
         )
         tasks_content = tasks_response.choices[0].message.content
+        print("Tasks raw response: {}".format(tasks_content[:200]))
+        
         json_start = tasks_content.find("{")
         json_end = tasks_content.rfind("}") + 1
+        if json_start == -1 or json_end == 0:
+            raise ValueError("No JSON found in tasks response")
         personal_tasks = json.loads(tasks_content[json_start:json_end])
-        print("Tasks generated successfully")
+        print("Tasks parsed successfully")
 
         # Формируем текст профиля
         scores_lines = []
@@ -606,6 +596,10 @@ async def generate_and_send_profile(message, user_id: int):
     except Exception as e:
         print("Error generating profile: {}".format(str(e)))
         # Fallback
+        fallback_scores = {
+            "Социальность": 50, "Приключения": 50, "Смелость": 50,
+            "Саморазвитие": 50, "Энергия": 50, "Дисциплина": 50, "Творчество": 50
+        }
         fallback_tasks = {
             "morning": "30 мин без телефона после пробуждения",
             "plan": "Запиши 3 дела на день. 1 — то, что откладывал",
@@ -624,7 +618,7 @@ async def generate_and_send_profile(message, user_id: int):
             "🎲 <b>Твоя бинго-карта на неделю:</b>",
             parse_mode="HTML"
         )
-        save_user_profile(user_id, "Профиль создан.", "{}", json.dumps(fallback_tasks))
+        save_user_profile(user_id, "Профиль создан.", json.dumps(fallback_scores), json.dumps(fallback_tasks))
         await send_bingo_card(message, user_id, fallback_tasks)
 
 async def send_bingo_card(message, user_id: int, tasks: dict = None):
