@@ -21,8 +21,8 @@ from aiogram.types import (
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
 
-# Для Groq API (совместим с OpenAI SDK)
-from groq import AsyncGroq
+# Используем OpenAI-совместимый клиент для Groq (избегаем проблему с proxies)
+from openai import AsyncOpenAI
 
 load_dotenv()
 
@@ -34,8 +34,11 @@ ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
-# Groq клиент (совместим с OpenAI API)
-client = AsyncGroq(api_key=GROQ_API_KEY)
+# OpenAI-совместимый клиент для Groq API
+client = AsyncOpenAI(
+    api_key=GROQ_API_KEY,
+    base_url="https://api.groq.com/openai/v1"
+)
 
 scheduler = AsyncIOScheduler()
 
@@ -369,9 +372,9 @@ async def generate_and_send_profile(message, user_id: int):
 {{"profile_text": "...", "scores": {{"Социальность": 58, "Приключения": 83, ...}}}}""".format(answers_json)
 
     try:
-        # Используем Groq API (Llama 3 70B — бесплатный tier)
+        # Используем Groq API через OpenAI-совместимый клиент
         response = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",  # или "mixtral-8x7b-32768" для ещё большей скорости
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": "Ты — тёплый, психологически грамотный бот. Пишешь на русском. Не используешь ярлыки."},
                 {"role": "user", "content": prompt}
