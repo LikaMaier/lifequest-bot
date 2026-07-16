@@ -533,38 +533,51 @@ async def generate_and_send_profile(message, user_id: int):
 }""".format(answers_json)
 
     try:
-        # Генерируем профиль
-        profile_response = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": profile_prompt}],
-            temperature=0.7,
-            max_tokens=300
+        # Генерируем профиль с таймаутом
+        print("Starting profile generation for user {}".format(user_id))
+        profile_response = await asyncio.wait_for(
+            client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": profile_prompt}],
+                temperature=0.7,
+                max_tokens=300
+            ),
+            timeout=30.0
         )
         profile_text = profile_response.choices[0].message.content.strip()
+        print("Profile generated successfully")
 
-        # Генерируем оценки
-        scores_response = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": scores_prompt}],
-            temperature=0.3,
-            max_tokens=200
+        # Генерируем оценки с таймаутом
+        scores_response = await asyncio.wait_for(
+            client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": scores_prompt}],
+                temperature=0.3,
+                max_tokens=200
+            ),
+            timeout=30.0
         )
         scores_content = scores_response.choices[0].message.content
         json_start = scores_content.find("{")
         json_end = scores_content.rfind("}") + 1
         scores = json.loads(scores_content[json_start:json_end])
+        print("Scores generated successfully")
 
-        # Генерируем персональные задания
-        tasks_response = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": tasks_prompt}],
-            temperature=0.8,
-            max_tokens=800
+        # Генерируем персональные задания с таймаутом
+        tasks_response = await asyncio.wait_for(
+            client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": tasks_prompt}],
+                temperature=0.8,
+                max_tokens=800
+            ),
+            timeout=30.0
         )
         tasks_content = tasks_response.choices[0].message.content
         json_start = tasks_content.find("{")
         json_end = tasks_content.rfind("}") + 1
         personal_tasks = json.loads(tasks_content[json_start:json_end])
+        print("Tasks generated successfully")
 
         # Формируем текст профиля
         scores_lines = []
@@ -583,8 +596,15 @@ async def generate_and_send_profile(message, user_id: int):
         # Отправляем бинго-карту
         await send_bingo_card(message, user_id, personal_tasks)
 
+    except asyncio.TimeoutError:
+        print("TIMEOUT: Groq API took too long for user {}".format(user_id))
+        await message.edit_text(
+            "⏱ <b>ИИ думает слишком долго...</b>\n\n"
+            "Попробую отправить упрощённую версию. Нажми /start, чтобы пройти опрос заново.",
+            parse_mode="HTML"
+        )
     except Exception as e:
-        print("Error generating profile: {}".format(e))
+        print("Error generating profile: {}".format(str(e)))
         # Fallback
         fallback_tasks = {
             "morning": "30 мин без телефона после пробуждения",
@@ -615,8 +635,10 @@ async def send_bingo_card(message, user_id: int, tasks: dict = None):
         tasks = json.loads(tasks_json) if tasks_json else {}
 
     try:
+        print("Creating bingo image for user {}".format(user_id))
         # Генерируем картинку
         img_buffer = create_bingo_image(tasks, completed)
+        print("Bingo image created, size: {} bytes".format(len(img_buffer.getvalue())))
         
         # Отправляем фото с кнопками
         await message.answer_photo(
@@ -625,6 +647,7 @@ async def send_bingo_card(message, user_id: int, tasks: dict = None):
             parse_mode="HTML",
             reply_markup=build_bingo_keyboard(completed)
         )
+        print("Bingo card sent successfully")
     except Exception as e:
         print("ERROR sending bingo card: {}".format(str(e)))
         # Fallback - отправляем текстом
