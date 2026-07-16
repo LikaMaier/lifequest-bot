@@ -379,92 +379,110 @@ BINGO_COLORS = {
 
 def create_bingo_image(tasks: dict, completed: list) -> io.BytesIO:
     """Генерирует красивую PNG-картинку бинго-карты"""
-    cell_width = 320
-    cell_height = 180
-    padding = 15
-    gap = 10
-    cols = 3
-    rows = 3
-    
-    img_width = cols * cell_width + (cols + 1) * gap
-    img_height = rows * cell_height + (rows + 1) * gap + 80  # +80 для заголовка
-    
-    img = Image.new('RGB', (img_width, img_height), '#1A1A2E')
-    draw = ImageDraw.Draw(img)
-    
-    # Заголовок
     try:
-        title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 32)
-        emoji_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24)
-        text_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16)
-        small_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
-    except:
-        title_font = ImageFont.load_default()
-        emoji_font = ImageFont.load_default()
-        text_font = ImageFont.load_default()
-        small_font = ImageFont.load_default()
-    
-    draw.text((img_width//2, 25), "БИНГО-КАРТА НА НЕДЕЛЮ", fill='white', font=title_font, anchor="mm")
-    
-    cells = [
-        ("morning", "🌅 Утро"),
-        ("plan", "📋 План"),
-        ("move", "💪 Движение"),
-        ("adventure1", "🌍 Приключение"),
-        ("frog", "🐸 ЛЯГУШКА"),
-        ("random", "🎲 Рандом"),
-        ("fear", "😨 Страх"),
-        ("challenge", "🔥 Испытание"),
-        ("expression", "✨ Проявление"),
-    ]
-    
-    for idx, (cell_key, title) in enumerate(cells):
-        row = idx // 3
-        col = idx % 3
+        cell_width = 320
+        cell_height = 180
+        gap = 10
+        cols = 3
+        rows = 3
         
-        x = gap + col * (cell_width + gap)
-        y = 60 + gap + row * (cell_height + gap)
+        img_width = cols * cell_width + (cols + 1) * gap
+        img_height = rows * cell_height + (rows + 1) * gap + 80
         
-        border_color, bg_color = BINGO_COLORS[cell_key]
-        if cell_key in completed:
-            bg_color = "#2D5016"  # Тёмно-зелёный для выполненных
+        img = Image.new('RGB', (img_width, img_height), '#1A1A2E')
+        draw = ImageDraw.Draw(img)
         
-        # Рамка
-        draw.rounded_rectangle([x, y, x + cell_width, y + cell_height], radius=15, outline=border_color, width=3, fill=bg_color)
+        # Пробуем загрузить шрифты, fallback на дефолт
+        try:
+            title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
+            emoji_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
+            small_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
+        except Exception:
+            try:
+                title_font = ImageFont.truetype("/usr/share/fonts/TTF/DejaVuSans-Bold.ttf", 28)
+                emoji_font = ImageFont.truetype("/usr/share/fonts/TTF/DejaVuSans.ttf", 20)
+                small_font = ImageFont.truetype("/usr/share/fonts/TTF/DejaVuSans.ttf", 14)
+            except Exception:
+                title_font = ImageFont.load_default()
+                emoji_font = ImageFont.load_default()
+                small_font = ImageFont.load_default()
         
-        # Эмодзи + заголовок
-        draw.text((x + 15, y + 12), title, fill='white' if cell_key in completed else '#E0E0E0', font=emoji_font)
+        # Заголовок
+        draw.text((img_width//2, 30), "BINGO CARD", fill='white', font=title_font, anchor="mm")
         
-        # Описание задания (перенос строк)
-        task_text = tasks.get(cell_key, "Задание")
-        # Убираем HTML-теги
-        task_text = task_text.replace("<b>", "").replace("</b>", "")
-        words = task_text.split()
-        lines = []
-        current_line = ""
-        for word in words:
-            test = current_line + " " + word if current_line else word
-            if len(test) < 35:
-                current_line = test
-            else:
-                lines.append(current_line)
-                current_line = word
-        if current_line:
-            lines.append(current_line)
+        cells = [
+            ("morning", "UTRO"),
+            ("plan", "PLAN"),
+            ("move", "DVIZHENIE"),
+            ("adventure1", "PRIKLYUCHENIE"),
+            ("frog", "LYAGUSHKA"),
+            ("random", "RANDOM"),
+            ("fear", "STRAH"),
+            ("challenge", "ISPYTANIE"),
+            ("expression", "PROYAVLENIE"),
+        ]
         
-        line_y = y + 50
-        for line in lines[:4]:  # Макс 4 строки
-            draw.text((x + 15, line_y), line, fill='#B0B0B0' if cell_key not in completed else '#C8E6C9', font=small_font)
-            line_y += 20
+        for idx, (cell_key, title) in enumerate(cells):
+            row = idx // 3
+            col = idx % 3
+            
+            x = gap + col * (cell_width + gap)
+            y = 60 + gap + row * (cell_height + gap)
+            
+            border_color, bg_color = BINGO_COLORS.get(cell_key, ("#666666", "#333333"))
+            if cell_key in completed:
+                bg_color = "#1B5E20"
+            
+            # Карточка
+            draw.rounded_rectangle([x, y, x + cell_width, y + cell_height], 
+                                   radius=12, outline=border_color, width=3, fill=bg_color)
+            
+            # Заголовок карточки
+            draw.text((x + 15, y + 15), title, fill='white', font=emoji_font)
+            
+            # Описание задания
+            task_text = tasks.get(cell_key, "Zadanie")
+            task_text = task_text.replace("<b>", "").replace("</b>", "")
+            
+            # Перенос строк простым способом
+            words = task_text.split()
+            lines = []
+            current = ""
+            for word in words:
+                test = current + " " + word if current else word
+                if len(test) < 32:
+                    current = test
+                else:
+                    lines.append(current)
+                    current = word
+            if current:
+                lines.append(current)
+            
+            line_y = y + 55
+            for line in lines[:3]:
+                draw.text((x + 15, line_y), line, fill='#CCCCCC', font=small_font)
+                line_y += 18
+            
+            # Галочка выполненного
+            if cell_key in completed:
+                draw.text((x + cell_width - 35, y + cell_height - 35), "OK", fill='#4CAF50', font=emoji_font)
         
-        # Галочка для выполненных
-        if cell_key in completed:
-            draw.text((x + cell_width - 40, y + cell_height - 40), "✓", fill='#4CAF50', font=title_font)
-    
-    buffer = io.BytesIO()
-    img.save(buffer, format='PNG')
-    buffer.seek(0)
-    return buffer
+        buffer = io.BytesIO()
+        img.save(buffer, format='PNG')
+        buffer.seek(0)
+        return buffer
+        
+    except Exception as e:
+        print("ERROR in create_bingo_image: {}".format(str(e)))
+        # Возвращаем пустую картинку-заглушку
+        img = Image.new('RGB', (400, 200), '#1A1A2E')
+        draw = ImageDraw.Draw(img)
+        font = ImageFont.load_default()
+        draw.text((200, 100), "BINGO CARD", fill='white', font=font, anchor="mm")
+        buffer = io.BytesIO()
+        img.save(buffer, format='PNG')
+        buffer.seek(0)
+        return buffer
 
 # ==================== GROQ GENERATION ====================
 async def generate_and_send_profile(message, user_id: int):
@@ -596,16 +614,29 @@ async def send_bingo_card(message, user_id: int, tasks: dict = None):
         _, _, tasks_json = get_user_profile(user_id)
         tasks = json.loads(tasks_json) if tasks_json else {}
 
-    # Генерируем картинку
-    img_buffer = create_bingo_image(tasks, completed)
-    
-    # Отправляем фото с кнопками
-    await message.answer_photo(
-        photo=InputFile(img_buffer, filename="bingo.png"),
-        caption="🎯 <b>Твоя бинго-карта на неделю</b>\n\nНажми на клетку, чтобы отметить выполнение 👇",
-        parse_mode="HTML",
-        reply_markup=build_bingo_keyboard(completed)
-    )
+    try:
+        # Генерируем картинку
+        img_buffer = create_bingo_image(tasks, completed)
+        
+        # Отправляем фото с кнопками
+        await message.answer_photo(
+            photo=InputFile(img_buffer, filename="bingo.png"),
+            caption="🎯 <b>Твоя бинго-карта на неделю</b>\n\nНажми на клетку, чтобы отметить выполнение 👇",
+            parse_mode="HTML",
+            reply_markup=build_bingo_keyboard(completed)
+        )
+    except Exception as e:
+        print("ERROR sending bingo card: {}".format(str(e)))
+        # Fallback - отправляем текстом
+        await message.answer(
+            "🎯 <b>Твоя бинго-карта на неделю</b>\n\n"
+            "Утро | План | Движение\n"
+            "Приключение | ЛЯГУШКА | Рандом\n"
+            "Страх | Испытание | Проявление\n\n"
+            "Нажми на клетку ниже 👇",
+            parse_mode="HTML",
+            reply_markup=build_bingo_keyboard(completed)
+        )
 
 # ==================== BINGO INTERACTION ====================
 @dp.callback_query(F.data.startswith("bingo_cell_"))
@@ -615,7 +646,7 @@ async def handle_bingo_click(callback: CallbackQuery, state: FSMContext):
     
     _, _, tasks_json = get_user_profile(user_id)
     tasks = json.loads(tasks_json) if tasks_json else {}
-    task_text = tasks.get(cell, BINGO_TEMPLATE.get(cell, "Задание"))
+    task_text = tasks.get(cell, "Zadanie")
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Выполнено!", callback_data="complete_{}".format(cell))],
@@ -633,7 +664,7 @@ async def complete_task(callback: CallbackQuery):
     
     _, _, tasks_json = get_user_profile(user_id)
     tasks = json.loads(tasks_json) if tasks_json else {}
-    task_text = tasks.get(cell, BINGO_TEMPLATE.get(cell, "Задание"))
+    task_text = tasks.get(cell, "Zadanie")
 
     save_completed_task(user_id, cell, task_text)
 
