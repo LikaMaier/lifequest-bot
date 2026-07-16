@@ -378,79 +378,80 @@ BINGO_COLORS = {
 }
 
 def create_bingo_image(tasks: dict, completed: list) -> io.BytesIO:
-    """Генерирует красивую PNG-картинку бинго-карты"""
+    """Генерирует PNG-картинку бинго-карты"""
     try:
-        cell_width = 320
-        cell_height = 180
-        gap = 10
+        cell_width = 300
+        cell_height = 160
+        gap = 8
         cols = 3
         rows = 3
         
         img_width = cols * cell_width + (cols + 1) * gap
-        img_height = rows * cell_height + (rows + 1) * gap + 80
+        img_height = rows * cell_height + (rows + 1) * gap + 60
         
         img = Image.new('RGB', (img_width, img_height), '#1A1A2E')
         draw = ImageDraw.Draw(img)
         
-        # Пробуем загрузить шрифты, fallback на дефолт
+        # Загружаем шрифты или используем дефолт
         try:
-            title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
-            emoji_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
-            small_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
-        except Exception:
+            title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 24)
+            header_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 18)
+            text_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 13)
+        except:
             try:
-                title_font = ImageFont.truetype("/usr/share/fonts/TTF/DejaVuSans-Bold.ttf", 28)
-                emoji_font = ImageFont.truetype("/usr/share/fonts/TTF/DejaVuSans.ttf", 20)
-                small_font = ImageFont.truetype("/usr/share/fonts/TTF/DejaVuSans.ttf", 14)
-            except Exception:
+                title_font = ImageFont.truetype("/usr/share/fonts/TTF/DejaVuSans-Bold.ttf", 24)
+                header_font = ImageFont.truetype("/usr/share/fonts/TTF/DejaVuSans.ttf", 18)
+                text_font = ImageFont.truetype("/usr/share/fonts/TTF/DejaVuSans.ttf", 13)
+            except:
                 title_font = ImageFont.load_default()
-                emoji_font = ImageFont.load_default()
-                small_font = ImageFont.load_default()
+                header_font = ImageFont.load_default()
+                text_font = ImageFont.load_default()
         
         # Заголовок
-        draw.text((img_width//2, 30), "BINGO CARD", fill='white', font=title_font, anchor="mm")
+        draw.text((img_width//2, 25), "BINGO CARD", fill='white', font=title_font, anchor="mm")
         
         cells = [
-            ("morning", "UTRO"),
-            ("plan", "PLAN"),
-            ("move", "DVIZHENIE"),
-            ("adventure1", "PRIKLYUCHENIE"),
-            ("frog", "LYAGUSHKA"),
-            ("random", "RANDOM"),
-            ("fear", "STRAH"),
-            ("challenge", "ISPYTANIE"),
-            ("expression", "PROYAVLENIE"),
+            ("morning", "UTRO", "#2E7D32"),
+            ("plan", "PLAN", "#1565C0"),
+            ("move", "DVIZHENIE", "#EF6C00"),
+            ("adventure1", "PRIKLYUCHENIE", "#00838F"),
+            ("frog", "LYAGUSHKA", "#C62828"),
+            ("random", "RANDOM", "#6A1B9A"),
+            ("fear", "STRAH", "#4527A0"),
+            ("challenge", "ISPYTANIE", "#D84315"),
+            ("expression", "PROYAVLENIE", "#AD1457"),
         ]
         
-        for idx, (cell_key, title) in enumerate(cells):
+        for idx, (cell_key, title, color) in enumerate(cells):
             row = idx // 3
             col = idx % 3
             
             x = gap + col * (cell_width + gap)
-            y = 60 + gap + row * (cell_height + gap)
+            y = 50 + gap + row * (cell_height + gap)
             
-            border_color, bg_color = BINGO_COLORS.get(cell_key, ("#666666", "#333333"))
+            # Фон карточки
             if cell_key in completed:
                 bg_color = "#1B5E20"
+            else:
+                bg_color = "#252540"
             
-            # Карточка
-            draw.rounded_rectangle([x, y, x + cell_width, y + cell_height], 
-                                   radius=12, outline=border_color, width=3, fill=bg_color)
+            # Прямоугольник (без скругления для совместимости)
+            draw.rectangle([x, y, x + cell_width, y + cell_height], outline=color, width=2, fill=bg_color)
             
-            # Заголовок карточки
-            draw.text((x + 15, y + 15), title, fill='white', font=emoji_font)
+            # Заголовок
+            draw.text((x + 10, y + 8), title, fill=color, font=header_font)
             
-            # Описание задания
+            # Описание
             task_text = tasks.get(cell_key, "Zadanie")
             task_text = task_text.replace("<b>", "").replace("</b>", "")
             
-            # Перенос строк простым способом
+            # Перенос строк
             words = task_text.split()
             lines = []
             current = ""
             for word in words:
                 test = current + " " + word if current else word
-                if len(test) < 32:
+                if len(test) < 30:
                     current = test
                 else:
                     lines.append(current)
@@ -458,15 +459,33 @@ def create_bingo_image(tasks: dict, completed: list) -> io.BytesIO:
             if current:
                 lines.append(current)
             
-            line_y = y + 55
+            line_y = y + 40
             for line in lines[:3]:
-                draw.text((x + 15, line_y), line, fill='#CCCCCC', font=small_font)
-                line_y += 18
+                draw.text((x + 10, line_y), line, fill='#BBBBBB', font=text_font)
+                line_y += 16
             
-            # Галочка выполненного
+            # Галочка
             if cell_key in completed:
-                draw.text((x + cell_width - 35, y + cell_height - 35), "OK", fill='#4CAF50', font=emoji_font)
+                draw.text((x + cell_width - 30, y + cell_height - 25), "V", fill='#4CAF50', font=header_font)
         
+        buffer = io.BytesIO()
+        img.save(buffer, format='PNG')
+        buffer.seek(0)
+        print("Image created successfully: {}x{}, {} bytes".format(img_width, img_height, len(buffer.getvalue())))
+        return buffer
+        
+    except Exception as e:
+        print("CRITICAL ERROR in create_bingo_image: {}".format(str(e)))
+        import traceback
+        traceback.print_exc()
+        # Возвращаем заглушку
+        img = Image.new('RGB', (400, 200), '#1A1A2E')
+        draw = ImageDraw.Draw(img)
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
+        except:
+            font = ImageFont.load_default()
+        draw.text((200, 100), "BINGO", fill='white', font=font, anchor="mm")
         buffer = io.BytesIO()
         img.save(buffer, format='PNG')
         buffer.seek(0)
