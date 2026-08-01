@@ -274,9 +274,15 @@ def build_bingo_keyboard(completed: list) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 # ==================== BINGO IMAGE ====================
+FONTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
+
 def _load_font(size: int):
-    """Try a few common truetype fonts, fall back to PIL's built-in bitmap font."""
+    """Prefer the font bundled with the bot (guaranteed Cyrillic support),
+    then fall back to common system paths, then to PIL's built-in bitmap font
+    (which cannot render Cyrillic — last resort only)."""
     for path in (
+        os.path.join(FONTS_DIR, "DejaVuSans-Bold.ttf"),
+        os.path.join(FONTS_DIR, "DejaVuSans.ttf"),
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "C:\\Windows\\Fonts\\arial.ttf",
@@ -540,7 +546,7 @@ async def handle_bingo_click(callback: CallbackQuery, state: FSMContext):
         [InlineKeyboardButton(text="« Назад к карте", callback_data="back_to_bingo")]
     ])
 
-    await callback.message.edit_text(task_text, parse_mode="HTML", reply_markup=kb)
+    await callback.message.edit_caption(caption=task_text, parse_mode="HTML", reply_markup=kb)
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("complete_"))
@@ -553,8 +559,8 @@ async def complete_task(callback: CallbackQuery):
 
     completed = get_completed_cells(user_id)
 
-    await callback.message.edit_text(
-        f"✅ <b>Клетка выполнена!</b>\n\n{task_text}\n\n"
+    await callback.message.edit_caption(
+        caption=f"✅ <b>Клетка выполнена!</b>\n\n{task_text}\n\n"
         f"Отличная работа! Продолжай в том же духе.",
         parse_mode="HTML"
     )
@@ -570,14 +576,29 @@ async def back_to_bingo(callback: CallbackQuery):
     await callback.answer()
 
 # ==================== PHOTO UPLOAD ====================
+@dp.callback_query(F.data == "upload_photo")
+async def request_general_photo(callback: CallbackQuery, state: FSMContext):
+    await state.update_data(photo_cell="general")
+    await state.set_state("waiting_photo")
+
+    await callback.message.edit_caption(
+        caption="📸 <b>Отправь фото</b>\n\n"
+        "Пришли снимок, который хочешь добавить на карту твоей жизни.",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="« Отмена", callback_data="back_to_bingo")]
+        ])
+    )
+    await callback.answer()
+
 @dp.callback_query(F.data.startswith("photo_"))
 async def request_photo(callback: CallbackQuery, state: FSMContext):
     cell = callback.data.replace("photo_", "")
     await state.update_data(photo_cell=cell)
     await state.set_state("waiting_photo")
 
-    await callback.message.edit_text(
-        "📸 <b>Отправь фото</b>\n\n"
+    await callback.message.edit_caption(
+        caption="📸 <b>Отправь фото</b>\n\n"
         "Сделай снимок, связанный с этим заданием. Я добавлю его на твою карту жизни.",
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
@@ -603,8 +624,8 @@ async def handle_photo(message: Message, state: FSMContext):
 @dp.callback_query(F.data == "diary_entry")
 async def diary_entry(callback: CallbackQuery, state: FSMContext):
     await state.set_state("waiting_diary")
-    await callback.message.edit_text(
-        "📝 <b>Запись в дневник</b>\n\n"
+    await callback.message.edit_caption(
+        caption="📝 <b>Запись в дневник</b>\n\n"
         "Напиши, что ты сделал сегодня, какие эмоции испытал, что узнал о себе.\n\n"
         "Это твой личный архив побед.",
         parse_mode="HTML",
