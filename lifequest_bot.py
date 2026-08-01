@@ -1,14 +1,16 @@
 # ============================================================
 # LIFQUEST BOT — Telegram Bot Template (aiogram 3.x)
-# Версия с Groq API через OpenAI-совместимый клиент
+# Версия с Groq API (бесплатный tier, без VPN)
 # ============================================================
 
 import asyncio
 import json
 import os
 import sqlite3
-import io
 from datetime import datetime, timedelta
+from io import BytesIO
+
+from PIL import Image, ImageDraw, ImageFont
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command, CommandStart
@@ -18,25 +20,27 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, 
     InlineKeyboardButton, ReplyKeyboardRemove, ContentType,
-    InputFile
+    BufferedInputFile
 )
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
-from openai import AsyncOpenAI
 
-# Для генерации изображений
-from PIL import Image, ImageDraw, ImageFont
+# Для Groq API (совместим с OpenAI SDK)
+from groq import AsyncGroq
 
 load_dotenv()
 
 # ==================== CONFIG ====================
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+BOT_TOKEN = os.getenv("BOT_TOKEN")  # @BotFather
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")  # console.groq.com
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
-client = AsyncOpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
+
+# Groq клиент (совместим с OpenAI API)
+client = AsyncGroq(api_key=GROQ_API_KEY)
+
 scheduler = AsyncIOScheduler()
 
 # ==================== DATABASE ====================
@@ -53,8 +57,7 @@ def init_db():
             profile TEXT,
             bingo_card TEXT,
             current_week INTEGER DEFAULT 1,
-            streak_days INTEGER DEFAULT 0,
-            personal_tasks TEXT
+            streak_days INTEGER DEFAULT 0
         )
     """)
     c.execute("""
@@ -107,21 +110,21 @@ def get_all_answers(user_id: int) -> dict:
     conn.close()
     return {row[0]: row[1] for row in rows}
 
-def save_user_profile(user_id: int, profile: str, bingo: str, tasks: str = None):
+def save_user_profile(user_id: int, profile: str, bingo: str):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("INSERT OR REPLACE INTO users (user_id, profile, bingo_card, personal_tasks) VALUES (?, ?, ?, ?)",
-              (user_id, profile, bingo, tasks))
+    c.execute("INSERT OR REPLACE INTO users (user_id, profile, bingo_card) VALUES (?, ?, ?)",
+              (user_id, profile, bingo))
     conn.commit()
     conn.close()
 
 def get_user_profile(user_id: int):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT profile, bingo_card, personal_tasks FROM users WHERE user_id = ?", (user_id,))
+    c.execute("SELECT profile, bingo_card FROM users WHERE user_id = ?", (user_id,))
     row = c.fetchone()
     conn.close()
-    return row if row else (None, None, None)
+    return row if row else (None, None)
 
 def save_completed_task(user_id: int, cell: str, text: str, photo_id: str = None, notes: str = None):
     conn = sqlite3.connect(DB_PATH)
@@ -149,91 +152,70 @@ def save_life_map_photo(user_id: int, photo_id: str, cell: str):
     conn.commit()
     conn.close()
 
-# ==================== SURVEY DATA (с короткими кнопками) ====================
+# ==================== SURVEY DATA ====================
 SURVEY_QUESTIONS = [
     {"id": "q1", "sphere": "❤️ Социальность", "question": "Как часто ты знакомишься с новыми людьми?",
-     "options_short": ["Никогда", "Раз в несколько мес", "Иногда", "Часто"],
      "options": [("Никогда. Мне комфортно в своём кругу.", 1), ("Раз в несколько месяцев. Случайно, неохотно.", 2),
                  ("Иногда. Когда обстоятельства складываются.", 3), ("Часто. Мне нравится открывать людей.", 4)]},
     {"id": "q2", "sphere": "❤️ Социальность", "question": "Какой вариант тебе ближе?",
-     "options_short": ["Хочу знакомств", "Хочу глубины", "Мне комфортно", "И новых, и глубины"],
      "options": [("Хочу больше знакомств, но не знаю как начать.", 1), ("Хочу глубже общаться с теми, кто уже рядом.", 2),
                  ("Мне комфортно как есть. Не хочу ничего менять.", 3), ("Хочу и новых людей, и глубины в старых связях.", 4)]},
     {"id": "q3", "sphere": "❤️ Социальность", "question": "Что чаще всего тебя останавливает в общении?",
-     "options_short": ["Не знаю как начать", "Боюсь показаться глупым", "Теряюсь в компаниях", "Редко возможности"],
      "options": [("Не знаю, как начать разговор. Замираю.", 1), ("Боюсь показаться навязчивым или глупым.", 2),
                  ("Не люблю большие компании. Теряюсь в них.", 3), ("Просто редко появляются возможности. Не ищу.", 4)]},
     {"id": "q4", "sphere": "🌍 Приключения", "question": "Сколько раз за последний месяц ты делал что-то впервые?",
-     "options_short": ["Ни разу", "1-2 раза", "Несколько раз", "Постоянно"],
      "options": [("Ни разу. Всё по накатанной.", 1), ("1–2 раза. Случайно, не специально.", 2),
                  ("Несколько раз. Иногда ловлю себя на новом.", 3), ("Постоянно. Ищу новое и цепляюсь за него.", 4)]},
     {"id": "q5", "sphere": "🌍 Приключения", "question": "Что тебе сейчас хочется?",
-     "options_short": ["Больше путешествий", "Больше спонтанности", "Ярких эмоций", "Красивых мест"],
      "options": [("Больше путешествий. Даже маленьких.", 1), ("Больше спонтанности. Чтобы жизнь удивляла.", 2),
                  ("Больше ярких эмоций. Чтобы сердце билось чаще.", 3), ("Больше красивых мест. Чтобы мир казался шире.", 4)]},
     {"id": "q6", "sphere": "🌍 Приключения", "question": "Что мешает тебе вырваться из рутины?",
-     "options_short": ["Деньги", "Время", "Страшно одному", "Нет идей"],
      "options": [("Деньги. Хочу, но не могу позволить.", 1), ("Время. Работа/учёба съедает всё.", 2),
                  ("Страшно одному. А с кем — непонятно.", 3), ("Не приходят идеи. Не знаю, что попробовать.", 4)]},
     {"id": "q7", "sphere": "💪 Смелость", "question": "Когда появляется возможность попробовать что-то новое...",
-     "options_short": ["Отказываюсь", "Думаю долго", "Иногда пробую", "Обычно пробую"],
      "options": [("Почти всегда отказываюсь. Нахожу отговорку.", 1), ("Думаю слишком долго. Пока думаю — момент уходит.", 2),
                  ("Иногда соглашаюсь. Если настроение правильное.", 3), ("Обычно пробую. Лучше пожалеть о попытке, чем о молчании.", 4)]},
     {"id": "q8", "sphere": "💪 Смелость", "question": "Где хотелось бы стать смелее?",
-     "options_short": ["В общении", "В работе/учёбе", "В отношениях", "В самовыражении"],
      "options": [("В общении. Сказать то, что думаю. Начать разговор.", 1), ("В работе/учёбе. Попросить повышения. Сказать «нет».", 2),
                  ("В отношениях. Открыться. Показать уязвимость.", 3), ("В самовыражении. Показать миру, кто я есть.", 4)]},
     {"id": "q9", "sphere": "💪 Смелость", "question": "Что пугает сильнее всего?",
-     "options_short": ["Ошибиться", "Получить отказ", "Выглядеть глупо", "Потратить время"],
      "options": [("Ошибиться. И потом жить с этим.", 1), ("Получить отказ. Быть отвергнутым.", 2),
                  ("Выглядеть глупо. Что подумают другие.", 3), ("Потратить время впустую. А вдруг не стоило?", 4)]},
     {"id": "q10", "sphere": "🧠 Саморазвитие", "question": "Что чаще происходит с твоими начинаниями?",
-     "options_short": ["Начинаю и бросаю", "Откладываю", "Учусь понемногу", "Регулярно развиваюсь"],
      "options": [("Начинаю и бросаю. Снова. И снова. Устал от этого.", 1), ("Постоянно откладываю. «Начну с понедельника».", 2),
                  ("Учусь понемногу. Медленно, но не бросаю.", 3), ("Регулярно развиваюсь. Нашёл свой ритм.", 4)]},
     {"id": "q11", "sphere": "🧠 Саморазвитие", "question": "Чему давно хочется научиться, но руки не доходят?",
-     "options_short": ["Творческому", "Физическому", "Интеллектуальному", "Не знаю что"],
      "options": [("Чему-то творческому. Рисовать, писать, музыка, фото.", 1), ("Физическому. Танцы, спорт, йога, вёрстка.", 2),
                  ("Интеллектуальному. Язык, программирование, наука.", 3), ("Ничему конкретному. Не знаю, что меня зажжёт.", 4)]},
     {"id": "q12", "sphere": "🧠 Саморазвитие", "question": "Что обычно мешает?",
-     "options_short": ["Нет времени", "Нет дисциплины", "Паралич выбора", "Теряю интерес"],
      "options": [("Нет времени. Жизнь съедает всё.", 1), ("Нет дисциплины. Не могу заставить себя.", 2),
                  ("Не знаю, с чего начать. Паралич выбора.", 3), ("Быстро теряю интерес. Зажигаюсь и гасну.", 4)]},
     {"id": "q13", "sphere": "⚡ Энергия", "question": "Что сейчас чаще всего?",
-     "options_short": ["Скука", "Усталость", "Тревога", "Рутина"],
      "options": [("Скука. Дни сливаются в одно серое пятно.", 1), ("Усталость. Даже отдых не восстанавливает.", 2),
                  ("Тревога. Мысли крутятся, не дают покоя.", 3), ("Рутина. Всё по расписанию, но без души.", 4)]},
     {"id": "q14", "sphere": "⚡ Энергия", "question": "Чего не хватает?",
-     "options_short": ["Азарта", "Спокойствия", "Вдохновения", "Радости"],
      "options": [("Азарта. Чтобы хотелось просыпаться утром.", 1), ("Спокойствия. Чтобы голова внутри затихла.", 2),
                  ("Вдохновения. Чтобы глаза снова горели.", 3), ("Радости. Чтобы было за что улыбаться.", 4)]},
     {"id": "q15", "sphere": "⚡ Энергия", "question": "После какого дня ты обычно чувствуешь себя живым?",
-     "options_short": ["После общения", "После спорта", "После путешествия", "После творчества", "После отдыха"],
      "options": [("После общения. Когда по-настоящему поговорил.", 1), ("После спорта. Когда тело напомнило, что оно есть.", 2),
                  ("После путешествия. Даже маленького. Даже в соседний район.", 3), ("После творчества. Когда создал что-то своё руками.", 4),
                  ("После спокойного отдыха. Когда никто не трогал.", 5)]},
     {"id": "q16", "sphere": "📋 Дисциплина", "question": "Как ты относишься к обещаниям, которые даёшь самому себе?",
-     "options_short": ["Не верю себе", "Слабо доверяю", "Умеренно", "Полностью доверяю"],
      "options": [("Не верю себе. Уже столько раз обещал и не сделал.", 1), ("Слабо доверяю. Иногда получается, чаще — нет.", 2),
                  ("Умеренно. Стараюсь, но бывают провалы.", 3), ("Полностью доверяю. Если сказал — сделаю.", 4)]},
     {"id": "q17", "sphere": "📋 Дисциплина", "question": "Сколько у тебя «висящих» дел, которые давно надо закрыть?",
-     "options_short": ["Гора дел", "Несколько штук", "Почти всё сделано", "Всё под контролем"],
      "options": [("Гора. Давно перестал считать. Тревожит.", 1), ("Несколько штук. Висят, но не мешают сильно.", 2),
                  ("Почти всё сделано. Немного осталось.", 3), ("Всё под контролем. Голова чистая.", 4)]},
     {"id": "q18", "sphere": "📋 Дисциплина", "question": "Как ты обычно начинаешь утро?",
-     "options_short": ["В телефон", "В спешке", "По привычке", "Осознанно"],
      "options": [("В телефон. Листаю ленту, не замечая, как проходит час.", 1), ("В спешке. Опоздал, всё на бегу, нет времени подумать.", 2),
                  ("По привычке. Кофе, душ, работа. Автопилот.", 3), ("Осознанно. Есть ритуал, который заряжает.", 4)]},
     {"id": "q19", "sphere": "🎨 Творчество", "question": "Когда последний раз ты делал что-то руками, не для работы?",
-     "options_short": ["Не помню", "Месяц назад", "Неделю назад", "Недавно"],
      "options": [("Не помню. Всё кажется бессмысленным.", 1), ("Месяц назад. Было приятно, но не повторял.", 2),
                  ("Неделю назад. Иногда тянет, но редко.", 3), ("Недавно. Творчество — мой способ дышать.", 4)]},
     {"id": "q20", "sphere": "🎨 Творчество", "question": "Есть ли у тебя способ выразить себя, когда слов не хватает?",
-     "options_short": ["Нет", "Было, забросил", "Есть, но редко", "Да, часто"],
      "options": [("Нет. Не знаю, как выразить то, что внутри.", 1), ("Было, но забросил. Давно не возвращался.", 2),
                  ("Есть, но редко. Когда настроение особенное.", 3), ("Да. Это часть меня. Не могу без этого.", 4)]},
     {"id": "q21", "sphere": "🎨 Творчество", "question": "Как ты относишься к выходу из зоны комфорта?",
-     "options_short": ["Боюсь", "Неохотно", "Стараюсь", "Люблю"],
      "options": [("Боюсь. Зона комфорта — моя крепость. Там безопасно.", 1), ("Неохотно. Но понимаю, что без этого — тупик.", 2),
                  ("Стараюсь. Шаг за шагом. Не всегда получается.", 3), ("Люблю. Там, где страшно — там и рост.", 4)]},
 ]
@@ -257,23 +239,31 @@ STATE_MAP = {
 }
 
 # ==================== KEYBOARD BUILDER ====================
-def build_question_keyboard(q_id: str, options: list, options_short: list) -> InlineKeyboardMarkup:
+def build_question_keyboard(q_id: str, options: list) -> InlineKeyboardMarkup:
     buttons = []
-    for short, (_, value) in zip(options_short, options):
-        buttons.append([InlineKeyboardButton(text=short, callback_data="{}_{}".format(q_id, value))])
+    for text, value in options:
+        buttons.append([InlineKeyboardButton(text=text, callback_data=f"{q_id}_{value}")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
+# (emoji_label, plain_label_for_image, callback_data_key)
+BINGO_CELLS = [
+    ("🌅 Утро", "Утро", "cell_morning"),
+    ("📋 План", "План", "cell_plan"),
+    ("💪 Движение", "Движение", "cell_move"),
+    ("🌍 Приключение", "Приключение", "cell_adventure1"),
+    ("🐸 ЛЯГУШКА", "ЛЯГУШКА", "cell_frog"),
+    ("🎲 Рандом", "Рандом", "cell_random"),
+    ("😨 Страх", "Страх", "cell_fear"),
+    ("🔥 Испытание", "Испытание", "cell_challenge"),
+    ("✨ Проявление", "Проявление", "cell_expression"),
+]
+
 def build_bingo_keyboard(completed: list) -> InlineKeyboardMarkup:
-    cells = [
-        ("🌅 Утро", "cell_morning"), ("📋 План", "cell_plan"), ("💪 Движение", "cell_move"),
-        ("🌍 Приключение", "cell_adventure1"), ("🐸 ЛЯГУШКА", "cell_frog"), ("🎲 Рандом", "cell_random"),
-        ("😨 Страх", "cell_fear"), ("🔥 Испытание", "cell_challenge"), ("✨ Проявление", "cell_expression"),
-    ]
     buttons = []
     row = []
-    for i, (text, data) in enumerate(cells):
+    for i, (text, _plain, data) in enumerate(BINGO_CELLS):
         prefix = "✅ " if data in completed else ""
-        row.append(InlineKeyboardButton(text="{}{}".format(prefix, text), callback_data="bingo_{}".format(data)))
+        row.append(InlineKeyboardButton(text=f"{prefix}{text}", callback_data=f"bingo_{data}"))
         if (i + 1) % 3 == 0:
             buttons.append(row)
             row = []
@@ -282,6 +272,70 @@ def build_bingo_keyboard(completed: list) -> InlineKeyboardMarkup:
     buttons.append([InlineKeyboardButton(text="📸 Отправить фото на карту жизни", callback_data="upload_photo")])
     buttons.append([InlineKeyboardButton(text="📝 Запись в дневник", callback_data="diary_entry")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+# ==================== BINGO IMAGE ====================
+def _load_font(size: int):
+    """Try a few common truetype fonts, fall back to PIL's built-in bitmap font."""
+    for path in (
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "C:\\Windows\\Fonts\\arial.ttf",
+    ):
+        try:
+            return ImageFont.truetype(path, size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+def generate_bingo_image(completed: list) -> BytesIO:
+    """Draws the 3x3 bingo card as a PNG and returns it as an in-memory buffer."""
+    cell_size = 280
+    padding = 20
+    grid_size = cell_size * 3 + padding * 4
+
+    img = Image.new("RGB", (grid_size, grid_size), "#1e1e2e")
+    draw = ImageDraw.Draw(img)
+
+    title_font = _load_font(26)
+    check_font = _load_font(48)
+
+    for i, (_emoji_label, label, data) in enumerate(BINGO_CELLS):
+        row, col = divmod(i, 3)
+        x0 = padding + col * (cell_size + padding)
+        y0 = padding + row * (cell_size + padding)
+        x1, y1 = x0 + cell_size, y0 + cell_size
+
+        is_done = data in completed
+        fill = "#2e7d32" if is_done else "#3a3a52"
+        draw.rounded_rectangle([x0, y0, x1, y1], radius=16, fill=fill, outline="#6c6c8c", width=2)
+
+        # word-wrap the label to fit the cell
+        words = label.split()
+        lines, line = [], ""
+        for w in words:
+            test = f"{line} {w}".strip()
+            if draw.textlength(test, font=title_font) > cell_size - 30:
+                lines.append(line)
+                line = w
+            else:
+                line = test
+        if line:
+            lines.append(line)
+
+        line_height = title_font.size + 6
+        ty = y0 + (cell_size - line_height * len(lines)) // 2
+        for ln in lines:
+            tw = draw.textlength(ln, font=title_font)
+            draw.text((x0 + (cell_size - tw) / 2, ty), ln, font=title_font, fill="white")
+            ty += line_height
+
+        if is_done:
+            draw.text((x1 - 55, y0 + 10), "✓", font=check_font, fill="#a5d6a7")
+
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return buf
 
 # ==================== WELCOME ====================
 WELCOME_TEXT = """🗺️ <b>Добро пожаловать в LifeQuest</b>
@@ -312,12 +366,12 @@ async def cmd_start(message: Message, state: FSMContext):
 async def start_survey(callback: CallbackQuery, state: FSMContext):
     await state.set_state(SurveyStates.q1)
     q = SURVEY_QUESTIONS[0]
-    options_text = "\n".join(["{}. {}".format(i+1, opt[0]) for i, opt in enumerate(q["options"])])
-    text = "🧭 <b>Диагностика: где ты сейчас?</b>\n\n<b>" + q["sphere"] + "</b>\n\n" + q["question"] + "\n\n" + options_text
     await callback.message.edit_text(
-        text,
+        f"🧭 <b>Диагностика: где ты сейчас?</b>\n\n"
+        "<b>" + q["sphere"] + "</b>\n\n"
+        f"{q['question']}",
         parse_mode="HTML",
-        reply_markup=build_question_keyboard(q["id"], q["options"], q["options_short"])
+        reply_markup=build_question_keyboard(q["id"], q["options"])
     )
 
 @dp.callback_query(F.data.startswith("q"))
@@ -342,7 +396,7 @@ async def handle_survey_answer(callback: CallbackQuery, state: FSMContext):
     if next_idx >= len(SURVEY_QUESTIONS):
         await state.set_state(SurveyStates.analyzing)
         await callback.message.edit_text(
-            "🧠 <b>Анализирую твои ответы...</b>\n"
+            "🧠 <b>Анализирую твои ответы...</b>\n\n"
             "Создаю персональный профиль и бинго-карту. Это займёт несколько секунд.",
             parse_mode="HTML"
         )
@@ -353,340 +407,136 @@ async def handle_survey_answer(callback: CallbackQuery, state: FSMContext):
         next_state = list(STATE_MAP.keys())[list(STATE_MAP.values()).index(next_idx)]
         await state.set_state(next_state)
 
-        progress = "\n<i>Вопрос {} из {}</i>".format(next_idx + 1, len(SURVEY_QUESTIONS))
-        options_text = "\n".join(["{}. {}".format(i+1, opt[0]) for i, opt in enumerate(next_q["options"])])
-        text = "🧭 <b>Диагностика: где ты сейчас?</b>" + progress + "\n\n<b>" + next_q["sphere"] + "</b>\n\n" + next_q["question"] + "\n\n" + options_text
+        progress = f"\n\n<i>Вопрос {next_idx + 1} из {len(SURVEY_QUESTIONS)}</i>"
         await callback.message.edit_text(
-            text,
+            f"🧭 <b>Диагностика: где ты сейчас?</b>{progress}\n\n"
+            "<b>" + next_q["sphere"] + "</b>\n\n"
+            f"{next_q['question']}",
             parse_mode="HTML",
-            reply_markup=build_question_keyboard(next_q["id"], next_q["options"], next_q["options_short"])
+            reply_markup=build_question_keyboard(next_q["id"], next_q["options"])
         )
 
     await callback.answer()
 
-# ==================== IMAGE GENERATION ====================
-BINGO_COLORS = {
-    "morning": ("#2E7D32", "#E8F5E9"),    # Зелёный
-    "plan": ("#1565C0", "#E3F2FD"),       # Синий
-    "move": ("#EF6C00", "#FFF3E0"),       # Оранжевый
-    "adventure1": ("#00838F", "#E0F7FA"), # Бирюзовый
-    "frog": ("#C62828", "#FFEBEE"),       # Красный
-    "random": ("#6A1B9A", "#F3E5F5"),     # Фиолетовый
-    "fear": ("#4527A0", "#EDE7F6"),       # Тёмно-фиолетовый
-    "challenge": ("#D84315", "#FBE9E7"),  # Оранжево-красный
-    "expression": ("#AD1457", "#FCE4EC"), # Розовый
+# ==================== GROQ GENERATION ====================
+BINGO_TEMPLATE = {
+    "morning": """🌅 <b>Утро</b>
+Первые 30 минут после пробуждения — без телефона. Сделай 5 глубоких вдохов. Выпей воды. Напиши 1 мысль, которая пришла в голову.""",
+    "plan": """📋 <b>План</b>
+Выпиши 1 долгосрочную цель, на которой хочешь сконцентрироваться. Разбей на 3 шага на эту неделю. Запиши в дневник.""",
+    "move": """💪 <b>Движение</b>
+15 минут растяжки или прогулка без цели. Или танцуй под 3 любимые песни. Движение как медитация.""",
+    "adventure1": """🌍 <b>Приключение</b>
+Дойди до незнакомого места в радиусе 3 км. Посиди там 15 мин без телефона. Наблюдай. Запиши 1 новое наблюдение.""",
+    "frog": """🐸 <b>ЛЯГУШКА</b>
+Закрой самое тяжёлое висящее дело, которое тревожит больше недели. Сделай это первым делом в один из дней. Не откладывай.""",
+    "random": """🎲 <b>Рандом</b>
+Выйди на улицу и попроси прохожего назвать самое красивое место поблизости. Дойди туда. Сделай 1 фото. Запиши, что он сказал.""",
+    "fear": """😨 <b>Страх</b>
+Сделай то, что давно боишься: звонок важному человеку, признание, первый шаг к цели. Не ищи идеального момента — просто начни.""",
+    "challenge": """🔥 <b>Испытание</b>
+Согласись на то, что обычно отклонил бы. Или скажи «да» спонтанному предложению. Даже если неуверен. Запиши, что произошло.""",
+    "expression": """✨ <b>Проявление</b>
+Создай что-то руками: нарисуй, напиши 10 строк стиха, сделай коллаж, запиши голосовое послание себе. Не для кого. Для себя. Зафиксируй в дневнике.""",
 }
 
-def create_bingo_image(tasks: dict, completed: list) -> io.BytesIO:
-    """Генерирует PNG-картинку бинго-карты"""
-    try:
-        cell_width = 300
-        cell_height = 160
-        gap = 8
-        cols = 3
-        rows = 3
-        
-        img_width = cols * cell_width + (cols + 1) * gap
-        img_height = rows * cell_height + (rows + 1) * gap + 60
-        
-        img = Image.new('RGB', (img_width, img_height), '#1A1A2E')
-        draw = ImageDraw.Draw(img)
-        
-        # Загружаем шрифты или используем дефолт
-        try:
-            title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 24)
-            header_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 18)
-            text_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 13)
-        except:
-            try:
-                title_font = ImageFont.truetype("/usr/share/fonts/TTF/DejaVuSans-Bold.ttf", 24)
-                header_font = ImageFont.truetype("/usr/share/fonts/TTF/DejaVuSans.ttf", 18)
-                text_font = ImageFont.truetype("/usr/share/fonts/TTF/DejaVuSans.ttf", 13)
-            except:
-                title_font = ImageFont.load_default()
-                header_font = ImageFont.load_default()
-                text_font = ImageFont.load_default()
-        
-        # Заголовок
-        draw.text((img_width//2, 25), "BINGO CARD", fill='white', font=title_font, anchor="mm")
-        
-        cells = [
-            ("morning", "UTRO", "#2E7D32"),
-            ("plan", "PLAN", "#1565C0"),
-            ("move", "DVIZHENIE", "#EF6C00"),
-            ("adventure1", "PRIKLYUCHENIE", "#00838F"),
-            ("frog", "LYAGUSHKA", "#C62828"),
-            ("random", "RANDOM", "#6A1B9A"),
-            ("fear", "STRAH", "#4527A0"),
-            ("challenge", "ISPYTANIE", "#D84315"),
-            ("expression", "PROYAVLENIE", "#AD1457"),
-        ]
-        
-        for idx, (cell_key, title, color) in enumerate(cells):
-            row = idx // 3
-            col = idx % 3
-            
-            x = gap + col * (cell_width + gap)
-            y = 50 + gap + row * (cell_height + gap)
-            
-            # Фон карточки
-            if cell_key in completed:
-                bg_color = "#1B5E20"
-            else:
-                bg_color = "#252540"
-            
-            # Прямоугольник (без скругления для совместимости)
-            draw.rectangle([x, y, x + cell_width, y + cell_height], outline=color, width=2, fill=bg_color)
-            
-            # Заголовок
-            draw.text((x + 10, y + 8), title, fill=color, font=header_font)
-            
-            # Описание
-            task_text = tasks.get(cell_key, "Zadanie")
-            task_text = task_text.replace("<b>", "").replace("</b>", "")
-            
-            # Перенос строк
-            words = task_text.split()
-            lines = []
-            current = ""
-            for word in words:
-                test = current + " " + word if current else word
-                if len(test) < 30:
-                    current = test
-                else:
-                    lines.append(current)
-                    current = word
-            if current:
-                lines.append(current)
-            
-            line_y = y + 40
-            for line in lines[:3]:
-                draw.text((x + 10, line_y), line, fill='#BBBBBB', font=text_font)
-                line_y += 16
-            
-            # Галочка
-            if cell_key in completed:
-                draw.text((x + cell_width - 30, y + cell_height - 25), "V", fill='#4CAF50', font=header_font)
-        
-        buffer = io.BytesIO()
-        img.save(buffer, format='PNG')
-        buffer.seek(0)
-        print("Image created successfully: {}x{}, {} bytes".format(img_width, img_height, len(buffer.getvalue())))
-        return buffer
-        
-    except Exception as e:
-        print("CRITICAL ERROR in create_bingo_image: {}".format(str(e)))
-        import traceback
-        traceback.print_exc()
-        # Возвращаем заглушку
-        img = Image.new('RGB', (400, 200), '#1A1A2E')
-        draw = ImageDraw.Draw(img)
-        try:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
-        except:
-            font = ImageFont.load_default()
-        draw.text((200, 100), "BINGO", fill='white', font=font, anchor="mm")
-        buffer = io.BytesIO()
-        img.save(buffer, format='PNG')
-        buffer.seek(0)
-        return buffer
-        
-    except Exception as e:
-        print("ERROR in create_bingo_image: {}".format(str(e)))
-        # Возвращаем пустую картинку-заглушку
-        img = Image.new('RGB', (400, 200), '#1A1A2E')
-        draw = ImageDraw.Draw(img)
-        font = ImageFont.load_default()
-        draw.text((200, 100), "BINGO CARD", fill='white', font=font, anchor="mm")
-        buffer = io.BytesIO()
-        img.save(buffer, format='PNG')
-        buffer.seek(0)
-        return buffer
-
-# ==================== GROQ GENERATION ====================
 async def generate_and_send_profile(message, user_id: int):
     answers = get_all_answers(user_id)
     answers_json = json.dumps(answers, ensure_ascii=False)
 
-    # Промпт для профиля (обращение на "ты")
-    profile_prompt = "Ты — LifeQuest, тёплый и внимательный коуч.\nПроанализируй ответы пользователя и напиши профиль, обращаясь к нему напрямую на 'ты'.\nИспользуй тёплый, поддерживающий тон. Не диагностируй, а делись наблюдениями.\nУкажи одну сильную сторону и одну зону роста.\n\nОтветы пользователя:\n" + answers_json + "\n\nНапиши 2-3 предложения. Обращайся к нему лично."
+    prompt = f"""Ты — LifeQuest бот. Пользователь прошёл опрос из 21 вопроса.
+Вот его ответы (1-4 шкала, где 1 = минимум, 4 = максимум):
+{answers_json}
 
-    # Промпт для оценок сфер
-    scores_prompt = "На основе этих ответов (1-4 шкала) оцени 7 сфер жизни в процентах (0-100).\nСферы: social, adventure, courage, growth, energy, discipline, creativity.\nВерни ТОЛЬКО JSON с английскими ключами: {\"social\": 58, \"adventure\": 83, \"courage\": 67, \"growth\": 75, \"energy\": 92, \"discipline\": 42, \"creativity\": 70}\n\nОтветы:\n" + answers_json
+Создай:
+1. Психологический профиль — 1 тёплый абзац (2-3 предложения). Не диагноз, а наблюдение. Укажи одну особенность, которую заметил. Объясни, почему именно такие задания подойдут.
+2. Бар-чарт по 7 сферам в процентах (0-100%). Сферы: Социальность, Приключения, Смелость, Саморазвитие, Энергия, Дисциплина, Творчество.
 
-    # Промпт для персональных заданий
-    tasks_prompt = "Ты — LifeQuest, мотивационный коуч и игровой дизайнер.\nСоздай 9 персональных челленджей для бинго-карты на неделю.\n\nПрофиль пользователя:\n" + answers_json + "\n\nПравила:\n1. Каждое задание конкретное, выполнимое за 1 день\n2. Учитывай слабые сферы — там чуть сложнее\n3. Учитывай сильные сферы — там для закрепления\n4. Добавь элемент игры или случайности\n5. Формат: короткое описание (1-2 предложения)\n\nВерни JSON в формате:\n{\n  \"morning\": \"30 мин без телефона после пробуждения. Выпей воды, сделай 5 вдохов.\",\n  \"plan\": \"Запиши 3 дела на завтра. Одно — то, что откладывал больше недели.\",\n  \"move\": \"15 мин растяжки или прогулка без цели. Не слушай подкасты — просто иди.\",\n  \"adventure1\": \"Дойди до незнакомого места в радиусе 3 км. Посиди там 15 мин без телефона.\",\n  \"frog\": \"Закрой самое тяжёлое висящее дело. Сделай фото 'до/после'.\",\n  \"random\": \"Кинь кубик: 1-3 = приготовь новое блюдо, 4-6 = новый маршрут домой.\",\n  \"fear\": \"Сделай то, что давно боишься: звонок, разговор, первый шаг. Отметь в дневнике.\",\n  \"challenge\": \"Согласись на спонтанное предложение сегодня. Или сам предложи кому-то встречу.\",\n  \"expression\": \"Опубликуй что-то своё без фильтров: рисунок, мысль, фото. Честно. Для себя.\"\n}"
+Верни ТОЛЬКО JSON в таком формате:
+{{"profile_text": "...", "scores": {{"Социальность": 58, "Приключения": 83, ...}}}}"""
 
     try:
-        print("Starting profile generation for user {}".format(user_id))
-        
-        # Генерируем профиль с таймаутом
-        profile_response = await asyncio.wait_for(
-            client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "user", "content": profile_prompt}],
-                temperature=0.7,
-                max_tokens=300
-            ),
-            timeout=30.0
+        # Используем Groq API (Llama 3 70B — бесплатный tier)
+        response = await client.chat.completions.create(
+            model="llama-3.3-70b-versatile",  # или "mixtral-8x7b-32768" для ещё большей скорости
+            messages=[
+                {"role": "system", "content": "Ты — тёплый, психологически грамотный бот. Пишешь на русском. Не используешь ярлыки."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=800
         )
-        profile_text = profile_response.choices[0].message.content.strip()
-        print("Profile generated successfully")
 
-        # Генерируем оценки с таймаутом
-        scores_response = await asyncio.wait_for(
-            client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "user", "content": scores_prompt}],
-                temperature=0.3,
-                max_tokens=200
-            ),
-            timeout=30.0
-        )
-        scores_content = scores_response.choices[0].message.content
-        print("Scores raw response: {}".format(scores_content[:200]))
-        
-        # Извлекаем JSON
-        json_start = scores_content.find("{")
-        json_end = scores_content.rfind("}") + 1
-        if json_start == -1 or json_end == 0:
-            raise ValueError("No JSON found in scores response")
-        scores_raw = json.loads(scores_content[json_start:json_end])
-        
-        # Маппим английские ключи на русские для отображения
-        key_mapping = {
-            "social": "Социальность",
-            "adventure": "Приключения",
-            "courage": "Смелость",
-            "growth": "Саморазвитие",
-            "energy": "Энергия",
-            "discipline": "Дисциплина",
-            "creativity": "Творчество"
-        }
-        scores = {}
-        for eng, rus in key_mapping.items():
-            scores[rus] = scores_raw.get(eng, 50)
-        print("Scores parsed successfully: {}".format(scores))
+        content = response.choices[0].message.content
+        # Извлекаем JSON из ответа
+        json_start = content.find("{")
+        json_end = content.rfind("}") + 1
+        result = json.loads(content[json_start:json_end])
 
-        # Генерируем персональные задания с таймаутом
-        tasks_response = await asyncio.wait_for(
-            client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "user", "content": tasks_prompt}],
-                temperature=0.8,
-                max_tokens=800
-            ),
-            timeout=30.0
-        )
-        tasks_content = tasks_response.choices[0].message.content
-        print("Tasks raw response: {}".format(tasks_content[:200]))
-        
-        json_start = tasks_content.find("{")
-        json_end = tasks_content.rfind("}") + 1
-        if json_start == -1 or json_end == 0:
-            raise ValueError("No JSON found in tasks response")
-        personal_tasks = json.loads(tasks_content[json_start:json_end])
-        print("Tasks parsed successfully")
+        profile_text = result.get("profile_text", "Профиль создан.")
+        scores = result.get("scores", {})
 
         # Формируем текст профиля
-        scores_lines = []
-        for k, v in scores.items():
-            filled = '█' * int(v/10)
-            empty = '░' * (10 - int(v/10))
-            scores_lines.append("{} {}{} {}%".format(k, filled, empty, v))
-        scores_text = "\n".join(scores_lines)
+        scores_text = "\n".join([
+            f"{k} {'█' * int(v/10)}{'░' * (10-int(v/10))} {v}%"
+            for k, v in scores.items()
+        ])
 
-        full_profile = "🎯 <b>Твой профиль</b>\n\n" + profile_text + "\n\n📊 <b>Сферы:</b>\n<pre>" + scores_text + "</pre>\n\n<i>Теперь — твоя персональная бинго-карта на неделю!</i>"
+        full_profile = f"""🎯 <b>Твой профиль</b>
 
-        save_user_profile(user_id, profile_text, json.dumps(scores), json.dumps(personal_tasks))
+{profile_text}
+
+📊 <b>Сферы:</b>
+<pre>{scores_text}</pre>
+
+<i>Теперь — твоя бинго-карта на неделю. Выполняй в любом порядке. Зачеркивай клетки.</i>"""
+
+        save_user_profile(user_id, profile_text, json.dumps(scores))
 
         await message.edit_text(full_profile, parse_mode="HTML")
 
-        # Отправляем бинго-карту
-        await send_bingo_card(message, user_id, personal_tasks)
+        # Отправляем бинго-карту отдельным сообщением
+        await send_bingo_card(message, user_id)
 
-    except asyncio.TimeoutError:
-        print("TIMEOUT: Groq API took too long for user {}".format(user_id))
-        await message.edit_text(
-            "⏱ <b>ИИ думает слишком долго...</b>\n\n"
-            "Попробую отправить упрощённую версию. Нажми /start, чтобы пройти опрос заново.",
-            parse_mode="HTML"
-        )
     except Exception as e:
-        print("Error generating profile: {}".format(str(e)))
-        # Fallback
-        fallback_scores = {
-            "Социальность": 50, "Приключения": 50, "Смелость": 50,
-            "Саморазвитие": 50, "Энергия": 50, "Дисциплина": 50, "Творчество": 50
-        }
-        fallback_tasks = {
-            "morning": "30 мин без телефона после пробуждения",
-            "plan": "Запиши 3 дела на день. 1 — то, что откладывал",
-            "move": "15 мин растяжки или прогулка без цели",
-            "adventure1": "Дойди до незнакомого места в радиусе 3 км",
-            "frog": "Закрой самое тяжёлое висящее дело. Фото «до/после»",
-            "random": "Кинь кубик: 1-3 = новое блюдо, 4-6 = новый маршрут",
-            "fear": "Сделай то, что давно боишься: звонок, разговор, шаг",
-            "challenge": "Согласись на спонтанное предложение. Или скажи «да»",
-            "expression": "Опубликуй что-то своё без фильтров. Честно. Для себя",
-        }
+        print(f"Error generating profile: {e}")
+        # Fallback — отправляем шаблонную карту
         await message.edit_text(
             "🎯 <b>Твой профиль</b>\n\n"
-            "Я вижу, что ты хочешь ярких впечатлений, но между желанием и действием стоит страх ошибки. "
+            "Я заметил одну особенность: ты хочешь ярких впечатлений, но между желанием и действием стоит страх ошибки. "
             "Поэтому задания подобраны так, чтобы начать с малого и постепенно расширить твою зону возможностей.\n\n"
             "🎲 <b>Твоя бинго-карта на неделю:</b>",
             parse_mode="HTML"
         )
-        save_user_profile(user_id, "Профиль создан.", json.dumps(fallback_scores), json.dumps(fallback_tasks))
-        await send_bingo_card(message, user_id, fallback_tasks)
+        await send_bingo_card(message, user_id)
 
-async def send_bingo_card(message, user_id: int, tasks: dict = None):
+async def send_bingo_card(message, user_id: int):
     completed = get_completed_cells(user_id)
-    
-    if tasks is None:
-        _, _, tasks_json = get_user_profile(user_id)
-        tasks = json.loads(tasks_json) if tasks_json else {}
+    image_buf = generate_bingo_image(completed)
 
-    try:
-        print("Creating bingo image for user {}".format(user_id))
-        # Генерируем картинку
-        img_buffer = create_bingo_image(tasks, completed)
-        print("Bingo image created, size: {} bytes".format(len(img_buffer.getvalue())))
-        
-        # Отправляем фото с кнопками
-        await message.answer_photo(
-            photo=InputFile(img_buffer, filename="bingo.png"),
-            caption="🎯 <b>Твоя бинго-карта на неделю</b>\n\nНажми на клетку, чтобы отметить выполнение 👇",
-            parse_mode="HTML",
-            reply_markup=build_bingo_keyboard(completed)
-        )
-        print("Bingo card sent successfully")
-    except Exception as e:
-        print("ERROR sending bingo card: {}".format(str(e)))
-        # Fallback - отправляем текстом
-        await message.answer(
-            "🎯 <b>Твоя бинго-карта на неделю</b>\n\n"
-            "Утро | План | Движение\n"
-            "Приключение | ЛЯГУШКА | Рандом\n"
-            "Страх | Испытание | Проявление\n\n"
-            "Нажми на клетку ниже 👇",
-            parse_mode="HTML",
-            reply_markup=build_bingo_keyboard(completed)
-        )
+    caption = (
+        "🎲 <b>Бинго-карта на неделю</b>\n\n"
+        "Нажми на клетку, чтобы отметить выполнение 👇"
+    )
+
+    await message.answer_photo(
+        photo=BufferedInputFile(image_buf.read(), filename="bingo.png"),
+        caption=caption,
+        parse_mode="HTML",
+        reply_markup=build_bingo_keyboard(completed)
+    )
 
 # ==================== BINGO INTERACTION ====================
 @dp.callback_query(F.data.startswith("bingo_cell_"))
 async def handle_bingo_click(callback: CallbackQuery, state: FSMContext):
     cell = callback.data.replace("bingo_cell_", "")
     user_id = callback.from_user.id
-    
-    _, _, tasks_json = get_user_profile(user_id)
-    tasks = json.loads(tasks_json) if tasks_json else {}
-    task_text = tasks.get(cell, "Zadanie")
+
+    task_text = BINGO_TEMPLATE.get(cell, "Задание")
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Выполнено!", callback_data="complete_{}".format(cell))],
-        [InlineKeyboardButton(text="📸 Прикрепить фото", callback_data="photo_{}".format(cell))],
+        [InlineKeyboardButton(text="✅ Выполнено!", callback_data=f"complete_{cell}")],
+        [InlineKeyboardButton(text="📸 Прикрепить фото", callback_data=f"photo_{cell}")],
         [InlineKeyboardButton(text="« Назад к карте", callback_data="back_to_bingo")]
     ])
 
@@ -697,34 +547,26 @@ async def handle_bingo_click(callback: CallbackQuery, state: FSMContext):
 async def complete_task(callback: CallbackQuery):
     cell = callback.data.replace("complete_", "")
     user_id = callback.from_user.id
-    
-    _, _, tasks_json = get_user_profile(user_id)
-    tasks = json.loads(tasks_json) if tasks_json else {}
-    task_text = tasks.get(cell, "Zadanie")
+    task_text = BINGO_TEMPLATE.get(cell, "Задание")
 
     save_completed_task(user_id, cell, task_text)
 
     completed = get_completed_cells(user_id)
 
     await callback.message.edit_text(
-        "✅ <b>Клетка выполнена!</b>\n\n" + task_text + "\n\n"
-        "Отличная работа! Продолжай в том же духе.",
+        f"✅ <b>Клетка выполнена!</b>\n\n{task_text}\n\n"
+        f"Отличная работа! Продолжай в том же духе.",
         parse_mode="HTML"
     )
 
-    await callback.message.answer(
-        "🎲 <b>Твоя бинго-карта</b>",
-        reply_markup=build_bingo_keyboard(completed)
-    )
+    await send_bingo_card(callback.message, user_id)
     await callback.answer("🎉 Молодец!")
 
 @dp.callback_query(F.data == "back_to_bingo")
 async def back_to_bingo(callback: CallbackQuery):
     user_id = callback.from_user.id
     completed = get_completed_cells(user_id)
-    _, _, tasks_json = get_user_profile(user_id)
-    tasks = json.loads(tasks_json) if tasks_json else {}
-    await send_bingo_card(callback.message, user_id, tasks)
+    await send_bingo_card(callback.message, user_id)
     await callback.answer()
 
 # ==================== PHOTO UPLOAD ====================
@@ -753,10 +595,8 @@ async def handle_photo(message: Message, state: FSMContext):
     photo_id = message.photo[-1].file_id
     save_life_map_photo(user_id, photo_id, cell)
 
-    completed = get_completed_cells(user_id)
-
     await message.answer("📸 Фото добавлено на карту твоей жизни!")
-    await message.answer("🎲 <b>Твоя бинго-карта</b>", reply_markup=build_bingo_keyboard(completed))
+    await send_bingo_card(message, user_id)
     await state.clear()
 
 # ==================== DIARY ====================
@@ -783,8 +623,7 @@ async def save_diary(message: Message, state: FSMContext):
 
     await message.answer("📝 Запись сохранена! Твой дневник растёт.")
 
-    completed = get_completed_cells(user_id)
-    await message.answer("🎲 <b>Твоя бинго-карта</b>", reply_markup=build_bingo_keyboard(completed))
+    await send_bingo_card(message, user_id)
     await state.clear()
 
 # ==================== DAILY REMINDERS ====================
@@ -799,16 +638,20 @@ async def send_daily_reminders():
         try:
             completed = get_completed_cells(user_id)
             if len(completed) < 9:
-                await bot.send_message(
+                image_buf = generate_bingo_image(completed)
+                await bot.send_photo(
                     user_id,
-                    "🌅 <b>Доброе утро!</b>\n\n"
-                    "Новый день — новая возможность зачеркнуть клетку в бинго.\n"
-                    "Какое задание выберешь сегодня?",
+                    photo=BufferedInputFile(image_buf.read(), filename="bingo.png"),
+                    caption=(
+                        "🌅 <b>Доброе утро!</b>\n\n"
+                        "Новый день — новая возможность зачеркнуть клетку в бинго.\n"
+                        "Какое задание выберешь сегодня?"
+                    ),
                     parse_mode="HTML",
                     reply_markup=build_bingo_keyboard(completed)
                 )
         except Exception as e:
-            print("Failed to send reminder to {}: {}".format(user_id, e))
+            print(f"Failed to send reminder to {user_id}: {e}")
 
 # ==================== ADMIN COMMANDS ====================
 @dp.message(Command("stats"), F.from_user.id == ADMIN_ID)
@@ -823,12 +666,13 @@ async def admin_stats(message: Message):
     photos_count = c.fetchone()[0]
     conn.close()
 
-    text = "📊 <b>Статистика</b>\n\n" + \
-           "Пользователей: {}\n".format(users_count) + \
-           "Выполнено заданий: {}\n".format(tasks_count) + \
-           "Фото на карте жизни: {}".format(photos_count)
-
-    await message.answer(text, parse_mode="HTML")
+    await message.answer(
+        f"📊 <b>Статистика</b>\n\n"
+        f"Пользователей: {users_count}\n"
+        f"Выполнено заданий: {tasks_count}\n"
+        f"Фото на карте жизни: {photos_count}",
+        parse_mode="HTML"
+    )
 
 # ==================== MAIN ====================
 async def main():
