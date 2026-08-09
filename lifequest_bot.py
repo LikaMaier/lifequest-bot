@@ -8,9 +8,6 @@ import json
 import os
 import sqlite3
 from datetime import datetime, timedelta
-from io import BytesIO
-
-from PIL import Image, ImageDraw, ImageFont
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command, CommandStart
@@ -19,8 +16,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, 
-    InlineKeyboardButton, ReplyKeyboardRemove, ContentType,
-    BufferedInputFile
+    InlineKeyboardButton, ReplyKeyboardRemove, ContentType
 )
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
@@ -273,76 +269,6 @@ def build_bingo_keyboard(completed: list) -> InlineKeyboardMarkup:
     buttons.append([InlineKeyboardButton(text="📝 Запись в дневник", callback_data="diary_entry")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-# ==================== BINGO IMAGE ====================
-FONTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
-
-def _load_font(size: int):
-    """Prefer the font bundled with the bot (guaranteed Cyrillic support),
-    then fall back to common system paths, then to PIL's built-in bitmap font
-    (which cannot render Cyrillic — last resort only)."""
-    for path in (
-        os.path.join(FONTS_DIR, "DejaVuSans-Bold.ttf"),
-        os.path.join(FONTS_DIR, "DejaVuSans.ttf"),
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "C:\\Windows\\Fonts\\arial.ttf",
-    ):
-        try:
-            return ImageFont.truetype(path, size)
-        except OSError:
-            continue
-    return ImageFont.load_default()
-
-def generate_bingo_image(completed: list) -> BytesIO:
-    """Draws the 3x3 bingo card as a PNG and returns it as an in-memory buffer."""
-    cell_size = 280
-    padding = 20
-    grid_size = cell_size * 3 + padding * 4
-
-    img = Image.new("RGB", (grid_size, grid_size), "#1e1e2e")
-    draw = ImageDraw.Draw(img)
-
-    title_font = _load_font(26)
-    check_font = _load_font(48)
-
-    for i, (_emoji_label, label, data) in enumerate(BINGO_CELLS):
-        row, col = divmod(i, 3)
-        x0 = padding + col * (cell_size + padding)
-        y0 = padding + row * (cell_size + padding)
-        x1, y1 = x0 + cell_size, y0 + cell_size
-
-        is_done = data in completed
-        fill = "#2e7d32" if is_done else "#3a3a52"
-        draw.rounded_rectangle([x0, y0, x1, y1], radius=16, fill=fill, outline="#6c6c8c", width=2)
-
-        # word-wrap the label to fit the cell
-        words = label.split()
-        lines, line = [], ""
-        for w in words:
-            test = f"{line} {w}".strip()
-            if draw.textlength(test, font=title_font) > cell_size - 30:
-                lines.append(line)
-                line = w
-            else:
-                line = test
-        if line:
-            lines.append(line)
-
-        line_height = title_font.size + 6
-        ty = y0 + (cell_size - line_height * len(lines)) // 2
-        for ln in lines:
-            tw = draw.textlength(ln, font=title_font)
-            draw.text((x0 + (cell_size - tw) / 2, ty), ln, font=title_font, fill="white")
-            ty += line_height
-
-        if is_done:
-            draw.text((x1 - 55, y0 + 10), "✓", font=check_font, fill="#a5d6a7")
-
-    buf = BytesIO()
-    img.save(buf, format="PNG")
-    buf.seek(0)
-    return buf
-
 # ==================== WELCOME ====================
 WELCOME_TEXT = """🗺️ <b>Добро пожаловать в LifeQuest</b>
 
@@ -518,16 +444,17 @@ async def generate_and_send_profile(message, user_id: int):
 
 async def send_bingo_card(message, user_id: int):
     completed = get_completed_cells(user_id)
-    image_buf = generate_bingo_image(completed)
 
-    caption = (
-        "🎲 <b>Бинго-карта на неделю</b>\n\n"
-        "Нажми на клетку, чтобы отметить выполнение 👇"
-    )
+    lines = [f"🎲 <b>Бинго-карта на неделю</b> ({len(completed)}/9)"]
+    for _emoji_label, _plain_label, data in BINGO_CELLS:
+        key = data.replace("cell_", "")
+        task_text = BINGO_TEMPLATE.get(key, "")
+        prefix = "✅ " if data in completed else ""
+        lines.append(f"{prefix}{task_text}")
+    lines.append("Нажми на клетку, чтобы отметить выполнение 👇")
 
-    await message.answer_photo(
-        photo=BufferedInputFile(image_buf.read(), filename="bingo.png"),
-        caption=caption,
+    await message.answer(
+        "\n\n".join(lines),
         parse_mode="HTML",
         reply_markup=build_bingo_keyboard(completed)
     )
@@ -546,7 +473,7 @@ async def handle_bingo_click(callback: CallbackQuery, state: FSMContext):
         [InlineKeyboardButton(text="« Назад к карте", callback_data="back_to_bingo")]
     ])
 
-    await callback.message.edit_caption(caption=task_text, parse_mode="HTML", reply_markup=kb)
+    await callback.message.edit_text(task_text, parse_mode="HTML", reply_markup=kb)
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("complete_"))
@@ -559,8 +486,8 @@ async def complete_task(callback: CallbackQuery):
 
     completed = get_completed_cells(user_id)
 
-    await callback.message.edit_caption(
-        caption=f"✅ <b>Клетка выполнена!</b>\n\n{task_text}\n\n"
+    await callback.message.edit_text(
+        f"✅ <b>Клетка выполнена!</b>\n\n{task_text}\n\n"
         f"Отличная работа! Продолжай в том же духе.",
         parse_mode="HTML"
     )
@@ -581,8 +508,8 @@ async def request_general_photo(callback: CallbackQuery, state: FSMContext):
     await state.update_data(photo_cell="general")
     await state.set_state("waiting_photo")
 
-    await callback.message.edit_caption(
-        caption="📸 <b>Отправь фото</b>\n\n"
+    await callback.message.edit_text(
+        "📸 <b>Отправь фото</b>\n\n"
         "Пришли снимок, который хочешь добавить на карту твоей жизни.",
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
@@ -597,8 +524,8 @@ async def request_photo(callback: CallbackQuery, state: FSMContext):
     await state.update_data(photo_cell=cell)
     await state.set_state("waiting_photo")
 
-    await callback.message.edit_caption(
-        caption="📸 <b>Отправь фото</b>\n\n"
+    await callback.message.edit_text(
+        "📸 <b>Отправь фото</b>\n\n"
         "Сделай снимок, связанный с этим заданием. Я добавлю его на твою карту жизни.",
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
@@ -624,8 +551,8 @@ async def handle_photo(message: Message, state: FSMContext):
 @dp.callback_query(F.data == "diary_entry")
 async def diary_entry(callback: CallbackQuery, state: FSMContext):
     await state.set_state("waiting_diary")
-    await callback.message.edit_caption(
-        caption="📝 <b>Запись в дневник</b>\n\n"
+    await callback.message.edit_text(
+        "📝 <b>Запись в дневник</b>\n\n"
         "Напиши, что ты сделал сегодня, какие эмоции испытал, что узнал о себе.\n\n"
         "Это твой личный архив побед.",
         parse_mode="HTML",
@@ -659,15 +586,11 @@ async def send_daily_reminders():
         try:
             completed = get_completed_cells(user_id)
             if len(completed) < 9:
-                image_buf = generate_bingo_image(completed)
-                await bot.send_photo(
+                await bot.send_message(
                     user_id,
-                    photo=BufferedInputFile(image_buf.read(), filename="bingo.png"),
-                    caption=(
-                        "🌅 <b>Доброе утро!</b>\n\n"
-                        "Новый день — новая возможность зачеркнуть клетку в бинго.\n"
-                        "Какое задание выберешь сегодня?"
-                    ),
+                    "🌅 <b>Доброе утро!</b>\n\n"
+                    "Новый день — новая возможность зачеркнуть клетку в бинго.\n"
+                    "Какое задание выберешь сегодня?",
                     parse_mode="HTML",
                     reply_markup=build_bingo_keyboard(completed)
                 )
