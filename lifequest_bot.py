@@ -16,7 +16,8 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, 
-    InlineKeyboardButton, ReplyKeyboardRemove, ContentType
+    InlineKeyboardButton, ReplyKeyboardRemove, ContentType,
+    InputMediaPhoto
 )
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
@@ -41,6 +42,12 @@ scheduler = AsyncIOScheduler()
 
 # ==================== DATABASE ====================
 DB_PATH = "lifequest.db"
+
+def _ensure_column(c, table: str, column: str, coltype: str):
+    c.execute(f"PRAGMA table_info({table})")
+    cols = [row[1] for row in c.fetchall()]
+    if column not in cols:
+        c.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -85,10 +92,24 @@ def init_db():
             uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+
+    # Migrations for bots created before these features existed.
+    _ensure_column(c, "users", "last_active_date", "TEXT")
+    _ensure_column(c, "users", "reminder_hour", "INTEGER DEFAULT 9")
+    _ensure_column(c, "users", "scores", "TEXT")
+    _ensure_column(c, "completed_tasks", "week", "INTEGER DEFAULT 1")
+
     conn.commit()
     conn.close()
 
 init_db()
+
+def ensure_user(user_id: int, username: str = None):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("INSERT OR IGNORE INTO users (user_id, username) VALUES (?, ?)", (user_id, username))
+    conn.commit()
+    conn.close()
 
 def save_answer(user_id: int, q_id: str, value: int):
     conn = sqlite3.connect(DB_PATH)
@@ -106,11 +127,19 @@ def get_all_answers(user_id: int) -> dict:
     conn.close()
     return {row[0]: row[1] for row in rows}
 
-def save_user_profile(user_id: int, profile: str, bingo: str):
+def save_user_profile(user_id: int, profile: str, scores_json: str, bingo_json: str):
+    """Upsert so a re-taken survey never wipes week/streak/username — only
+    profile, scores and bingo_card are touched."""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("INSERT OR REPLACE INTO users (user_id, profile, bingo_card) VALUES (?, ?, ?)",
-              (user_id, profile, bingo))
+    c.execute("""
+        INSERT INTO users (user_id, profile, scores, bingo_card)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET
+            profile = excluded.profile,
+            scores = excluded.scores,
+            bingo_card = excluded.bingo_card
+    """, (user_id, profile, scores_json, bingo_json))
     conn.commit()
     conn.close()
 
@@ -122,20 +151,103 @@ def get_user_profile(user_id: int):
     conn.close()
     return row if row else (None, None)
 
-def save_completed_task(user_id: int, cell: str, text: str, photo_id: str = None, notes: str = None):
+def get_user_scores(user_id: int) -> dict:
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("""
-        INSERT INTO completed_tasks (user_id, task_cell, task_text, photo_file_id, notes)
-        VALUES (?, ?, ?, ?, ?)
-    """, (user_id, cell, text, photo_id, notes))
+    c.execute("SELECT scores FROM users WHERE user_id = ?", (user_id,))
+    row = c.fetchone()
+    conn.close()
+    if row and row[0]:
+        try:
+            return json.loads(row[0])
+        except (TypeError, json.JSONDecodeError):
+            pass
+    return {}
+
+def save_bingo_card(user_id: int, card: dict):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("UPDATE users SET bingo_card = ? WHERE user_id = ?",
+              (json.dumps(card, ensure_ascii=False), user_id))
     conn.commit()
     conn.close()
 
-def get_completed_cells(user_id: int) -> list:
+def get_bingo_card(user_id: int) -> dict:
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT DISTINCT task_cell FROM completed_tasks WHERE user_id = ?", (user_id,))
+    c.execute("SELECT bingo_card FROM users WHERE user_id = ?", (user_id,))
+    row = c.fetchone()
+    conn.close()
+    if row and row[0]:
+        try:
+            return json.loads(row[0])
+        except (TypeError, json.JSONDecodeError):
+            pass
+    return {}
+
+def get_user_week(user_id: int) -> int:
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT current_week FROM users WHERE user_id = ?", (user_id,))
+    row = c.fetchone()
+    conn.close()
+    return row[0] if row and row[0] else 1
+
+def advance_week(user_id: int):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("UPDATE users SET current_week = COALESCE(current_week, 1) + 1 WHERE user_id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+
+def touch_activity(user_id: int):
+    """Updates the daily streak: +1 if last active yesterday, reset to 1 on a gap,
+    unchanged if already counted today."""
+    today = datetime.now().date()
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT last_active_date, streak_days FROM users WHERE user_id = ?", (user_id,))
+    row = c.fetchone()
+    if row:
+        last_active, streak = row
+        streak = streak or 0
+        if last_active == str(today):
+            pass
+        elif last_active == str(today - timedelta(days=1)):
+            c.execute("UPDATE users SET last_active_date = ?, streak_days = ? WHERE user_id = ?",
+                      (str(today), streak + 1, user_id))
+        else:
+            c.execute("UPDATE users SET last_active_date = ?, streak_days = 1 WHERE user_id = ?",
+                      (str(today), user_id))
+        conn.commit()
+    conn.close()
+
+def get_streak(user_id: int) -> int:
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT streak_days FROM users WHERE user_id = ?", (user_id,))
+    row = c.fetchone()
+    conn.close()
+    return row[0] if row and row[0] else 0
+
+def save_completed_task(user_id: int, cell: str, text: str, photo_id: str = None, notes: str = None, week: int = None):
+    if week is None:
+        week = get_user_week(user_id)
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO completed_tasks (user_id, task_cell, task_text, photo_file_id, notes, week)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (user_id, cell, text, photo_id, notes, week))
+    conn.commit()
+    conn.close()
+
+def get_completed_cells(user_id: int, week: int = None) -> list:
+    if week is None:
+        week = get_user_week(user_id)
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT DISTINCT task_cell FROM completed_tasks WHERE user_id = ? AND week = ?", (user_id, week))
     rows = c.fetchall()
     conn.close()
     return [r[0] for r in rows]
@@ -147,6 +259,26 @@ def save_life_map_photo(user_id: int, photo_id: str, cell: str):
               (user_id, photo_id, cell))
     conn.commit()
     conn.close()
+
+def get_life_map_photos(user_id: int) -> list:
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT photo_file_id FROM life_map_photos WHERE user_id = ? ORDER BY uploaded_at", (user_id,))
+    rows = c.fetchall()
+    conn.close()
+    return [r[0] for r in rows]
+
+def get_diary_entries(user_id: int, limit: int = 10) -> list:
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""
+        SELECT notes, completed_at FROM completed_tasks
+        WHERE user_id = ? AND task_cell = 'diary' AND notes IS NOT NULL
+        ORDER BY completed_at DESC LIMIT ?
+    """, (user_id, limit))
+    rows = c.fetchall()
+    conn.close()
+    return list(reversed(rows))
 
 # ==================== SURVEY DATA ====================
 SURVEY_QUESTIONS = [
@@ -235,11 +367,16 @@ STATE_MAP = {
 }
 
 # ==================== KEYBOARD BUILDER ====================
-def build_question_keyboard(q_id: str, options: list) -> InlineKeyboardMarkup:
+def build_question_keyboard(q_id: str, options: list, show_back: bool = False) -> InlineKeyboardMarkup:
     buttons = []
     for text, value in options:
         buttons.append([InlineKeyboardButton(text=text, callback_data=f"{q_id}_{value}")])
+    if show_back:
+        buttons.append([InlineKeyboardButton(text="« Назад", callback_data=f"back_{q_id}")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def state_for_index(idx: int):
+    return list(STATE_MAP.keys())[list(STATE_MAP.values()).index(idx)]
 
 # (emoji_label, plain_label_for_image, callback_data_key)
 BINGO_CELLS = [
@@ -267,6 +404,7 @@ def build_bingo_keyboard(completed: list) -> InlineKeyboardMarkup:
         buttons.append(row)
     buttons.append([InlineKeyboardButton(text="📸 Отправить фото на карту жизни", callback_data="upload_photo")])
     buttons.append([InlineKeyboardButton(text="📝 Запись в дневник", callback_data="diary_entry")])
+    buttons.append([InlineKeyboardButton(text="🗺 Моя карта жизни", callback_data="view_map")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 # ==================== WELCOME ====================
@@ -288,6 +426,24 @@ WELCOME_TEXT = """🗺️ <b>Добро пожаловать в LifeQuest</b>
 @dp.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
+    user_id = message.from_user.id
+    ensure_user(user_id, message.from_user.username)
+
+    profile, _bingo = get_user_profile(user_id)
+    if profile:
+        week = get_user_week(user_id)
+        streak = get_streak(user_id)
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🎲 Показать мою карту", callback_data="back_to_bingo")],
+            [InlineKeyboardButton(text="🔄 Пройти опрос заново", callback_data="start_survey")]
+        ])
+        streak_line = f"\n🔥 Стрик: {streak} дней" if streak else ""
+        await message.answer(
+            f"С возвращением! Ты на неделе {week}.{streak_line}\n\nУ тебя уже есть профиль и бинго-карта.",
+            reply_markup=kb
+        )
+        return
+
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🚀 Начать опрос (21 вопрос)", callback_data="start_survey")]
     ])
@@ -305,6 +461,28 @@ async def start_survey(callback: CallbackQuery, state: FSMContext):
         parse_mode="HTML",
         reply_markup=build_question_keyboard(q["id"], q["options"])
     )
+
+@dp.callback_query(F.data.startswith("back_q"))
+async def handle_survey_back(callback: CallbackQuery, state: FSMContext):
+    q_id = callback.data.replace("back_", "")
+    idx = int(q_id[1:]) - 1
+    prev_idx = idx - 1
+    if prev_idx < 0:
+        await callback.answer()
+        return
+
+    prev_q = SURVEY_QUESTIONS[prev_idx]
+    await state.set_state(state_for_index(prev_idx))
+
+    progress = f"\n\n<i>Вопрос {prev_idx + 1} из {len(SURVEY_QUESTIONS)}</i>" if prev_idx > 0 else ""
+    await callback.message.edit_text(
+        f"🧭 <b>Диагностика: где ты сейчас?</b>{progress}\n\n"
+        "<b>" + prev_q["sphere"] + "</b>\n\n"
+        f"{prev_q['question']}",
+        parse_mode="HTML",
+        reply_markup=build_question_keyboard(prev_q["id"], prev_q["options"], show_back=(prev_idx > 0))
+    )
+    await callback.answer()
 
 @dp.callback_query(F.data.startswith("q"))
 async def handle_survey_answer(callback: CallbackQuery, state: FSMContext):
@@ -336,8 +514,7 @@ async def handle_survey_answer(callback: CallbackQuery, state: FSMContext):
         await state.clear()
     else:
         next_q = SURVEY_QUESTIONS[next_idx]
-        next_state = list(STATE_MAP.keys())[list(STATE_MAP.values()).index(next_idx)]
-        await state.set_state(next_state)
+        await state.set_state(state_for_index(next_idx))
 
         progress = f"\n\n<i>Вопрос {next_idx + 1} из {len(SURVEY_QUESTIONS)}</i>"
         await callback.message.edit_text(
@@ -345,7 +522,7 @@ async def handle_survey_answer(callback: CallbackQuery, state: FSMContext):
             "<b>" + next_q["sphere"] + "</b>\n\n"
             f"{next_q['question']}",
             parse_mode="HTML",
-            reply_markup=build_question_keyboard(next_q["id"], next_q["options"])
+            reply_markup=build_question_keyboard(next_q["id"], next_q["options"], show_back=True)
         )
 
     await callback.answer()
@@ -371,6 +548,77 @@ BINGO_TEMPLATE = {
     "expression": """✨ <b>Проявление</b>
 Создай что-то руками: нарисуй, напиши 10 строк стиха, сделай коллаж, запиши голосовое послание себе. Не для кого. Для себя. Зафиксируй в дневнике.""",
 }
+
+# Each cell is tied to one of the 7 survey spheres. A low score in that sphere
+# gets the gentler "low" task (build the habit); a high score gets the more
+# ambitious "high" task (same text as BINGO_TEMPLATE, for continuity/fallback).
+BINGO_VARIANTS = {
+    "morning": {
+        "sphere": "Энергия",
+        "high": BINGO_TEMPLATE["morning"],
+        "low": """🌅 <b>Утро</b>
+Просто не хватайся за телефон первые 5 минут после будильника. Выпей стакан воды. Это всё — этого достаточно на сегодня.""",
+    },
+    "plan": {
+        "sphere": "Саморазвитие",
+        "high": BINGO_TEMPLATE["plan"],
+        "low": """📋 <b>План</b>
+Выпиши всего 1 маленькое дело, которое сделаешь сегодня. Не список — одно. Сделай его и отметь клетку.""",
+    },
+    "move": {
+        "sphere": "Энергия",
+        "high": BINGO_TEMPLATE["move"],
+        "low": """💪 <b>Движение</b>
+Пройдись 10 минут пешком в удобном темпе. Без цели, без спорта — просто прогуляйся.""",
+    },
+    "adventure1": {
+        "sphere": "Приключения",
+        "high": BINGO_TEMPLATE["adventure1"],
+        "low": """🌍 <b>Приключение</b>
+Выбери маршрут до работы или магазина, которым никогда не ходил. Просто пройди и замечай, что там другое.""",
+    },
+    "frog": {
+        "sphere": "Дисциплина",
+        "high": BINGO_TEMPLATE["frog"],
+        "low": """🐸 <b>ЛЯГУШКА</b>
+Выбери одно небольшое дело, которое откладываешь больше недели, и закрой его — неважно, насколько оно маленькое.""",
+    },
+    "random": {
+        "sphere": "Социальность",
+        "high": BINGO_TEMPLATE["random"],
+        "low": """🎲 <b>Рандом</b>
+Напиши короткое сообщение человеку, с которым давно не общался. Просто спроси, как у него дела.""",
+    },
+    "fear": {
+        "sphere": "Смелость",
+        "high": BINGO_TEMPLATE["fear"],
+        "low": """😨 <b>Страх</b>
+Назови вслух или запиши одну вещь, которую боишься сделать. Не делай — просто признай это себе. Это уже шаг.""",
+    },
+    "challenge": {
+        "sphere": "Смелость",
+        "high": BINGO_TEMPLATE["challenge"],
+        "low": """🔥 <b>Испытание</b>
+Попробуй сегодня блюдо, музыку или фильм, которые обычно не выбрал бы. Маленький эксперимент — не подвиг.""",
+    },
+    "expression": {
+        "sphere": "Творчество",
+        "high": BINGO_TEMPLATE["expression"],
+        "low": """✨ <b>Проявление</b>
+Сделай одну маленькую творческую штуку: пару строк, набросок, голосовую заметку. Не для качества — для процесса.""",
+    },
+}
+
+def build_personal_bingo(scores: dict, week: int = 1) -> dict:
+    """Picks low/high variant per cell from the sphere score. Each completed
+    week nudges everyone toward the more ambitious variant, so the card
+    visibly gets bolder over time even without a fresh LLM call."""
+    boost = max(0, week - 1) * 20
+    card = {}
+    for key, info in BINGO_VARIANTS.items():
+        sphere_score = (scores.get(info["sphere"], 50) if scores else 50) + boost
+        card[key] = info["high"] if sphere_score >= 50 else info["low"]
+    return card
 
 async def generate_and_send_profile(message, user_id: int):
     answers = get_all_answers(user_id)
@@ -423,7 +671,9 @@ async def generate_and_send_profile(message, user_id: int):
 
 <i>Теперь — твоя бинго-карта на неделю. Выполняй в любом порядке. Зачеркивай клетки.</i>"""
 
-        save_user_profile(user_id, profile_text, json.dumps(scores))
+        week = get_user_week(user_id)
+        personal_card = build_personal_bingo(scores, week)
+        save_user_profile(user_id, profile_text, json.dumps(scores, ensure_ascii=False), json.dumps(personal_card, ensure_ascii=False))
 
         await message.edit_text(full_profile, parse_mode="HTML")
 
@@ -432,7 +682,16 @@ async def generate_and_send_profile(message, user_id: int):
 
     except Exception as e:
         print(f"Error generating profile: {e}")
-        # Fallback — отправляем шаблонную карту
+        # Fallback — отправляем шаблонную карту (без персонализации по баллам)
+        week = get_user_week(user_id)
+        personal_card = build_personal_bingo({}, week)
+        save_user_profile(
+            user_id,
+            "Я заметил одну особенность: ты хочешь ярких впечатлений, но между желанием и действием стоит страх ошибки. "
+            "Поэтому задания подобраны так, чтобы начать с малого и постепенно расширить твою зону возможностей.",
+            json.dumps({}),
+            json.dumps(personal_card, ensure_ascii=False)
+        )
         await message.edit_text(
             "🎯 <b>Твой профиль</b>\n\n"
             "Я заметил одну особенность: ты хочешь ярких впечатлений, но между желанием и действием стоит страх ошибки. "
@@ -443,12 +702,19 @@ async def generate_and_send_profile(message, user_id: int):
         await send_bingo_card(message, user_id)
 
 async def send_bingo_card(message, user_id: int):
-    completed = get_completed_cells(user_id)
+    week = get_user_week(user_id)
+    completed = get_completed_cells(user_id, week)
+    streak = get_streak(user_id)
+    card = get_bingo_card(user_id)
 
-    lines = [f"🎲 <b>Бинго-карта на неделю</b> ({len(completed)}/9)"]
+    header = f"🎲 <b>Бинго-карта — неделя {week}</b> ({len(completed)}/9)"
+    if streak:
+        header += f"  🔥 {streak}"
+
+    lines = [header]
     for _emoji_label, _plain_label, data in BINGO_CELLS:
         key = data.replace("cell_", "")
-        task_text = BINGO_TEMPLATE.get(key, "")
+        task_text = card.get(key) or BINGO_TEMPLATE.get(key, "")
         prefix = "✅ " if data in completed else ""
         lines.append(f"{prefix}{task_text}")
     lines.append("Нажми на клетку, чтобы отметить выполнение 👇")
@@ -464,8 +730,14 @@ async def send_bingo_card(message, user_id: int):
 async def handle_bingo_click(callback: CallbackQuery, state: FSMContext):
     cell = callback.data.replace("bingo_cell_", "")
     user_id = callback.from_user.id
+    week = get_user_week(user_id)
 
-    task_text = BINGO_TEMPLATE.get(cell, "Задание")
+    if cell in get_completed_cells(user_id, week):
+        await callback.answer("Эта клетка уже отмечена на этой неделе ✅")
+        return
+
+    card = get_bingo_card(user_id)
+    task_text = card.get(cell) or BINGO_TEMPLATE.get(cell, "Задание")
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Выполнено!", callback_data=f"complete_{cell}")],
@@ -480,27 +752,82 @@ async def handle_bingo_click(callback: CallbackQuery, state: FSMContext):
 async def complete_task(callback: CallbackQuery):
     cell = callback.data.replace("complete_", "")
     user_id = callback.from_user.id
-    task_text = BINGO_TEMPLATE.get(cell, "Задание")
+    week = get_user_week(user_id)
 
-    save_completed_task(user_id, cell, task_text)
+    if cell in get_completed_cells(user_id, week):
+        await callback.answer("Эта клетка уже отмечена на этой неделе ✅")
+        return
 
-    completed = get_completed_cells(user_id)
+    card = get_bingo_card(user_id)
+    task_text = card.get(cell) or BINGO_TEMPLATE.get(cell, "Задание")
 
-    await callback.message.edit_text(
-        f"✅ <b>Клетка выполнена!</b>\n\n{task_text}\n\n"
-        f"Отличная работа! Продолжай в том же духе.",
-        parse_mode="HTML"
-    )
+    save_completed_task(user_id, cell, task_text, week=week)
+    touch_activity(user_id)
 
-    await send_bingo_card(callback.message, user_id)
+    completed = get_completed_cells(user_id, week)
+
+    if len(completed) >= len(BINGO_CELLS):
+        streak = get_streak(user_id)
+        await callback.message.edit_text(
+            f"🏆 <b>Неделя {week} закрыта!</b>\n\n"
+            f"Все 9 клеток пройдены. Стрик: {streak} 🔥\n\n"
+            "Собираю карту на следующую неделю — она станет чуть смелее...",
+            parse_mode="HTML"
+        )
+        advance_week(user_id)
+        new_week = get_user_week(user_id)
+        scores = get_user_scores(user_id)
+        new_card = build_personal_bingo(scores, new_week)
+        save_bingo_card(user_id, new_card)
+        await send_bingo_card(callback.message, user_id)
+    else:
+        await callback.message.edit_text(
+            f"✅ <b>Клетка выполнена!</b>\n\n{task_text}\n\n"
+            f"Отличная работа! Продолжай в том же духе.",
+            parse_mode="HTML"
+        )
+        await send_bingo_card(callback.message, user_id)
+
     await callback.answer("🎉 Молодец!")
 
 @dp.callback_query(F.data == "back_to_bingo")
 async def back_to_bingo(callback: CallbackQuery):
     user_id = callback.from_user.id
-    completed = get_completed_cells(user_id)
     await send_bingo_card(callback.message, user_id)
     await callback.answer()
+
+# ==================== LIFE MAP ====================
+@dp.callback_query(F.data == "view_map")
+async def view_life_map(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    await callback.answer()
+
+    photos = get_life_map_photos(user_id)
+    diary_rows = get_diary_entries(user_id, limit=10)
+
+    if not photos and not diary_rows:
+        await callback.message.answer(
+            "🗺 <b>Карта твоей жизни пока пуста.</b>\n\n"
+            "Добавь фото или запись в дневник кнопками ниже — и она начнёт заполняться.",
+            parse_mode="HTML"
+        )
+        return
+
+    if photos:
+        for i in range(0, len(photos), 10):
+            chunk = photos[i:i + 10]
+            media = [InputMediaPhoto(media=file_id) for file_id in chunk]
+            await callback.message.answer_media_group(media)
+
+    if diary_rows:
+        entries = []
+        for notes, completed_at in diary_rows:
+            date_str = (completed_at or "")[:10]
+            entries.append(f"<b>{date_str}</b>\n{notes}")
+        diary_text = "📝 <b>Последние записи в дневнике</b>\n\n" + "\n\n".join(entries)
+        if len(diary_text) > 4000:
+            diary_text = diary_text[:4000] + "…"
+        await callback.message.answer(diary_text, parse_mode="HTML")
 
 # ==================== PHOTO UPLOAD ====================
 @dp.callback_query(F.data == "upload_photo")
@@ -542,6 +869,7 @@ async def handle_photo(message: Message, state: FSMContext):
 
     photo_id = message.photo[-1].file_id
     save_life_map_photo(user_id, photo_id, cell)
+    touch_activity(user_id)
 
     await message.answer("📸 Фото добавлено на карту твоей жизни!")
     await send_bingo_card(message, user_id)
@@ -568,6 +896,7 @@ async def save_diary(message: Message, state: FSMContext):
     user_id = message.from_user.id
 
     save_completed_task(user_id, "diary", "Дневниковая запись", notes=text)
+    touch_activity(user_id)
 
     await message.answer("📝 Запись сохранена! Твой дневник растёт.")
 
@@ -576,26 +905,47 @@ async def save_diary(message: Message, state: FSMContext):
 
 # ==================== DAILY REMINDERS ====================
 async def send_daily_reminders():
+    """Runs every hour; only messages users whose chosen reminder_hour matches
+    the current server hour (see /remind)."""
+    current_hour = datetime.now().hour
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT user_id FROM users")
+    c.execute("SELECT user_id FROM users WHERE COALESCE(reminder_hour, 9) = ?", (current_hour,))
     users = c.fetchall()
     conn.close()
 
     for (user_id,) in users:
         try:
-            completed = get_completed_cells(user_id)
-            if len(completed) < 9:
+            week = get_user_week(user_id)
+            completed = get_completed_cells(user_id, week)
+            if len(completed) < len(BINGO_CELLS):
+                streak = get_streak(user_id)
+                streak_line = f"\n🔥 Стрик: {streak}" if streak else ""
                 await bot.send_message(
                     user_id,
                     "🌅 <b>Доброе утро!</b>\n\n"
-                    "Новый день — новая возможность зачеркнуть клетку в бинго.\n"
-                    "Какое задание выберешь сегодня?",
+                    "Новый день — новая возможность зачеркнуть клетку в бинго."
+                    f"{streak_line}\n\nКакое задание выберешь сегодня?",
                     parse_mode="HTML",
                     reply_markup=build_bingo_keyboard(completed)
                 )
         except Exception as e:
             print(f"Failed to send reminder to {user_id}: {e}")
+
+@dp.message(Command("remind"))
+async def set_reminder_time(message: Message):
+    parts = message.text.split()
+    if len(parts) != 2 or not parts[1].isdigit() or not (0 <= int(parts[1]) <= 23):
+        await message.answer("Укажи час в формате: <code>/remind 9</code> (0–23, время сервера бота).", parse_mode="HTML")
+        return
+
+    hour = int(parts[1])
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("UPDATE users SET reminder_hour = ? WHERE user_id = ?", (hour, message.from_user.id))
+    conn.commit()
+    conn.close()
+    await message.answer(f"Готово! Буду напоминать в {hour}:00 (время сервера).")
 
 # ==================== ADMIN COMMANDS ====================
 @dp.message(Command("stats"), F.from_user.id == ADMIN_ID)
@@ -608,19 +958,25 @@ async def admin_stats(message: Message):
     tasks_count = c.fetchone()[0]
     c.execute("SELECT COUNT(*) FROM life_map_photos")
     photos_count = c.fetchone()[0]
+    c.execute("SELECT AVG(current_week) FROM users")
+    avg_week = c.fetchone()[0] or 1
+    c.execute("SELECT AVG(streak_days) FROM users")
+    avg_streak = c.fetchone()[0] or 0
     conn.close()
 
     await message.answer(
         f"📊 <b>Статистика</b>\n\n"
         f"Пользователей: {users_count}\n"
         f"Выполнено заданий: {tasks_count}\n"
-        f"Фото на карте жизни: {photos_count}",
+        f"Фото на карте жизни: {photos_count}\n"
+        f"Средняя неделя: {avg_week:.1f}\n"
+        f"Средний стрик: {avg_streak:.1f} дней",
         parse_mode="HTML"
     )
 
 # ==================== MAIN ====================
 async def main():
-    scheduler.add_job(send_daily_reminders, "cron", hour=9, minute=0)
+    scheduler.add_job(send_daily_reminders, "cron", minute=0)
     scheduler.start()
 
     await dp.start_polling(bot)
