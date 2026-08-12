@@ -18,7 +18,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, 
     InlineKeyboardButton, ReplyKeyboardRemove, ContentType,
-    InputMediaPhoto
+    InputMediaPhoto, BotCommand
 )
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
@@ -392,18 +392,18 @@ def build_bingo_keyboard(card_keys: list, completed: list) -> InlineKeyboardMark
 # ==================== WELCOME ====================
 WELCOME_TEXT = """🗺️ <b>Добро пожаловать в LifeQuest</b>
 
-Твоя жизнь — приключение. Даже если сейчас это не очевидно.
+Ты здесь, потому что где-то внутри чувствуешь: жизнь может быть больше, чем она есть сейчас. Не масштабнее — просто твоя, настоящая, с тем, что откликается, а не с тем, что «надо».
 
-<b>🎯 Миссия бота</b>
-Помочь тебе выбраться из застоя, когда жизнь кажется серой и пустой. Мы превращаем рутину в игру, а маленькие победы — в топливо для веры в себя.
+<b>🎯 Идея простая</b>
+Чаще всего дело не в мотивации, а в моменте выбора: когда неясно, с чего начать, проще не начинать вообще. LifeQuest убирает этот момент — вместо абстрактного «займись собой» ты получаешь конкретные маленькие шаги, подобранные под тебя, и объяснение, почему именно они.
 
-<b>Как работает:</b>
-1️⃣ Диагностика — 21 вопрос о 7 сферах жизни
-2️⃣ Персональная бинго-карта на неделю
-3️⃣ Выполняй и отмечай в дневнике
-4️⃣ Набирай победы — каждая клетка = шаг к наполненной жизни
+<b>Как это работает:</b>
+1️⃣ Короткая диагностика — 15 вопросов о 6 сферах жизни
+2️⃣ Персональная бинго-карта на неделю — не общий список, а то, что откликается именно тебе
+3️⃣ Отмечай выполненное, веди дневник, собирай карту своей жизни из фото и моментов
+4️⃣ Каждую неделю — новая карта, по мере того как меняешься ты
 
-<i>Займёт ~5 минут. Всё анонимно. Начнём с понимания, где ты сейчас.</i>"""
+<i>Займёт около 5 минут. Всё анонимно. Погнали?</i>"""
 
 @dp.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
@@ -427,7 +427,7 @@ async def cmd_start(message: Message, state: FSMContext):
         return
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🚀 Начать опрос (21 вопрос)", callback_data="start_survey")]
+        [InlineKeyboardButton(text="🚀 Начать (15 вопросов)", callback_data="start_survey")]
     ])
     await message.answer(WELCOME_TEXT, parse_mode="HTML", reply_markup=kb)
 
@@ -1458,6 +1458,11 @@ async def admin_stats(message: Message):
 
 # ==================== MAIN ====================
 async def main():
+    await bot.set_my_commands([
+        BotCommand(command="start", description="🚀 Начать / открыть мою карту"),
+        BotCommand(command="remind", description="⏰ Настроить время напоминания"),
+    ])
+
     scheduler.add_job(send_daily_reminders, "cron", minute=0)
     scheduler.start()
 
