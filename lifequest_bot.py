@@ -7,6 +7,7 @@ import asyncio
 import json
 import os
 import random
+import re
 import sqlite3
 from datetime import datetime, timedelta
 
@@ -17,8 +18,8 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, 
-    InlineKeyboardButton, ReplyKeyboardRemove, ContentType,
-    InputMediaPhoto, BotCommand
+    InlineKeyboardButton, ReplyKeyboardRemove,
+    BotCommand
 )
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
@@ -79,18 +80,7 @@ def init_db():
             user_id INTEGER,
             task_cell TEXT,
             task_text TEXT,
-            completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            photo_file_id TEXT,
-            notes TEXT
-        )
-    """)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS life_map_photos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            photo_file_id TEXT,
-            task_cell TEXT,
-            uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
@@ -98,6 +88,8 @@ def init_db():
     _ensure_column(c, "users", "last_active_date", "TEXT")
     _ensure_column(c, "users", "reminder_hour", "INTEGER DEFAULT 9")
     _ensure_column(c, "users", "scores", "TEXT")
+    _ensure_column(c, "users", "card_regens", "INTEGER DEFAULT 0")
+    _ensure_column(c, "users", "evening_reminder_hour", "INTEGER DEFAULT 20")
     _ensure_column(c, "completed_tasks", "week", "INTEGER DEFAULT 1")
 
     conn.commit()
@@ -197,9 +189,27 @@ def get_user_week(user_id: int) -> int:
 def advance_week(user_id: int):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("UPDATE users SET current_week = COALESCE(current_week, 1) + 1 WHERE user_id = ?", (user_id,))
+    c.execute("UPDATE users SET current_week = COALESCE(current_week, 1) + 1, card_regens = 0 WHERE user_id = ?", (user_id,))
     conn.commit()
     conn.close()
+
+def get_card_regens(user_id: int) -> int:
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT card_regens FROM users WHERE user_id = ?", (user_id,))
+    row = c.fetchone()
+    conn.close()
+    return row[0] if row and row[0] else 0
+
+def increment_card_regens(user_id: int) -> int:
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("UPDATE users SET card_regens = COALESCE(card_regens, 0) + 1 WHERE user_id = ?", (user_id,))
+    conn.commit()
+    c.execute("SELECT card_regens FROM users WHERE user_id = ?", (user_id,))
+    row = c.fetchone()
+    conn.close()
+    return row[0] if row else 0
 
 def touch_activity(user_id: int):
     """Updates the daily streak: +1 if last active yesterday, reset to 1 on a gap,
@@ -231,15 +241,15 @@ def get_streak(user_id: int) -> int:
     conn.close()
     return row[0] if row and row[0] else 0
 
-def save_completed_task(user_id: int, cell: str, text: str, photo_id: str = None, notes: str = None, week: int = None):
+def save_completed_task(user_id: int, cell: str, text: str, week: int = None):
     if week is None:
         week = get_user_week(user_id)
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("""
-        INSERT INTO completed_tasks (user_id, task_cell, task_text, photo_file_id, notes, week)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (user_id, cell, text, photo_id, notes, week))
+        INSERT INTO completed_tasks (user_id, task_cell, task_text, week)
+        VALUES (?, ?, ?, ?)
+    """, (user_id, cell, text, week))
     conn.commit()
     conn.close()
 
@@ -253,45 +263,30 @@ def get_completed_cells(user_id: int, week: int = None) -> list:
     conn.close()
     return [r[0] for r in rows]
 
-def save_life_map_photo(user_id: int, photo_id: str, cell: str):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("INSERT INTO life_map_photos (user_id, photo_file_id, task_cell) VALUES (?, ?, ?)",
-              (user_id, photo_id, cell))
-    conn.commit()
-    conn.close()
-
-def get_life_map_photos(user_id: int) -> list:
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT photo_file_id FROM life_map_photos WHERE user_id = ? ORDER BY uploaded_at", (user_id,))
-    rows = c.fetchall()
-    conn.close()
-    return [r[0] for r in rows]
-
-def get_diary_entries(user_id: int, limit: int = 10) -> list:
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("""
-        SELECT notes, completed_at FROM completed_tasks
-        WHERE user_id = ? AND task_cell = 'diary' AND notes IS NOT NULL
-        ORDER BY completed_at DESC LIMIT ?
-    """, (user_id, limit))
-    rows = c.fetchall()
-    conn.close()
-    return list(reversed(rows))
-
 def get_recent_completed_texts(user_id: int, limit: int = 8) -> list:
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("""
         SELECT task_text FROM completed_tasks
-        WHERE user_id = ? AND task_cell != 'diary' AND task_text IS NOT NULL
+        WHERE user_id = ? AND task_text IS NOT NULL
         ORDER BY completed_at DESC LIMIT ?
     """, (user_id, limit))
     rows = c.fetchall()
     conn.close()
     return [r[0] for r in rows if r[0]]
+
+def get_completed_today(user_id: int) -> list:
+    """Клетки, отмеченные сегодня (по дате сервера) — для вечернего напоминания."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""
+        SELECT task_cell FROM completed_tasks
+        WHERE user_id = ? AND date(completed_at) = date('now')
+        ORDER BY completed_at
+    """, (user_id,))
+    rows = c.fetchall()
+    conn.close()
+    return [r[0] for r in rows]
 
 # ==================== SURVEY DATA ====================
 SURVEY_QUESTIONS = [
@@ -384,9 +379,8 @@ def build_bingo_keyboard(card_keys: list, completed: list) -> InlineKeyboardMark
             row = []
     if row:
         buttons.append(row)
-    buttons.append([InlineKeyboardButton(text="📸 Отправить фото на карту жизни", callback_data="upload_photo")])
-    buttons.append([InlineKeyboardButton(text="📝 Запись в дневник", callback_data="diary_entry")])
-    buttons.append([InlineKeyboardButton(text="🗺 Моя карта жизни", callback_data="view_map")])
+    if not completed:
+        buttons.append([InlineKeyboardButton(text="🔄 Сгенерировать новую карту", callback_data="regen_card")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 # ==================== WELCOME ====================
@@ -400,7 +394,6 @@ WELCOME_TEXT = """🗺️ <b>Добро пожаловать в LifeQuest!</b>
 🎯 15 вопросов — чтобы я лучше тебя узнал(а)
 🎲 Персональная бинго-карта — 9 квестов на неделю, под тебя
 🔥 Стрик — отмечай прогресс и заряжайся с каждой неделей
-🗺 Карта твоей жизни — дневник и фото, из которых складывается твоя история
 
 <i>Это про то, чтобы снова почувствовать вкус к жизни — маленькими смелыми шагами, каждую неделю.</i>"""
 
@@ -973,16 +966,16 @@ def get_doubled_spheres(week: int) -> set:
     group_b = set(BINGO_SPHERES[3:])
     return group_a if week % 2 == 1 else group_b
 
-def build_personal_bingo(scores: dict, week: int = 1, user_id: int = 0) -> dict:
+def build_personal_bingo(scores: dict, week: int = 1, user_id: int = 0, regen: int = 0) -> dict:
     """Собирает карту на неделю: 9 клеток, сбалансированных по 6 сферам с
     ротацией «удвоенных» сфер (1 или 2 слота на сферу). Внутри сферы конкретные
     задания выбираются случайно из её пула (пулы разного размера — например,
     у Дисциплины сейчас 6 кандидатов, у остальных по 2). Каждой клетке — уровень
     сложности по баллу сферы (лёгкий/средний). Всё выбирается детерминированно
-    по (user_id, week), так что карта не меняется при каждом обновлении в
-    течение одной недели.
-    Возвращает {key: {"text": ..., "tier": ...}}."""
-    rng = random.Random(f"{user_id}-{week}")
+    по (user_id, week, regen), так что карта не меняется при каждом обновлении в
+    течение одной недели — но меняется, если пользователь явно перегенерировал
+    её кнопкой (regen увеличивается)."""
+    rng = random.Random(f"{user_id}-{week}-{regen}")
     doubled = get_doubled_spheres(week)
     active_keys = []
     for sphere in BINGO_SPHERES:
@@ -1065,10 +1058,51 @@ async def refresh_card_via_llm(user_id: int, base_card: dict) -> dict:
 async def build_weekly_card(user_id: int, scores: dict, week: int) -> dict:
     """Структура карты всегда считается банком (предсказуемо, бесплатно).
     Раз в LLM_REFRESH_EVERY_N_WEEKS недель текст заданий освежается через LLM."""
-    base_card = build_personal_bingo(scores, week, user_id)
+    regen = get_card_regens(user_id)
+    base_card = build_personal_bingo(scores, week, user_id, regen)
     if week % LLM_REFRESH_EVERY_N_WEEKS == 0:
         return await refresh_card_via_llm(user_id, base_card)
     return base_card
+
+# Латиница, китайский/японский/корейский — если это встретилось в ответе модели,
+# значит она сорвалась в другой язык, несмотря на инструкцию. Профиль в таком
+# виде показывать нельзя.
+_FOREIGN_SCRIPT_RE = re.compile(r'[a-zA-Z\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]')
+
+def _has_foreign_script(text: str) -> bool:
+    return bool(_FOREIGN_SCRIPT_RE.search(text))
+
+async def _call_profile_llm(prompt: str):
+    response = await client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {"role": "system", "content": "Ты — тёплый друг с психологическим образованием. Объясняешь механизмы поведения, а не оцениваешь их. Пишешь только на русском, от второго лица, без ярлыков и осуждения. Ни одного слова не на русском языке — ни на английском, ни на любом другом."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.7,
+        max_tokens=800
+    )
+    content = response.choices[0].message.content
+    json_start = content.find("{")
+    json_end = content.rfind("}") + 1
+    result = json.loads(content[json_start:json_end])
+    profile_text = result.get("profile_text", "Профиль создан.")
+    scores = result.get("scores", {})
+    return profile_text, scores
+
+async def _generate_profile_json(prompt: str):
+    """Запрашивает профиль у Groq и проверяет результат на посторонние алфавиты
+    (модель иногда срывается в другой язык, несмотря на инструкцию). При
+    обнаружении — одна повторная попытка с усиленным напоминанием; если и она
+    не прошла проверку — поднимает исключение, чтобы сработал безопасный
+    запасной текст в generate_and_send_profile, а не битый результат."""
+    profile_text, scores = await _call_profile_llm(prompt)
+    if _has_foreign_script(profile_text):
+        retry_prompt = prompt + "\n\nВАЖНО: предыдущая попытка содержала слова не на русском языке — это недопустимо. Проверь каждое слово перед ответом: только кириллица."
+        profile_text, scores = await _call_profile_llm(retry_prompt)
+        if _has_foreign_script(profile_text):
+            raise ValueError("Модель дважды вернула текст с посторонними алфавитами")
+    return profile_text, scores
 
 async def generate_and_send_profile(message, user_id: int):
     answers = get_all_answers(user_id)
@@ -1104,25 +1138,7 @@ async def generate_and_send_profile(message, user_id: int):
 {{"profile_text": "...", "scores": {{"Дисциплина": 58, "Энергия": 83, "Саморазвитие": 40, "Смелость": 65, "Приключения": 72, "Творчество": 50}}}}"""
 
     try:
-        # Используем Groq API (Llama 3 70B — бесплатный tier)
-        response = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",  # или "mixtral-8x7b-32768" для ещё большей скорости
-            messages=[
-                {"role": "system", "content": "Ты — тёплый друг с психологическим образованием. Объясняешь механизмы поведения, а не оцениваешь их. Пишешь только на русском, от второго лица, без ярлыков и осуждения."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            max_tokens=800
-        )
-
-        content = response.choices[0].message.content
-        # Извлекаем JSON из ответа
-        json_start = content.find("{")
-        json_end = content.rfind("}") + 1
-        result = json.loads(content[json_start:json_end])
-
-        profile_text = result.get("profile_text", "Профиль создан.")
-        scores = result.get("scores", {})
+        profile_text, scores = await _generate_profile_json(prompt)
 
         # Формируем текст профиля: фиксированный порядок сфер, короткая
         # полоска из 5 делений + точный процент
@@ -1289,96 +1305,22 @@ async def back_to_bingo(callback: CallbackQuery):
     await send_bingo_card(callback.message, user_id)
     await callback.answer()
 
-# ==================== LIFE MAP ====================
-@dp.callback_query(F.data == "view_map")
-async def view_life_map(callback: CallbackQuery):
+@dp.callback_query(F.data == "regen_card")
+async def regen_card(callback: CallbackQuery):
     user_id = callback.from_user.id
-    await callback.answer()
+    week = get_user_week(user_id)
 
-    photos = get_life_map_photos(user_id)
-    diary_rows = get_diary_entries(user_id, limit=10)
-
-    if not photos and not diary_rows:
-        await callback.message.answer(
-            "🗺 <b>Карта твоей жизни пока пуста.</b>\n\n"
-            "Добавь фото или запись в дневник кнопками ниже — и она начнёт заполняться.",
-            parse_mode="HTML"
-        )
+    if get_completed_cells(user_id, week):
+        await callback.answer("Нельзя перегенерировать карту, если уже что-то отмечено — прогресс потеряется.", show_alert=True)
         return
 
-    if photos:
-        for i in range(0, len(photos), 10):
-            chunk = photos[i:i + 10]
-            media = [InputMediaPhoto(media=file_id) for file_id in chunk]
-            await callback.message.answer_media_group(media)
+    increment_card_regens(user_id)
+    scores = get_user_scores(user_id)
+    new_card = await build_weekly_card(user_id, scores, week)
+    save_bingo_card(user_id, new_card)
 
-    if diary_rows:
-        entries = []
-        for notes, completed_at in diary_rows:
-            date_str = (completed_at or "")[:10]
-            entries.append(f"<b>{date_str}</b>\n{notes}")
-        diary_text = "📝 <b>Последние записи в дневнике</b>\n\n" + "\n\n".join(entries)
-        if len(diary_text) > 4000:
-            diary_text = diary_text[:4000] + "…"
-        await callback.message.answer(diary_text, parse_mode="HTML")
-
-# ==================== PHOTO UPLOAD ====================
-@dp.callback_query(F.data == "upload_photo")
-async def request_general_photo(callback: CallbackQuery, state: FSMContext):
-    await state.update_data(photo_cell="general")
-    await state.set_state("waiting_photo")
-
-    await callback.message.edit_text(
-        "📸 <b>Отправь фото</b>\n\n"
-        "Пришли снимок, который хочешь добавить на карту твоей жизни.",
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="« Отмена", callback_data="back_to_bingo")]
-        ])
-    )
-    await callback.answer()
-
-@dp.message(F.content_type == ContentType.PHOTO, State("waiting_photo"))
-async def handle_photo(message: Message, state: FSMContext):
-    data = await state.get_data()
-    cell = data.get("photo_cell", "unknown")
-    user_id = message.from_user.id
-
-    photo_id = message.photo[-1].file_id
-    save_life_map_photo(user_id, photo_id, cell)
-    touch_activity(user_id)
-
-    await message.answer("📸 Фото добавлено на карту твоей жизни!")
-    await send_bingo_card(message, user_id)
-    await state.clear()
-
-# ==================== DIARY ====================
-@dp.callback_query(F.data == "diary_entry")
-async def diary_entry(callback: CallbackQuery, state: FSMContext):
-    await state.set_state("waiting_diary")
-    await callback.message.edit_text(
-        "📝 <b>Запись в дневник</b>\n\n"
-        "Напиши, что ты сделал сегодня, какие эмоции испытал, что узнал о себе.\n\n"
-        "Это твой личный архив побед.",
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="« Назад", callback_data="back_to_bingo")]
-        ])
-    )
-    await callback.answer()
-
-@dp.message(State("waiting_diary"))
-async def save_diary(message: Message, state: FSMContext):
-    text = message.text
-    user_id = message.from_user.id
-
-    save_completed_task(user_id, "diary", "Дневниковая запись", notes=text)
-    touch_activity(user_id)
-
-    await message.answer("📝 Запись сохранена! Твой дневник растёт.")
-
-    await send_bingo_card(message, user_id)
-    await state.clear()
+    await callback.answer("🔄 Новая карта готова!")
+    await send_bingo_card(callback.message, user_id)
 
 # ==================== DAILY REMINDERS ====================
 async def send_daily_reminders():
@@ -1413,6 +1355,44 @@ async def send_daily_reminders():
         except Exception as e:
             print(f"Failed to send reminder to {user_id}: {e}")
 
+async def send_evening_reminders():
+    """Runs every hour; only messages users whose chosen evening_reminder_hour
+    matches the current server hour (see /evening). Shows what got done today,
+    without judgment if nothing did."""
+    current_hour = datetime.now().hour
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT user_id FROM users WHERE COALESCE(evening_reminder_hour, 20) = ?", (current_hour,))
+    users = c.fetchall()
+    conn.close()
+
+    for (user_id,) in users:
+        try:
+            week = get_user_week(user_id)
+            card = get_bingo_card(user_id)
+            if not card:
+                continue  # ещё не проходил опрос — вечернее напоминание ему рано
+
+            today_cells = get_completed_today(user_id)
+
+            if today_cells:
+                lines = [f"🌙 <b>Как прошёл день?</b>\n\nСегодня отмечено:"]
+                for key in today_cells:
+                    label = KEY_TO_LABEL.get(key, key)
+                    lines.append(f"✅ {label}")
+                completed = get_completed_cells(user_id, week)
+                lines.append(f"\nВсего на неделе: {len(completed)}/{len(card)}")
+                text = "\n".join(lines)
+            else:
+                text = (
+                    "🌙 <b>Как прошёл день?</b>\n\n"
+                    "Сегодня пока ничего не отмечено — вечер ещё не кончился, если что-то откликается, самое время."
+                )
+
+            await bot.send_message(user_id, text, parse_mode="HTML")
+        except Exception as e:
+            print(f"Failed to send evening reminder to {user_id}: {e}")
+
 @dp.message(Command("remind"))
 async def set_reminder_time(message: Message):
     parts = message.text.split()
@@ -1426,7 +1406,22 @@ async def set_reminder_time(message: Message):
     c.execute("UPDATE users SET reminder_hour = ? WHERE user_id = ?", (hour, message.from_user.id))
     conn.commit()
     conn.close()
-    await message.answer(f"Готово! Буду напоминать в {hour}:00 (время сервера).")
+    await message.answer(f"Готово! Буду напоминать утром в {hour}:00 (время сервера).")
+
+@dp.message(Command("evening"))
+async def set_evening_reminder_time(message: Message):
+    parts = message.text.split()
+    if len(parts) != 2 or not parts[1].isdigit() or not (0 <= int(parts[1]) <= 23):
+        await message.answer("Укажи час в формате: <code>/evening 20</code> (0–23, время сервера бота).", parse_mode="HTML")
+        return
+
+    hour = int(parts[1])
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("UPDATE users SET evening_reminder_hour = ? WHERE user_id = ?", (hour, message.from_user.id))
+    conn.commit()
+    conn.close()
+    await message.answer(f"Готово! Буду спрашивать про день в {hour}:00 (время сервера).")
 
 # ==================== ADMIN COMMANDS ====================
 @dp.message(Command("stats"), F.from_user.id == ADMIN_ID)
@@ -1437,8 +1432,6 @@ async def admin_stats(message: Message):
     users_count = c.fetchone()[0]
     c.execute("SELECT COUNT(*) FROM completed_tasks")
     tasks_count = c.fetchone()[0]
-    c.execute("SELECT COUNT(*) FROM life_map_photos")
-    photos_count = c.fetchone()[0]
     c.execute("SELECT AVG(current_week) FROM users")
     avg_week = c.fetchone()[0] or 1
     c.execute("SELECT AVG(streak_days) FROM users")
@@ -1449,7 +1442,6 @@ async def admin_stats(message: Message):
         f"📊 <b>Статистика</b>\n\n"
         f"Пользователей: {users_count}\n"
         f"Выполнено заданий: {tasks_count}\n"
-        f"Фото на карте жизни: {photos_count}\n"
         f"Средняя неделя: {avg_week:.1f}\n"
         f"Средний стрик: {avg_streak:.1f} дней",
         parse_mode="HTML"
@@ -1459,10 +1451,12 @@ async def admin_stats(message: Message):
 async def main():
     await bot.set_my_commands([
         BotCommand(command="start", description="🚀 Начать / открыть мою карту"),
-        BotCommand(command="remind", description="⏰ Настроить время напоминания"),
+        BotCommand(command="remind", description="⏰ Настроить утреннее напоминание"),
+        BotCommand(command="evening", description="🌙 Настроить вечернее напоминание"),
     ])
 
     scheduler.add_job(send_daily_reminders, "cron", minute=0)
+    scheduler.add_job(send_evening_reminders, "cron", minute=0)
     scheduler.start()
 
     await dp.start_polling(bot)
