@@ -345,6 +345,23 @@ def get_recent_completed_texts(user_id: int, limit: int = 8) -> list:
     conn.close()
     return [r[0] for r in rows if r[0]]
 
+def get_monthly_completed_count(user_id: int, year: int = None, month: int = None) -> int:
+    """Сколько клеток человек закрыл за указанный месяц (по умолчанию — текущий).
+    Заменяет собой стрик: не дневная серия, а «счёт месяца», который обнуляется
+    сам собой 1 числа (просто фильтром по дате, без реального удаления истории)."""
+    now = datetime.now()
+    year = year or now.year
+    month = month or now.month
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        "SELECT COUNT(*) FROM completed_tasks WHERE user_id = ? AND strftime('%Y-%m', completed_at) = ?",
+        (user_id, f"{year:04d}-{month:02d}")
+    )
+    count = c.fetchone()[0]
+    conn.close()
+    return count
+
 def get_completed_today(user_id: int) -> list:
     """Клетки, отмеченные сегодня (по дате сервера) — для вечернего напоминания."""
     conn = sqlite3.connect(DB_PATH)
@@ -393,18 +410,15 @@ SURVEY_QUESTIONS = [
     {"id": "q11", "sphere": "🌍 Приключения", "question": "Каким бы ты хотел(а), чтобы был твой обычный день?",
      "options": [("Не таким предсказуемым", 1, "avoidance"), ("Таким, на который хватает сил", 2, "exhaustion"),
                  ("С целью, ради которой встаю", 3, "disconnection"), ("Без страха всё усложнить", 4, "perfectionism")]},
-    {"id": "q12", "sphere": "🌍 Приключения", "question": "Что бы ты хотел(а) себе разрешить?",
-     "options": [("Выглядеть неловко, пробуя", 1, "fear_judgment"), ("Не просчитывать всё заранее", 2, "perfectionism"),
-                 ("Верить, что перемены меняют", 3, "disconnection"), ("Выбрать новизну, не комфорт", 4, "avoidance")]},
-    {"id": "q13", "sphere": "🎨 Творчество", "question": "Что бы ты хотел(а) наконец себе разрешить?",
-     "options": [("Показывать несовершенное", 1, "perfectionism"), ("Делиться личным без страха", 2, "fear_judgment"),
-                 ("Считать это настоящим творчеством", 3, "disconnection"), ("Не ждать идеального момента", 4, "avoidance")]},
-    {"id": "q14", "sphere": "🎨 Творчество", "question": "Как бы ты хотел(а) реагировать на чужое мнение о своей работе?",
-     "options": [("Спокойно — это оценка работы", 1, "fear_judgment"), ("Не обесценивать сделанное", 2, "perfectionism"),
-                 ("Быть в моменте, не отключаться", 3, "exhaustion"), ("Не искать в этом подтверждение", 4, "self_doubt")]},
-    {"id": "q15", "sphere": "🎨 Творчество", "question": "Что ты хочешь наконец делать с творческими идеями?",
-     "options": [("Доводить до дела", 1, "avoidance"), ("Начинать сразу, не ждать", 2, "perfectionism"),
-                 ("Делать, а не рассказывать", 3, "fear_judgment"), ("Доводить до конца, не бросать", 4, "disconnection")]},
+    {"id": "q12", "sphere": "🌍 Приключения", "question": "Чего тебе сейчас больше всего хочется?",
+     "options": [("Больше путешествий", 1, "avoidance"), ("Больше спонтанности", 2, "perfectionism"),
+                 ("Больше ярких эмоций", 3, "disconnection"), ("Больше красивых мест", 4, "exhaustion")]},
+    {"id": "q13", "sphere": "🎨 Творчество", "question": "Через что тебе легче всего выражать себя?",
+     "options": [("🎨 Рисование или визуал", 1, "drawing_visual"), ("🎵 Музыка", 2, "music"),
+                 ("✍️ Слова, письмо", 3, "writing"), ("🧵 Руками, рукоделие", 4, "handicraft")]},
+    {"id": "q14", "sphere": "🎨 Творчество", "question": "Что мешает тебе выражаться через творчество?",
+     "options": [("Не довожу начатое до конца", 1, "avoidance"), ("Жду подходящего момента", 2, "perfectionism"),
+                 ("Боюсь показывать то, что делаю", 3, "fear_judgment"), ("Не считаю это важным для себя", 4, "disconnection")]},
 ]
 
 SURVEY_QUESTIONS_BY_ID = {q["id"]: q for q in SURVEY_QUESTIONS}
@@ -413,11 +427,9 @@ SURVEY_QUESTIONS_BY_ID = {q["id"]: q for q in SURVEY_QUESTIONS}
 class SurveyStates(StatesGroup):
     q1 = State(); q2 = State(); q3 = State(); q4 = State(); q5 = State()
     q6 = State(); q7 = State(); q8 = State(); q9 = State(); q10 = State()
-    q11 = State(); q12 = State(); q13 = State(); q14 = State(); q15 = State()
-    interests = State()
-    topics = State()
+    q11 = State(); q12 = State(); q13 = State(); q14 = State()
     rest_current = State()
-    rest_new = State()
+    interests_topics = State()
     analyzing = State()
 
 STATE_MAP = {
@@ -425,7 +437,7 @@ STATE_MAP = {
     SurveyStates.q4: 3, SurveyStates.q5: 4, SurveyStates.q6: 5,
     SurveyStates.q7: 6, SurveyStates.q8: 7, SurveyStates.q9: 8,
     SurveyStates.q10: 9, SurveyStates.q11: 10, SurveyStates.q12: 11,
-    SurveyStates.q13: 12, SurveyStates.q14: 13, SurveyStates.q15: 14,
+    SurveyStates.q13: 12, SurveyStates.q14: 13,
 }
 
 # ==================== KEYBOARD BUILDER ====================
@@ -437,33 +449,23 @@ def build_question_keyboard(q_id: str, options: list, show_back: bool = False) -
         buttons.append([InlineKeyboardButton(text="« Назад", callback_data=f"back_{q_id}")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-def build_interests_keyboard(selected: list) -> InlineKeyboardMarkup:
-    buttons = []
-    for code, label in INTERESTS.items():
-        prefix = "✅ " if code in selected else "⬜ "
-        buttons.append([InlineKeyboardButton(text=f"{prefix}{label}", callback_data=f"interest_toggle_{code}")])
-    buttons.append([InlineKeyboardButton(text="Готово →", callback_data="interest_done")])
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
-
-def build_topics_keyboard(selected: list) -> InlineKeyboardMarkup:
-    buttons = []
-    for code, label in TOPICS.items():
-        prefix = "✅ " if code in selected else "⬜ "
-        buttons.append([InlineKeyboardButton(text=f"{prefix}{label}", callback_data=f"topic_toggle_{code}")])
-    buttons.append([InlineKeyboardButton(text="Готово →", callback_data="topic_done")])
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
-
 def build_rest_current_keyboard() -> InlineKeyboardMarkup:
     buttons = [[InlineKeyboardButton(text=label, callback_data=f"rest_current_{code}")]
                for code, label in REST_CURRENT.items()]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-def build_rest_new_keyboard(selected: list) -> InlineKeyboardMarkup:
+def build_interests_topics_keyboard(selected: list) -> InlineKeyboardMarkup:
+    """Один экран вместо трёх: форма досуга (INTERESTS) и темы для изучения
+    (TOPICS) — коды в этих двух словарях не пересекаются, так что можно
+    смешать их в одном мультивыборе и разложить обратно при сохранении."""
     buttons = []
-    for code, label in REST_NEW.items():
+    for code, label in INTERESTS.items():
         prefix = "✅ " if code in selected else "⬜ "
-        buttons.append([InlineKeyboardButton(text=f"{prefix}{label}", callback_data=f"rest_new_toggle_{code}")])
-    buttons.append([InlineKeyboardButton(text="Готово →", callback_data="rest_new_done")])
+        buttons.append([InlineKeyboardButton(text=f"{prefix}{label}", callback_data=f"meta_toggle_{code}")])
+    for code, label in TOPICS.items():
+        prefix = "✅ " if code in selected else "⬜ "
+        buttons.append([InlineKeyboardButton(text=f"{prefix}{label}", callback_data=f"meta_toggle_{code}")])
+    buttons.append([InlineKeyboardButton(text="Готово →", callback_data="meta_done")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def state_for_index(idx: int):
@@ -494,9 +496,8 @@ WELCOME_TEXT = """🗺️ <b>Добро пожаловать в LifeQuest!</b>
 Каждую неделю ты получаешь персональную бинго-карту — 9 квестов, подобранных именно под тебя: под твои сильные стороны, твои сферы жизни и то, что откликается лично тебе. Выполняй их не в чате, а по-настоящему: пробуй новое, встречайся со своими страхами, открывай в себе то, что раньше было незаметно.
 
 <b>Как это работает:</b>
-🎯 15 вопросов — чтобы я лучше тебя узнал(а)
+🎯 14 вопросов — чтобы я лучше тебя узнал(а)
 🎲 Персональная бинго-карта — 9 квестов на неделю, под тебя
-🔥 Стрик — отмечай прогресс и заряжайся с каждой неделей
 
 <i>Это про то, чтобы снова почувствовать вкус к жизни — маленькими смелыми шагами, каждую неделю.</i>"""
 
@@ -509,20 +510,20 @@ async def cmd_start(message: Message, state: FSMContext):
     profile, _bingo = get_user_profile(user_id)
     if profile:
         week = get_user_week(user_id)
-        streak = get_streak(user_id)
+        total_completed = get_monthly_completed_count(user_id)
+        quest_line = f"\n🏆 Квестов в этом месяце: {total_completed}" if total_completed else ""
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🎲 Показать мою карту", callback_data="back_to_bingo")],
             [InlineKeyboardButton(text="🔄 Пройти опрос заново", callback_data="start_survey")]
         ])
-        streak_line = f"\n🔥 Стрик: {streak} дней" if streak else ""
         await message.answer(
-            f"С возвращением! Ты на неделе {week}.{streak_line}\n\nУ тебя уже есть профиль и бинго-карта.",
+            f"С возвращением! Ты на неделе {week}.{quest_line}\n\nУ тебя уже есть профиль и бинго-карта.",
             reply_markup=kb
         )
         return
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🚀 Начать (15 вопросов)", callback_data="start_survey")]
+        [InlineKeyboardButton(text="🚀 Начать (14 вопросов)", callback_data="start_survey")]
     ])
     await message.answer(WELCOME_TEXT, parse_mode="HTML", reply_markup=kb)
 
@@ -581,13 +582,12 @@ async def handle_survey_answer(callback: CallbackQuery, state: FSMContext):
     next_idx = current_idx + 1
 
     if next_idx >= len(SURVEY_QUESTIONS):
-        await state.set_state(SurveyStates.interests)
-        await state.update_data(selected_interests=[])
+        await state.set_state(SurveyStates.rest_current)
         await callback.message.edit_text(
-            "🎯 <b>Последний штрих</b>\n\n"
-            "Что из этого тебе сейчас интересно? Можно выбрать несколько — это поможет подобрать задания не только по смыслу, но и по форме, которая тебе близка.",
+            "😌 <b>Почти готово</b>\n\n"
+            "Как ты обычно отдыхаешь?",
             parse_mode="HTML",
-            reply_markup=build_interests_keyboard([])
+            reply_markup=build_rest_current_keyboard()
         )
     else:
         next_q = SURVEY_QUESTIONS[next_idx]
@@ -604,71 +604,6 @@ async def handle_survey_answer(callback: CallbackQuery, state: FSMContext):
 
     await callback.answer()
 
-@dp.callback_query(F.data.startswith("interest_toggle_"), SurveyStates.interests)
-async def toggle_interest(callback: CallbackQuery, state: FSMContext):
-    code = callback.data.replace("interest_toggle_", "")
-    data = await state.get_data()
-    selected = data.get("selected_interests", [])
-
-    if code in selected:
-        selected.remove(code)
-    else:
-        selected.append(code)
-
-    await state.update_data(selected_interests=selected)
-    await callback.message.edit_reply_markup(reply_markup=build_interests_keyboard(selected))
-    await callback.answer()
-
-@dp.callback_query(F.data == "interest_done", SurveyStates.interests)
-async def finish_interests(callback: CallbackQuery, state: FSMContext):
-    user_id = callback.from_user.id
-    data = await state.get_data()
-    selected = data.get("selected_interests", [])
-
-    save_user_interests(user_id, selected)
-
-    await state.set_state(SurveyStates.topics)
-    await state.update_data(selected_topics=[])
-    await callback.message.edit_text(
-        "📚 <b>И ещё один момент</b>\n\n"
-        "Какие темы тебе интересно изучать? Тоже можно выбрать несколько — пригодится для заданий на кругозор.",
-        parse_mode="HTML",
-        reply_markup=build_topics_keyboard([])
-    )
-    await callback.answer()
-
-@dp.callback_query(F.data.startswith("topic_toggle_"), SurveyStates.topics)
-async def toggle_topic(callback: CallbackQuery, state: FSMContext):
-    code = callback.data.replace("topic_toggle_", "")
-    data = await state.get_data()
-    selected = data.get("selected_topics", [])
-
-    if code in selected:
-        selected.remove(code)
-    else:
-        selected.append(code)
-
-    await state.update_data(selected_topics=selected)
-    await callback.message.edit_reply_markup(reply_markup=build_topics_keyboard(selected))
-    await callback.answer()
-
-@dp.callback_query(F.data == "topic_done", SurveyStates.topics)
-async def finish_topics(callback: CallbackQuery, state: FSMContext):
-    user_id = callback.from_user.id
-    data = await state.get_data()
-    selected = data.get("selected_topics", [])
-
-    save_user_topics(user_id, selected)
-
-    await state.set_state(SurveyStates.rest_current)
-    await callback.message.edit_text(
-        "😌 <b>Почти готово</b>\n\n"
-        "Как ты обычно отдыхаешь?",
-        parse_mode="HTML",
-        reply_markup=build_rest_current_keyboard()
-    )
-    await callback.answer()
-
 @dp.callback_query(F.data.startswith("rest_current_"), SurveyStates.rest_current)
 async def handle_rest_current(callback: CallbackQuery, state: FSMContext):
     code = callback.data.replace("rest_current_", "")
@@ -676,42 +611,43 @@ async def handle_rest_current(callback: CallbackQuery, state: FSMContext):
 
     save_user_rest_style(user_id, code)
 
-    await state.set_state(SurveyStates.rest_new)
-    await state.update_data(selected_rest_new=[])
+    await state.set_state(SurveyStates.interests_topics)
+    await state.update_data(selected_meta=[])
     await callback.message.edit_text(
-        "🌱 <b>И последнее</b>\n\n"
-        "Как бы ты хотел(а) научиться отдыхать иначе — то, что пока не делаешь, но интересно попробовать? Можно выбрать несколько.",
+        "🎯 <b>Последний штрих</b>\n\n"
+        "Что тебе интересно — и то, что уже любишь, и то, что хочется попробовать? Тут же и темы для изучения. Можно выбрать сколько угодно.",
         parse_mode="HTML",
-        reply_markup=build_rest_new_keyboard([])
+        reply_markup=build_interests_topics_keyboard([])
     )
     await callback.answer()
 
-@dp.callback_query(F.data.startswith("rest_new_toggle_"), SurveyStates.rest_new)
-async def toggle_rest_new(callback: CallbackQuery, state: FSMContext):
-    code = callback.data.replace("rest_new_toggle_", "")
+@dp.callback_query(F.data.startswith("meta_toggle_"), SurveyStates.interests_topics)
+async def toggle_interests_topics(callback: CallbackQuery, state: FSMContext):
+    code = callback.data.replace("meta_toggle_", "")
     data = await state.get_data()
-    selected = data.get("selected_rest_new", [])
+    selected = data.get("selected_meta", [])
 
     if code in selected:
         selected.remove(code)
     else:
         selected.append(code)
 
-    await state.update_data(selected_rest_new=selected)
-    await callback.message.edit_reply_markup(reply_markup=build_rest_new_keyboard(selected))
+    await state.update_data(selected_meta=selected)
+    await callback.message.edit_reply_markup(reply_markup=build_interests_topics_keyboard(selected))
     await callback.answer()
 
-@dp.callback_query(F.data == "rest_new_done", SurveyStates.rest_new)
-async def finish_rest_new(callback: CallbackQuery, state: FSMContext):
+@dp.callback_query(F.data == "meta_done", SurveyStates.interests_topics)
+async def finish_interests_topics(callback: CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
     data = await state.get_data()
-    selected_rest = data.get("selected_rest_new", [])
+    selected = data.get("selected_meta", [])
 
-    # Технически это то же самое, что INTERESTS (форма досуга) — объединяем,
-    # а не храним отдельным списком.
-    existing = get_user_interests(user_id)
-    merged = list(dict.fromkeys(existing + selected_rest))
-    save_user_interests(user_id, merged)
+    # Коды INTERESTS и TOPICS не пересекаются, поэтому раскладываем один
+    # общий список обратно по двум таблицам простой проверкой membership.
+    interests_selected = [c for c in selected if c in INTERESTS]
+    topics_selected = [c for c in selected if c in TOPICS]
+    save_user_interests(user_id, interests_selected)
+    save_user_topics(user_id, topics_selected)
 
     await state.set_state(SurveyStates.analyzing)
     await callback.message.edit_text(
@@ -786,19 +722,6 @@ REST_CURRENT = {
     "hobby": "🎨 Занимаюсь хобби",
     "screens": "📺 Смотрю фильмы или сериалы",
     "sleep": "😴 Просто высыпаюсь",
-}
-
-# Новые способы отдыха, которые человек хочет попробовать, но пока не делает.
-# Мультивыбор; выбранное добавляется к INTERESTS (та же механика взвешивания
-# заданий) — технически это тот же список предпочтений по форме досуга.
-REST_NEW = {
-    "sport": "🏃 Новый вид спорта",
-    "mindfulness": "🧘 Медитация и осознанность",
-    "drawing_visual": "🎨 Рисование или визуал",
-    "music": "🎵 Музыка",
-    "learning": "📖 Активное чтение",
-    "travel": "🥾 Вылазки на природу, путешествия",
-    "handicraft": "🧵 Рукоделие",
 }
 
 # Задания на каждую сферу, у каждого — 2 уровня сложности ("easy"/"medium"),
@@ -904,6 +827,21 @@ BINGO_BANK = {
 Убери за собой сразу после того, как закончил(а) дело сегодня — не откладывай на потом.""",
          "medium": """🧹 <b>5 минут вечером</b>
 Потрать 5 минут перед сном на уборку одного места, чтобы утром было чисто."""},
+        {"key": "single_task_hour", "label": "🎯 Один час однозадачности",
+         "interest": "mindfulness",
+         "pattern": "exhaustion",
+         "why": "Переключение между задачами не экономит время — каждое переключение требует нескольких минут, чтобы мозг снова погрузился в контекст. Час без переключений часто продуктивнее, чем день в режиме многозадачности.",
+         "easy": """🎯 <b>Один час однозадачности</b>
+Выдели 20 минут на одно дело — без вкладок, уведомлений и переключений.""",
+         "medium": """🎯 <b>Один час однозадачности</b>
+Целый час занимайся только одним делом — без переключений, вкладок и уведомлений."""},
+        {"key": "off_hand_day", "label": "✋ День другой рукой",
+         "pattern": "disconnection",
+         "why": "Привычные действия выполняются на автопилоте именно потому, что не требуют внимания — смена руки ломает автоматизм и на время возвращает эти простые моменты в сознательное поле восприятия.",
+         "easy": """✋ <b>День другой рукой</b>
+Выполни 3-5 привычных мелких действий не доминирующей рукой — почисти зубы, налей воды, открой дверь.""",
+         "medium": """✋ <b>День другой рукой</b>
+В течение дня выполняй привычные мелкие действия не доминирующей рукой — ешь, пиши, открывай двери."""},
     ],
     "Энергия": [
         {"key": "morning", "label": "🌅 Утро",
@@ -984,6 +922,7 @@ BINGO_BANK = {
          "medium": """🌳 <b>На природу</b>
 Проведи хотя бы 20-30 минут на природе — парк, лес, вода — без телефона."""},
         {"key": "mindful_eating", "label": "🥗 Осознанная еда",
+         "interest": "mindfulness",
          "pattern": "disconnection",
          "why": "Еда на автомате, под экран, не даёт мозгу зарегистрировать сигналы сытости и удовольствия — насыщение чувствуется слабее, даже если съедено достаточно. Осознанность здесь не про диету, а про то, чтобы еда реально ощущалась.",
          "easy": """🥗 <b>Осознанная еда</b>
@@ -1013,6 +952,62 @@ BINGO_BANK = {
 В течение часа несколько раз сознательно выпрями спину и заметь разницу.""",
          "medium": """🧎 <b>Осанка</b>
 Весь день сознательно следи за осанкой — лови момент, когда начинаешь сутулиться."""},
+        {"key": "morning_workout", "label": "🏋️ Утренняя зарядка",
+         "interest": "sport",
+         "pattern": "external_control",
+         "why": "Физическая активность в первые минуты после пробуждения запускает выработку эндорфинов и норадреналина раньше, чем это успевают сделать новости или уведомления — тело, а не лента, первым формирует твоё состояние на день.",
+         "easy": """🏋️ <b>Утренняя зарядка</b>
+Сделай 5 простых упражнений сразу после будильника — до завтрака, до телефона.""",
+         "medium": """🏋️ <b>Утренняя зарядка</b>
+Сделай короткий комплекс упражнений сразу после пробуждения — до завтрака, до телефона."""},
+        {"key": "home_strength", "label": "💪 Силовая тренировка дома",
+         "interest": "sport",
+         "pattern": "avoidance",
+         "why": "Отсутствие зала — самый частый повод отложить тренировку. Убрав это условие, ты убираешь и главную причину не начинать.",
+         "easy": """💪 <b>Силовая тренировка дома</b>
+Сделай 2-3 упражнения с собственным весом — например, 10 приседаний и 10 отжиманий.""",
+         "medium": """💪 <b>Силовая тренировка дома</b>
+Сделай тренировку с собственным весом — приседания, отжимания, планка — без зала и оборудования."""},
+        {"key": "swimming", "label": "🏊 Плавание",
+         "interest": "sport",
+         "pattern": "exhaustion",
+         "why": "Вода снижает нагрузку на суставы и одновременно требует ритмичного дыхания — сочетание, которое физически трудно совместить с тревогой, поэтому плавание особенно хорошо снимает накопленное напряжение.",
+         "easy": """🏊 <b>Плавание</b>
+Сходи в бассейн хотя бы на 15 минут — без цели проплыть определённую дистанцию.""",
+         "medium": """🏊 <b>Плавание</b>
+Сходи в бассейн или на открытую воду — даже 15-20 минут в воде считаются."""},
+        {"key": "body_scan", "label": "🧘‍♀️ Сканирование тела",
+         "interest": "mindfulness",
+         "pattern": "exhaustion",
+         "why": "Сканирование тела — способ заметить напряжение, которое накопилось незаметно: мозг годами игнорирует сигналы тела, если не тратить время на то, чтобы их вообще заметить.",
+         "easy": """🧘‍♀️ <b>Сканирование тела</b>
+Потрать 5 минут, чтобы медленно пройтись вниманием по телу от макушки до стоп.""",
+         "medium": """🧘‍♀️ <b>Сканирование тела</b>
+Сделай практику сканирования тела — медленно пройдись вниманием от макушки до стоп."""},
+        {"key": "silent_walk", "label": "🚶‍♀️ Тихая прогулка",
+         "interest": "mindfulness",
+         "pattern": "disconnection",
+         "why": "Ходьба с фокусом на ощущениях — редкий момент, когда внимание не разрывается между задачами. Это возвращает связь с телом и моментом, которая обычно теряется в фоновом шуме дел.",
+         "easy": """🚶‍♀️ <b>Тихая прогулка</b>
+Пройдись 10 минут, обращая внимание только на звуки и запахи вокруг.""",
+         "medium": """🚶‍♀️ <b>Тихая прогулка</b>
+Пройдись 15-20 минут, сосредоточившись только на ощущениях — звуках, запахах, шагах."""},
+        {"key": "nature_watching", "label": "🌳 Наблюдение за природой",
+         "interest": "mindfulness",
+         "pattern": "exhaustion",
+         "why": "Медленные природные процессы не требуют реакции и решений — это единственный вид «стимуляции», от которого нервная система реально отдыхает, а не просто переключается на другой источник напряжения.",
+         "easy": """🌳 <b>Наблюдение за природой</b>
+Понаблюдай за чем-то живым — деревом за окном, облаками — 5 минут без телефона.""",
+         "medium": """🌳 <b>Наблюдение за природой</b>
+Понаблюдай за чем-то живым — деревом, облаками, животным — 10 минут без цели и телефона."""},
+        {"key": "gratitude_practice", "label": "🙏 Практика благодарности",
+         "interest": "mindfulness",
+         "pattern": "disconnection",
+         "why": "Внимание по умолчанию отслеживает угрозы и то, что не так — это эволюционная особенность, не недостаток характера. Осознанное перечисление хорошего — способ ненадолго развернуть внимание в другую сторону.",
+         "easy": """🙏 <b>Практика благодарности</b>
+Назови вслух или запиши 1 вещь, за которую сегодня благодарен(на).""",
+         "medium": """🙏 <b>Практика благодарности</b>
+Назови вслух или запиши 3 вещи, за которые сегодня благодарен(на) — без анализа, просто перечисли."""},
     ],
     "Саморазвитие": [
         {"key": "plan", "label": "📋 План",
@@ -1143,6 +1138,14 @@ BINGO_BANK = {
 Выбери спорный вопрос и напиши по 1 аргументу за и против.""",
          "medium": """💬 <b>Дебаты с собой</b>
 Выбери спорный вопрос и напиши аргументы за и против — даже если мнение уже есть."""},
+        {"key": "cooking_skill", "label": "🔪 Освой кулинарный навык",
+         "interest": "cooking",
+         "pattern": "self_doubt",
+         "why": "Конкретный отработанный навык — в отличие от расплывчатого «научиться готовить» — даёт измеримое чувство прогресса, а это один из самых надёжных источников уверенности в себе.",
+         "easy": """🔪 <b>Освой кулинарный навык</b>
+Посмотри короткое видео про один кулинарный приём и попробуй повторить — 10 минут.""",
+         "medium": """🔪 <b>Освой кулинарный навык</b>
+Потренируй один конкретный навык — работу с ножом, тесто, соус — 15-20 минут практики."""},
     ],
     "Смелость": [
         {"key": "fear", "label": "😨 Страх",
@@ -1208,6 +1211,14 @@ BINGO_BANK = {
 Признайся себе в чём-то, что обычно не проговариваешь даже наедине с собой.""",
          "medium": """📝 <b>Признание</b>
 Признайся себе или кому-то в том, что обычно скрываешь."""},
+        {"key": "scary_food", "label": "😱 Рискни попробовать",
+         "interest": "cooking",
+         "pattern": "avoidance",
+         "why": "Пищевая настороженность — один из самых базовых защитных рефлексов, и именно поэтому его легко тренировать в безопасной обстановке: цена ошибки — неприятный вкус, не более того.",
+         "easy": """😱 <b>Рискни попробовать</b>
+Попробуй маленький кусочек того, что обычно избегаешь — необычный продукт, острое, незнакомую текстуру.""",
+         "medium": """😱 <b>Рискни попробовать</b>
+Съешь то, что обычно боишься попробовать — самое пугающее блюдо в меню или на полке магазина."""},
     ],
     "Приключения": [
         {"key": "adventure1", "label": "🌍 Приключение",
@@ -1304,6 +1315,50 @@ BINGO_BANK = {
 Напиши кому-то с предложением спонтанно встретиться сегодня или завтра, без долгого планирования.""",
          "medium": """🎫 <b>Спонтанная встреча</b>
 Прими спонтанное приглашение, если оно появится сегодня — или сам(а) создай повод для встречи."""},
+        {"key": "cook_new_cuisine", "label": "🍜 Блюдо другой культуры",
+         "interest": "cooking",
+         "pattern": "avoidance",
+         "why": "Готовка по чужому рецепту — низкий по ставкам способ впустить в жизнь что-то незнакомое: если не получится, это просто ужин, а не провал важного начинания.",
+         "easy": """🍜 <b>Блюдо другой культуры</b>
+Приготовь что-то простое из незнакомой кухни — по короткому рецепту, без сложных ингредиентов.""",
+         "medium": """🍜 <b>Блюдо другой культуры</b>
+Приготовь блюдо кухни, которую никогда не готовил(а), по настоящему рецепту."""},
+        {"key": "city_tour", "label": "🗺 Экскурсия по своему городу",
+         "interest": "travel",
+         "pattern": "disconnection",
+         "why": "Взгляд туриста на знакомые улицы включает то же любопытство, которое обычно требует далёкой поездки — новизна чаще зависит от внимания, чем от расстояния.",
+         "easy": """🗺 <b>Экскурсия по своему городу</b>
+Прочитай 2-3 факта о районе, где живёшь, которые раньше не знал(а).""",
+         "medium": """🗺 <b>Экскурсия по своему городу</b>
+Возьми аудиогид или тематическую экскурсию по своему городу — как турист у себя дома."""},
+        {"key": "no_spend_day", "label": "💸 День без денег",
+         "pattern": "avoidance",
+         "why": "Траты часто работают как быстрый способ заглушить скуку или неловкость момента — без этой опции приходится найти другой источник удовольствия, а это заставляет заметить, что было доступно и до этого.",
+         "easy": """💸 <b>День без денег</b>
+Проведи половину дня, не потратив ни рубля — найди способ развлечься бесплатно.""",
+         "medium": """💸 <b>День без денег</b>
+Проведи целый день, не потратив ни рубля, и найди способ получить удовольствие бесплатно."""},
+        {"key": "leave_treasure", "label": "🎁 Клад для незнакомца",
+         "pattern": "disconnection",
+         "why": "Делать что-то приятное человеку, которого никогда не увидишь, — редкий акт без ожидания благодарности или ответа. Это тренирует способность действовать из щедрости, а не из расчёта на реакцию.",
+         "easy": """🎁 <b>Клад для незнакомца</b>
+Оставь что-то маленькое и приятное (наклейку, конфету, записку) в неожиданном месте — пусть кто-то случайно найдёт.""",
+         "medium": """🎁 <b>Клад для незнакомца</b>
+Спрячь что-то маленькое и приятное в неожиданном месте города — записку, мелкий подарок — для случайного человека, который его найдёт."""},
+        {"key": "try_other_life", "label": "🎩 Другая жизнь на час",
+         "pattern": "self_doubt",
+         "why": "Ощущение «это не для меня» редко основано на реальном запрете — чаще это внутренняя граница, которую никто не проверял на прочность. Зайти и посмотреть — самый дешёвый способ её проверить.",
+         "easy": """🎩 <b>Другая жизнь на час</b>
+Зайди туда, куда обычно «не по статусу» — дорогой магазин, шикарный отель — просто посмотреть, без покупки.""",
+         "medium": """🎩 <b>Другая жизнь на час</b>
+Проведи час там, куда обычно не заходишь, — дорогой магазин, отель, ресторан — просто чтобы посмотреть и почувствовать, каково это."""},
+        {"key": "self_date", "label": "💐 Свидание с собой",
+         "pattern": "disconnection",
+         "why": "Отношение к себе как к тому, кого стоит порадовать, а не просто обслужить, — редкая практика: обычно забота в таком виде адресована другим. Свидание с собой тренирует именно это направление внимания.",
+         "easy": """💐 <b>Свидание с собой</b>
+Устрой себе маленькое свидание — любимый напиток в кафе в одиночестве, без телефона.""",
+         "medium": """💐 <b>Свидание с собой</b>
+Устрой себе настоящее свидание: оденься как для выхода, сходи в кафе или на прогулку одна(один), закажи то, что хочется, без телефона."""},
     ],
     "Творчество": [
         {"key": "expression", "label": "✨ Проявление",
@@ -1392,6 +1447,158 @@ BINGO_BANK = {
 Смени освещение или включи музыку под настроение прямо сейчас — маленький штрих.""",
          "medium": """🕯 <b>Атмосфера</b>
 Создай особую атмосферу дома — свет, запахи, музыка — просто для настроения, без повода."""},
+        {"key": "portrait_from_memory", "label": "🖼 Портрет по памяти",
+         "interest": "drawing_visual",
+         "pattern": "perfectionism",
+         "why": "Рисование по памяти изначально освобождено от ожидания точности — это редкая рисовальная практика, где «непохоже» не считается неудачей, а часть процесса.",
+         "easy": """🖼 <b>Портрет по памяти</b>
+Набросай контуры лица человека, которого хорошо помнишь — 5-10 минут, без цели на сходство.""",
+         "medium": """🖼 <b>Портрет по памяти</b>
+Нарисуй лицо человека, которого хорошо помнишь — не для сходства, а для практики."""},
+        {"key": "illustrate_favorite", "label": "📖 Иллюстрация к любимому",
+         "interest": "drawing_visual",
+         "pattern": "disconnection",
+         "why": "Визуализация того, что уже эмоционально важно для тебя, работает как мост между чувством и его выражением — тема уже интересна, остаётся просто дать ей форму.",
+         "easy": """📖 <b>Иллюстрация к любимому</b>
+Нарисуй один простой символ или деталь из книги, фильма или песни, которая тебе нравится.""",
+         "medium": """📖 <b>Иллюстрация к любимому</b>
+Нарисуй сцену из книги, фильма или песни, которая тебе нравится."""},
+        {"key": "copy_master", "label": "🎨 Копирование мастера",
+         "interest": "drawing_visual",
+         "pattern": "perfectionism",
+         "why": "Копирование — признанная учебная техника: оно снимает давление придумывать композицию с нуля и оставляет только сам навык — линию, свет, пропорции.",
+         "easy": """🎨 <b>Копирование мастера</b>
+Найди картину, которая нравится, и попробуй скопировать один её фрагмент.""",
+         "medium": """🎨 <b>Копирование мастера</b>
+Найди картину, которая нравится, и попробуй скопировать её — как учебное упражнение."""},
+        {"key": "learn_riff", "label": "🎸 Разучи партию",
+         "interest": "music",
+         "pattern": "self_doubt",
+         "why": "Маленький законченный фрагмент даёт реальное чувство «я это могу» быстрее, чем попытка выучить целую песню — а именно из таких маленьких побед и строится уверенность в навыке.",
+         "easy": """🎸 <b>Разучи партию</b>
+Выучи 4-8 тактов на инструменте — не всю песню, просто маленький фрагмент.""",
+         "medium": """🎸 <b>Разучи партию</b>
+Выучи короткий фрагмент на инструменте, на котором давно не играл(а) или никогда не пробовал(а)."""},
+        {"key": "mood_playlist", "label": "🎧 Плейлист под настроение",
+         "interest": "music",
+         "pattern": "disconnection",
+         "why": "Подбор музыки под собственное состояние, а не под то, что «принято слушать», — маленький акт слушания себя, а не внешних ожиданий.",
+         "easy": """🎧 <b>Плейлист под настроение</b>
+Добавь 3-5 песен под настроение прямо сейчас в один плейлист.""",
+         "medium": """🎧 <b>Плейлист под настроение</b>
+Собери плейлист под то, что чувствуешь прямо сейчас — без оглядки на чужой вкус."""},
+        {"key": "improvisation", "label": "🎹 Импровизация",
+         "interest": "music",
+         "pattern": "perfectionism",
+         "why": "Импровизация не имеет «правильного» результата по определению — это единственная музыкальная практика, где ошибиться физически невозможно, и именно поэтому она хорошо ослабляет перфекционизм.",
+         "easy": """🎹 <b>Импровизация</b>
+2 минуты играй или пой что угодно, без правильных нот и без плана.""",
+         "medium": """🎹 <b>Импровизация</b>
+Позволь себе 5 минут свободной импровизации на инструменте или голосом — без правильных нот."""},
+        {"key": "song_breakdown", "label": "🔍 Разбор любимой песни",
+         "interest": "music",
+         "pattern": "disconnection",
+         "why": "Внимательное слушание того, что уже любишь, углубляет отношения с этим — вместо фонового потребления получается настоящий контакт с тем, что откликается.",
+         "easy": """🔍 <b>Разбор любимой песни</b>
+Послушай любимую песню и заметь одну деталь, которую раньше не замечал(а).""",
+         "medium": """🔍 <b>Разбор любимой песни</b>
+Послушай любимую песню внимательно и разбери, что в ней работает — ритм, текст, гармония."""},
+        {"key": "karaoke", "label": "🎤 Караоке",
+         "interest": "music",
+         "pattern": "fear_judgment",
+         "why": "Пение в полный голос без слушателей — способ тренировать разрешение звучать неидеально, когда цена ошибки равна нулю.",
+         "easy": """🎤 <b>Караоке</b>
+Подпевай любимой песне вслух хотя бы один куплет, в полный голос.""",
+         "medium": """🎤 <b>Караоке</b>
+Спой полностью любимую песню под минус — в полный голос, дома или в приложении."""},
+        {"key": "rhythm_exercise", "label": "🥁 Ритм-упражнение",
+         "interest": "music",
+         "pattern": "exhaustion",
+         "why": "Ритмичное движение руками активирует моторную кору так же, как и любая физическая нагрузка — простой способ физически сбросить напряжение без спортзала.",
+         "easy": """🥁 <b>Ритм-упражнение</b>
+Прохлопай ритм одной любимой песни руками — 1-2 минуты.""",
+         "medium": """🥁 <b>Ритм-упражнение</b>
+Прохлопай или простучи ритм любимой песни — руками, по столу, на кастрюлях."""},
+        {"key": "new_genre", "label": "🎼 Новый жанр",
+         "interest": "music",
+         "pattern": "avoidance",
+         "why": "Мозг любит новизну, но привычка автоматически возвращает к знакомому — целенаправленный выбор незнакомого жанра нарушает этот автопилот.",
+         "easy": """🎼 <b>Новый жанр</b>
+Послушай 2-3 песни в незнакомом жанре — просто из любопытства.""",
+         "medium": """🎼 <b>Новый жанр</b>
+Целенаправленно послушай альбом в жанре, который обычно не слушаешь."""},
+        {"key": "haiku", "label": "📝 Хайку",
+         "interest": "writing",
+         "pattern": "perfectionism",
+         "why": "Короткая форма снимает давление написать что-то значительное — три строки нельзя «не дописать», и именно поэтому с них легко начать.",
+         "easy": """📝 <b>Хайку</b>
+Напиши одну строчку о том, что видишь или чувствуешь прямо сейчас.""",
+         "medium": """📝 <b>Хайку</b>
+Напиши хайку или четверостишие про то, что видишь или чувствуешь прямо сейчас."""},
+        {"key": "letter_to_future", "label": "✉️ Письмо в будущее",
+         "interest": "writing",
+         "pattern": "disconnection",
+         "why": "Письмо себе в будущем требует на время посмотреть на свою жизнь со стороны — это простой способ заметить, что для тебя на самом деле важно, минуя ежедневную суету.",
+         "easy": """✉️ <b>Письмо в будущее</b>
+Напиши себе 3-4 предложения — что хочешь сказать себе через год.""",
+         "medium": """✉️ <b>Письмо в будущее</b>
+Напиши письмо себе через год — что бы ты хотел(а) сказать будущему себе."""},
+        {"key": "unpublished_post", "label": "📱 Пост без публикации",
+         "interest": "writing",
+         "pattern": "fear_judgment",
+         "why": "Убрав необходимость публикации, ты убираешь и страх чужой реакции — но сама практика формулировать мысль публично остаётся, просто без риска.",
+         "easy": """📱 <b>Пост без публикации</b>
+Напиши пару абзацев так, будто собираешься их опубликовать, — и не публикуй.""",
+         "medium": """📱 <b>Пост без публикации</b>
+Напиши пост или заметку так, будто собираешься её опубликовать — и оставь только себе."""},
+        {"key": "letter_to_someone", "label": "💌 Письмо человеку",
+         "interest": "writing",
+         "pattern": "avoidance",
+         "why": "То, что не проговорено, продолжает требовать внимания на фоне — письмо не обязано быть отправлено, чтобы дать облегчение от того, что мысль наконец оформлена в слова.",
+         "easy": """💌 <b>Письмо человеку</b>
+Начни писать письмо тому, кому давно хотел(а) что-то сказать — хотя бы пару предложений.""",
+         "medium": """💌 <b>Письмо человеку</b>
+Напиши письмо тому, кому давно хотел(а) что-то сказать — отправлять не обязательно."""},
+        {"key": "detailed_day", "label": "📓 Один день подробно",
+         "interest": "writing",
+         "pattern": "disconnection",
+         "why": "Подробное описание дня заставляет вспомнить его заново и часто выявляет моменты, которые в потоке дел прошли незамеченными, хотя были важны.",
+         "easy": """📓 <b>Один день подробно</b>
+Опиши сегодняшний день в 3-4 предложениях — что было важным.""",
+         "medium": """📓 <b>Один день подробно</b>
+Опиши сегодняшний день в деталях — что видел(а), слышал(а), чувствовал(а)."""},
+        {"key": "plating", "label": "🍽 Плейтинг",
+         "interest": "cooking",
+         "pattern": "perfectionism",
+         "why": "Внимание к эстетике обычного момента — способ тренировать взгляд на то, что можно сделать лучше не ради оценки, а ради самого процесса.",
+         "easy": """🍽 <b>Плейтинг</b>
+Красиво разложи обычную еду на тарелке — просто ради того, как это будет выглядеть.""",
+         "medium": """🍽 <b>Плейтинг</b>
+Укрась обычное блюдо так, будто это ресторан — просто ради красоты подачи."""},
+        {"key": "drink_from_scratch", "label": "🥤 Напиток с нуля",
+         "interest": "cooking",
+         "pattern": "avoidance",
+         "why": "Маленький кулинарный эксперимент с низкими ставками — хороший способ практиковать готовность пробовать новое без реального риска неудачи.",
+         "easy": """🥤 <b>Напиток с нуля</b>
+Приготовь простой напиток без готовых смесей — например, чай со свежими специями.""",
+         "medium": """🥤 <b>Напиток с нуля</b>
+Приготовь напиток полностью с нуля — смузи, чай со специями, кофе по-новому."""},
+        {"key": "origami", "label": "📐 Оригами",
+         "interest": "handicraft",
+         "pattern": "exhaustion",
+         "why": "Точная работа руками требует полного внимания к текущему шагу — это одна из немногих задач, где физически невозможно одновременно тревожиться о постороннем.",
+         "easy": """📐 <b>Оригами</b>
+Сложи простую фигурку оригами по видео-инструкции — 10 минут.""",
+         "medium": """📐 <b>Оригами</b>
+Сложи фигурку оригами по схеме — 15-20 минут на аккуратность и терпение."""},
+        {"key": "clay_modeling", "label": "🏺 Лепка",
+         "interest": "handicraft",
+         "pattern": "perfectionism",
+         "why": "Лепка — материал, который прощает любую форму: то, что не понравилось, можно тут же переделать, и это снимает напряжение вокруг «правильного» результата.",
+         "easy": """🏺 <b>Лепка</b>
+Слепи что-то простое из пластилина 10 минут — без цели на результат.""",
+         "medium": """🏺 <b>Лепка</b>
+Слепи что-то из пластилина или глины — без цели на результат, просто ради процесса."""},
     ],
 }
 
@@ -1463,6 +1670,237 @@ def build_personal_bingo(scores: dict, week: int = 1, user_id: int = 0, regen: i
     return card
 
 LLM_REFRESH_EVERY_N_WEEKS = 2
+
+# ==================== QUEST OF THE DAY ====================
+# Отдельный слой поверх бинго-карты: раз в день бот сам присылает один более
+# крупный, амбициозный вызов — без вариантов на выбор, как единственный фокус
+# на сегодня. Не завязан на сферы/паттерны/интересы карты — своя, более
+# насыщенная категория заданий. Выполнение засчитывается в общий счётчик
+# «Квестов в этом месяце», но не влияет на бинго-карту.
+DAY_QUESTS = [
+    {"key": "no_autopilot", "label": "🧠 День без автоматизма",
+     "text": "Сегодня нельзя делать привычные вещи привычным способом: выбери новый маршрут, попробуй новую еду, поработай или отдохни в новом месте. Вечером запиши 3 вещи, которые неожиданно понравились.",
+     "opens": "Гибкость"},
+    {"key": "other_life", "label": "🎭 Проживи чужую жизнь",
+     "text": "Выбери человека, чья жизнь радикально отличается от твоей. Представь, что ты — он, и попробуй провести день, принимая решения с его позиции.",
+     "opens": "Эмпатия"},
+    {"key": "no_self_edit", "label": "🪞 День без саморедактуры",
+     "text": "В течение дня отслеживай моменты, когда хочется показаться умнее, интереснее или успешнее. В эти моменты сознательно ничего не доказывай.",
+     "opens": "Самопринятие"},
+    {"key": "out_of_character", "label": "🎲 Решения за пределами характера",
+     "text": "В течение дня каждый раз, когда появляется выбор, выбирай не то, что выбрал(а) бы обычно. Безопасные и разумные решения — но непривычные.",
+     "opens": "Самопознание"},
+    {"key": "find_bias", "label": "🕵️ Найди своё предубеждение",
+     "text": "Выбери мнение, в котором уверен(а). Найди 3 сильных аргумента против него и честно оцени, изменилось ли твоё мнение.",
+     "opens": "Интеллектуальная гибкость"},
+    {"key": "shameful_creation", "label": "🧑‍🎨 Создай то, что стыдно показать",
+     "text": "За день создай что-нибудь намеренно плохое: рисунок, стих, музыку, видео. Главное — закончить и не удалить.",
+     "opens": "Свобода от оценки"},
+    {"key": "stranger_district", "label": "🗺️ День незнакомца",
+     "text": "Проведи несколько часов в районе, который почти не знаешь. Никаких рекомендаций и рейтингов — выбирай места исключительно по любопытству.",
+     "opens": "Исследовательский дух"},
+    {"key": "digital_disappear", "label": "📵 Исчезни из интернета",
+     "text": "На один день отключи соцсети, короткие видео и бесконечный скроллинг. Каждый раз, когда рука тянется к телефону, записывай, чего тебе на самом деле захотелось.",
+     "opens": "Понимание своих импульсов"},
+    {"key": "curiosity_day", "label": "💡 24 часа любопытства",
+     "text": "Каждый раз, когда возникает мысль «интересно, почему...», ты обязан(а) узнать ответ. Минимум 10 таких вопросов за день.",
+     "opens": "Любознательность"},
+    {"key": "future_self_day", "label": "🧳 День будущего себя",
+     "text": "Представь себя через 10 лет. Спроси: «Что этот человек хотел бы, чтобы я сделал(а) сегодня?» Выполни 3 конкретных действия.",
+     "opens": "Ценности"},
+    {"key": "do_the_dodge", "label": "🔥 Сделай то, что откладываешь",
+     "text": "Выбери одну вещь, которую откладываешь минимум месяц. Сегодня доведи её до состояния «готово» или сделай первый необратимый шаг.",
+     "opens": "Решительность"},
+    {"key": "i_dont_know", "label": "🧪 Эксперимент «я не знаю»",
+     "text": "В течение дня вместо того, чтобы делать вид, что знаешь ответ, несколько раз честно говори «я не знаю». Затем действительно разберись.",
+     "opens": "Интеллектуальная честность"},
+    {"key": "budget_day", "label": "💰 День с ограничением",
+     "text": "Проживи день с искусственным ограничением — например, символическая сумма на все развлечения. Твоя задача — не страдать, а найти неожиданные решения.",
+     "opens": "Креативность"},
+    {"key": "follow_interest", "label": "🧭 Следуй за интересом",
+     "text": "Откажись от заранее запланированного досуга. Каждый час выбирай следующее действие исключительно по принципу «мне действительно интересно узнать, что будет».",
+     "opens": "Спонтанность"},
+    {"key": "one_day_autobiography", "label": "📓 Автобиография за один день",
+     "text": "В течение дня записывай моменты, которые вызывают сильную эмоцию. Вечером найди повторяющуюся закономерность.",
+     "opens": "Эмоциональный интеллект"},
+    {"key": "watch_strangers", "label": "🪑 Посиди рядом с чужой жизнью",
+     "text": "Проведи час в публичном месте без телефона и наблюдай за людьми. Не придумывай их истории — попробуй понять, что именно ты автоматически предполагаешь о них.",
+     "opens": "Осознанность"},
+    {"key": "expose_your_role", "label": "🧩 Разоблачи свою роль",
+     "text": "Запиши 3 роли, которые ты обычно играешь: «умный(ая)», «надёжный(ая)», «весёлый(ая)», «сильный(ая)» и подобные. В течение дня замечай, когда ты защищаешь каждую из них.",
+     "opens": "Самоосознание"},
+    {"key": "anonymous_good", "label": "🌱 Сделай добро анонимно",
+     "text": "Сделай несколько полезных вещей для других людей так, чтобы никто не узнал, что это сделал(а) ты.",
+     "opens": "Альтруизм"},
+    {"key": "one_skill_day", "label": "🧠 День одного навыка",
+     "text": "Выбери сложный для новичка навык и посвяти ему несколько часов глубокой практики. В конце создай конкретный результат.",
+     "opens": "Дисциплина"},
+    {"key": "buy_experience", "label": "🪙 Купи не вещь, а опыт",
+     "text": "Сегодня нельзя покупать вещи для себя. Разрешены только впечатления, знания или возможность попробовать что-то новое.",
+     "opens": "Отношение к потреблению"},
+    {"key": "drop_social_armor", "label": "🎭 Сними социальную броню",
+     "text": "Сделай несколько безопасных вещей, которые давно хочется сделать, но боишься выглядеть нелепо: пойти куда-то один(одна), спросить, признаться, попробовать.",
+     "opens": "Смелость"},
+    {"key": "explore_envy", "label": "🔬 Исследуй собственную зависть",
+     "text": "Найди человека, которому ты завидуешь. Не осуждай себя. Разбери конкретно, чему именно ты завидуешь и какую потребность это показывает.",
+     "opens": "Понимание желаний"},
+    {"key": "other_culture_view", "label": "🌍 Посмотри на себя глазами другой культуры",
+     "text": "Выбери культуру, сильно отличающуюся от твоей. Изучи её отношение к семье, работе, деньгам и счастью. Найди минимум 3 идеи, с которыми не согласен(на), и 3, которым хотел(а) бы научиться.",
+     "opens": "Расширение картины мира"},
+    {"key": "unsent_letter", "label": "📝 Напиши письмо, которое не отправишь",
+     "text": "Напиши человеку всё, что никогда не решался(лась) сказать. Потом перечитай и попробуй понять, какую потребность ты на самом деле пытаешься выразить.",
+     "opens": "Эмоциональная зрелость"},
+    {"key": "discomfort_day", "label": "🧱 День дискомфорта",
+     "text": "Выбери несколько безопасных небольших дискомфортов: холодный душ, незнакомое место, сложная задача, разговор, который откладывал(а). Не убегай от них сразу.",
+     "opens": "Устойчивость"},
+    {"key": "check_predictions", "label": "🔮 Проверь собственные прогнозы",
+     "text": "Утром запиши 10 предсказаний о сегодняшнем дне: что произойдёт, что понравится, как пройдёт день. Вечером посчитай попадания.",
+     "opens": "Осознание собственных ожиданий"},
+    {"key": "memorable_day", "label": "🌌 День, который ты запомнишь",
+     "text": "Твоя единственная задача — к концу дня создать один момент, который через год ты всё ещё будешь помнить. Никаких дополнительных инструкций.",
+     "opens": "Инициативность"},
+    {"key": "tell_tomorrow", "label": "📣 Сделай то, о чём завтра расскажешь",
+     "text": "У тебя сегодня есть одна задача: сделать что-то, что завтра будет интересно пересказать другому человеку.",
+     "opens": "Инициативность"},
+    {"key": "what_not_because_i_want", "label": "🔍 Что я делаю не потому, что хочу?",
+     "text": "Сегодня каждый раз, когда делаешь что-то по привычке, спроси себя: «Если бы никто никогда об этом не узнал, я бы всё равно это делал(а)?» Вечером составь список из 5 таких вещей.",
+     "opens": "Самопонимание"},
+    {"key": "meet_your_fear", "label": "😨 Познакомься со своим страхом",
+     "text": "Выбери страх, который не связан с реальной опасностью. Сделай сегодня маленький шаг прямо в его сторону. После запиши: чего ты ожидал(а) и что произошло на самом деле?",
+     "opens": "Смелость"},
+    {"key": "new_version_of_self", "label": "✨ Новая версия себя",
+     "text": "Выбери качество, которого тебе не хватает: смелость, спокойствие, любопытство, решительность. На один день сделай его своим главным правилом.",
+     "opens": "Развитие характера"},
+    {"key": "destroy_a_myth", "label": "🔨 Уничтожь один миф о себе",
+     "text": "Найди убеждение о себе вроде «я не творческий(ая)» или «я плохо знакомлюсь». Создай за день эксперимент, который может это убеждение подтвердить или опровергнуть.",
+     "opens": "Самопознание"},
+    {"key": "day_without_goal", "label": "🌤 День без цели",
+     "text": "Полдня ничего не оптимизируй. Не выбирай самое быстрое, полезное или выгодное. Выбирай то, что вызывает интерес. Вечером сравни ощущения с обычным днём.",
+     "opens": "Спонтанность"},
+    {"key": "left_out_of_frame", "label": "👁 Что осталось за кадром?",
+     "text": "Возьми один свой обычный день и сознательно ищи то, что обычно не замечаешь: звуки, архитектуру, выражения лиц, запахи, детали разговоров. Сделай 10 наблюдений.",
+     "opens": "Внимательность"},
+    {"key": "make_impossible_small", "label": "🔬 Сделай невозможное маленьким",
+     "text": "Возьми мечту, которая кажется слишком большой. Не пытайся её осуществить. Найди самый маленький физический шаг, который делает её реальнее, и выполни его до конца дня.",
+     "opens": "Действие"},
+    {"key": "future_place", "label": "🔮 Найди место из будущего",
+     "text": "Выйди в город и найди место, которое, по-твоему, через 50 лет будет выглядеть совершенно иначе. Сделай фото и объясни для себя почему.",
+     "opens": "Воображение"},
+    {"key": "buy_a_memory", "label": "🎁 Купи себе воспоминание",
+     "text": "Потрать небольшую сумму на вещь, которая через 10 лет напомнит тебе именно об этом дне.",
+     "opens": "Символическое мышление"},
+    {"key": "movie_scene", "label": "🎬 Проживи сцену из фильма",
+     "text": "Выбери случайный фильм. Найди в городе место, максимально похожее на одну из его сцен, и проведи там 20 минут.",
+     "opens": "Воображение"},
+    {"key": "explorer_street", "label": "🧭 Исследователь",
+     "text": "Найди на карте улицу, по которой никогда не ходил(а). Твоя задача — обнаружить на ней что-то, чего нет ни в одном путеводителе.",
+     "opens": "Исследование"},
+    {"key": "life_radio", "label": "📻 Радиостанция твоей жизни",
+     "text": "Включи радио или случайный плейлист. Первая песня определяет тему твоей прогулки. Вторая — место, куда ты пойдёшь.",
+     "opens": "Спонтанность"},
+    {"key": "tourist_last_day", "label": "🧳 День туриста",
+     "text": "Представь, что ты турист и сегодня последний день в этом городе. У тебя есть 3 часа. Куда бы ты пошёл(ла)?",
+     "opens": "Взгляд со стороны"},
+    {"key": "break_one_rule", "label": "⚡ Измени одно правило",
+     "text": "Выбери одно совершенно безобидное правило своей повседневной жизни и нарушай его весь день.",
+     "opens": "Гибкость"},
+    {"key": "place_with_history", "label": "🏚 Место с историей",
+     "text": "Найди старое здание в доступной тебе части города и выясни, что здесь происходило 50+ лет назад.",
+     "opens": "История"},
+    {"key": "gift_to_stranger_self", "label": "🎀 Подарок незнакомому себе",
+     "text": "Купи в секонд-хенде или на блошином рынке недорогую вещь, которую ты бы никогда не купил(а) обычно. Придумай ей историю.",
+     "opens": "Открытость"},
+    {"key": "street_observer", "label": "🔭 Наблюдатель",
+     "text": "Сядь в людном месте. Выбери одного прохожего и придумай три совершенно разные версии того, куда он сейчас идёт.",
+     "opens": "Воображение"},
+    {"key": "secret_mission", "label": "🕶 Тайная миссия",
+     "text": "Выполни три безобидных задания: найди человека с необычной деталью одежды, услышь незнакомое слово и обнаружь предмет, который старше тебя.",
+     "opens": "Наблюдательность"},
+    {"key": "today_different_person", "label": "🎭 Сегодня ты — другой человек",
+     "text": "Придумай персонажа с другой профессией, именем и характером. Сделай одну вещь, которую этот человек точно сделал бы, а ты — никогда.",
+     "opens": "Идентичность"},
+    {"key": "mysterious_door", "label": "🚪 Дверь в неизвестность",
+     "text": "Найди в городе дверь, которая выглядит наиболее загадочно. Узнай, что находится за ней, не нарушая чужую территорию.",
+     "opens": "Любопытство"},
+    {"key": "back_to_1997", "label": "📼 Вернись в 1997",
+     "text": "Проведи 2 часа так, будто сейчас 1997 год: без смартфона, стримингов и современных привычек.",
+     "opens": "Эксперимент"},
+    {"key": "self_experiment_slow", "label": "🐌 Эксперимент над собой",
+     "text": "Выбери одну вещь, которую ты обычно делаешь автоматически. Сегодня сделай её максимально медленно и осознанно.",
+     "opens": "Осознанность"},
+    {"key": "urban_detective", "label": "🕵️‍♀️ Городской детектив",
+     "text": "Найди самый старый предмет, вывеску или дверь в своём районе и узнай её историю.",
+     "opens": "Исследование"},
+    {"key": "life_soundtrack", "label": "🎧 Саундтрек жизни",
+     "text": "Включи случайный плейлист и гуляй 40 минут, представляя, что ты герой фильма.",
+     "opens": "Воображение"},
+    {"key": "coin_decides", "label": "🪙 Монетка решает",
+     "text": "30 минут ходи по городу, позволяя монетке выбирать направление на каждом перекрёстке.",
+     "opens": "Спонтанность"},
+    {"key": "blind_cafe", "label": "☕ Кафе вслепую",
+     "text": "Зайди в заведение, где никогда не был(а), и выбери блюдо, ориентируясь не на привычный вкус, а на любопытство.",
+     "opens": "Открытость"},
+    {"key": "draw_a_stranger", "label": "✏️ Нарисуй незнакомца",
+     "text": "Сядь в людном месте и за 10 минут нарисуй случайного человека. Не оценивай результат.",
+     "opens": "Творчество"},
+    {"key": "budget_quest", "label": "💶 Бюджетный квест",
+     "text": "Имея небольшую сумму, придумай себе максимально интересные 2 часа.",
+     "opens": "Креативность"},
+    {"key": "hunt_for_oddities", "label": "📸 Охота на странности",
+     "text": "За час найди и сфотографируй 7 максимально нелепых вещей в городе.",
+     "opens": "Наблюдательность"},
+    {"key": "judge_book_by_cover", "label": "📚 Книга по обложке",
+     "text": "В книжном выбери книгу исключительно по обложке. Прочитай хотя бы 20 страниц.",
+     "opens": "Любопытство"},
+    {"key": "hour_without_phone", "label": "⏳ Час без телефона",
+     "text": "Уйди гулять без телефона и часов. Вернись домой, когда покажется, что прошёл час.",
+     "opens": "Осознанность"},
+    {"key": "fate_ingredient", "label": "🥕 Ингредиент судьбы",
+     "text": "В магазине случайно выбери ингредиент. Придумай из него блюдо.",
+     "opens": "Эксперимент"},
+    {"key": "tourist_home_city", "label": "📷 Турист в родном городе",
+     "text": "Посети достопримечательность, которую обычно игнорируешь, глядя на город глазами туриста.",
+     "opens": "Новый взгляд"},
+    {"key": "book_of_questions", "label": "❓ Книга вопросов",
+     "text": "Составь 10 вопросов, которые хотел(а) бы задать себе через 5 лет. Ответь на них сегодня.",
+     "opens": "Рефлексия"},
+    {"key": "artifact_of_day", "label": "🖼 Артефакт дня",
+     "text": "Создай вещь, которую можно сохранить: письмо себе, мини-журнал, коллаж, рисунок или фотографию.",
+     "opens": "Творчество"},
+    {"key": "strangers_backpack", "label": "🎒 Рюкзак незнакомца",
+     "text": "Собери 5 предметов, которые описывают тебя, будто тебя должны представить человеку, который никогда тебя не видел.",
+     "opens": "Идентичность"},
+    {"key": "get_lost_intentionally", "label": "🧩 Потеряйся намеренно",
+     "text": "Выбери незнакомый район и гуляй 60 минут без карты. Каждый раз выбирай дорогу, которую хочется выбрать меньше всего.",
+     "opens": "Исследование"},
+    {"key": "word_of_day", "label": "🔤 Слово дня",
+     "text": "Выбери случайное слово из словаря. Используй его сегодня минимум три раза естественным образом.",
+     "opens": "Игра с языком"},
+    {"key": "open_the_past", "label": "📦 Открой прошлое",
+     "text": "Найди дома предмет, которым не пользовался(лась) несколько лет. Попробуй понять, почему он когда-то был тебе важен.",
+     "opens": "Память"},
+    {"key": "day_by_instruction", "label": "📋 День по инструкции",
+     "text": "Утром напиши 5 случайных правил для себя и соблюдай их до вечера.",
+     "opens": "Эксперимент"},
+    {"key": "real_questions", "label": "💬 20 настоящих вопросов",
+     "text": "Задай 5 людям по одному вопросу, который обычно не задают в повседневном разговоре: «Что тебя сейчас больше всего волнует?» или «Что ты понял(а) о жизни слишком поздно?»",
+     "opens": "Любопытство"},
+    {"key": "conversation_no_mask", "label": "🗣️ Разговор без маски",
+     "text": "Встреться с близким человеком и поговори час без small talk. Каждый из вас должен ответить на 5 действительно важных вопросов.",
+     "opens": "Близость"},
+    {"key": "become_a_student", "label": "🎤 Стань учеником",
+     "text": "Найди человека, который умеет то, чего не умеешь ты, и попроси его научить тебя этому хотя бы за час.",
+     "opens": "Смирение"},
+    {"key": "conversation_with_future", "label": "🧓 Разговор с будущим",
+     "text": "Найди человека старше тебя минимум на 20 лет и спроси его: «Что вы сейчас понимаете о жизни такого, чего не понимали в моём возрасте?» Запиши ответ.",
+     "opens": "Мудрость"},
+]
+
+def get_todays_quest() -> dict:
+    """Один и тот же квест дня для всех — детерминированно по дате, без
+    привязки к пользователю, спискам паттернов или интересов."""
+    day_index = datetime.now().date().toordinal() % len(DAY_QUESTS)
+    return DAY_QUESTS[day_index]
 
 async def refresh_card_via_llm(user_id: int, base_card: dict) -> dict:
     """Переписывает текст заданий через Groq, сохраняя структуру (сфера и
@@ -1579,8 +2017,14 @@ async def _generate_profile_json(prompt: str):
 async def generate_and_send_profile(message, user_id: int):
     answers = get_all_answers(user_id)
 
+    # q13 и q14 (форма самовыражения) устроены иначе: их варианты — коды
+    # интересов (INTERESTS), а не психологические паттерны. Они не участвуют
+    # в pattern_tally, а объединяются с уже выбранными интересами.
+    EXPRESSION_QUESTION_IDS = {"q13"}
+
     readable_lines = []
     pattern_tally = {p: 0 for p in PATTERNS}
+    expression_interests = []
     for q in SURVEY_QUESTIONS:
         value = answers.get(q["id"])
         if value is None:
@@ -1588,10 +2032,18 @@ async def generate_and_send_profile(message, user_id: int):
         option = next((opt for opt in q["options"] if opt[1] == value), None)
         if option is None:
             continue
-        option_label, _value, pattern = option
-        pattern_tally[pattern] = pattern_tally.get(pattern, 0) + 1
+        option_label, _value, tag = option
+        if q["id"] in EXPRESSION_QUESTION_IDS:
+            expression_interests.append(tag)
+        else:
+            pattern_tally[tag] = pattern_tally.get(tag, 0) + 1
         sphere_plain = q["sphere"].split(" ", 1)[-1]  # strip the leading emoji
         readable_lines.append(f"[{sphere_plain}] {q['question']} → {option_label}")
+
+    if expression_interests:
+        current_interests = get_user_interests(user_id)
+        merged_interests = list(dict.fromkeys(current_interests + expression_interests))
+        save_user_interests(user_id, merged_interests)
 
     rest_style = get_user_rest_style(user_id)
     if rest_style and rest_style in REST_CURRENT:
@@ -1600,18 +2052,19 @@ async def generate_and_send_profile(message, user_id: int):
     answers_text = "\n".join(readable_lines)
     top_pattern = max(pattern_tally, key=pattern_tally.get) if any(pattern_tally.values()) else None
 
-    prompt = f"""Ты — тёплый друг с психологическим образованием, который умеет объяснять поведение человека, а не оценивать его. Я прошла опрос из 15 вопросов.
+    prompt = f"""Ты — тёплый друг с психологическим образованием, который умеет объяснять поведение человека, а не оценивать его. Я прошла опрос из 14 вопросов.
 Вот мои вопросы и выбранные ответы:
 {answers_text}
 
 Напиши мой психологический профиль — 4-6 предложений, от второго лица («ты»), только по-русски, без иностранных слов.
 
 Требования к тексту:
+- Хороший приём для начала — контраст: «Ты любишь X, но Y» (например, «Ты любишь новое, но редко позволяешь себе спонтанность»). Он сразу показывает разрыв между желанием и действием — из этого разрыва и растёт объяснение механизма дальше.
 - Не описывай, ЧТО происходит («ты откладываешь дела», «у тебя мало энергии») — объясни МЕХАНИЗМ: какую внутреннюю задачу решает это поведение, от чего оно защищает или что даёт взамен. Пример логики: не «ты прокрастинируешь», а «когда нет ничего, что цепляет, любой выбор кажется одинаково бессмысленным — и мозг выбирает то, что вообще не требует выбора».
 - Ноль оценочных и обвиняющих слов: никаких «лень», «слабоволие», «не смог», «проблема с...». Это наблюдение, а не диагноз и не приговор.
 - Обязательно сошлись на 1-2 конкретные детали из моих реальных ответов (перефразируй их своими словами) — профиль должен ощущаться как «меня узнали», а не как гороскоп, подходящий всем.
 - Тон дружеский и тёплый, но не поверхностный — как будто человек прошёл хороший тест и узнал о себе что-то настоящее.
-- Последним предложением сделай мостик к бинго-карте: объясни, почему задания в ней подобраны именно так (например, маленькие и конкретные, а не абстрактные) — но не описывай сами задания, их я пришлю следующим сообщением.
+- Последним предложением сделай мостик к бинго-карте: объясни, почему задания в ней подобраны именно так (например, маленькие, но с элементом неожиданности — не для проверки, а чтобы постепенно расширить зону возможностей) — но не описывай сами задания, их я пришлю следующим сообщением.
 
 Также оцени по 6 сферам в процентах (0-100%): где по ответам сильнее выражена нехватка/сложность (низкий %), а где уверенность (высокий %). Сферы: Дисциплина, Энергия, Саморазвитие, Смелость, Приключения, Творчество.
 
@@ -1688,15 +2141,15 @@ def _card_tier(entry) -> str:
 async def send_bingo_card(message, user_id: int):
     week = get_user_week(user_id)
     completed = get_completed_cells(user_id, week)
-    streak = get_streak(user_id)
     card = get_bingo_card(user_id)
     if not card:
         card = await build_weekly_card(user_id, get_user_scores(user_id), week)
         save_bingo_card(user_id, card)
 
     header = f"🎲 <b>Бинго-карта — неделя {week}</b> ({len(completed)}/{len(card)})"
-    if streak:
-        header += f"  🔥 {streak}"
+    total_completed = get_monthly_completed_count(user_id)
+    if total_completed:
+        header += f"\n🏆 Квестов в этом месяце: {total_completed}"
 
     lines = [header]
     for key, entry in card.items():
@@ -1757,10 +2210,9 @@ async def complete_task(callback: CallbackQuery):
     completed = get_completed_cells(user_id, week)
 
     if len(completed) >= len(card):
-        streak = get_streak(user_id)
         await callback.message.edit_text(
             f"🏆 <b>Неделя {week} закрыта!</b>\n\n"
-            f"Все {len(card)} клеток пройдены. Стрик: {streak} 🔥\n\n"
+            f"Все {len(card)} клеток пройдены.\n\n"
             "Собираю карту на следующую неделю...",
             parse_mode="HTML"
         )
@@ -1823,13 +2275,10 @@ async def send_daily_reminders():
                 card = await build_weekly_card(user_id, get_user_scores(user_id), week)
                 save_bingo_card(user_id, card)
             if len(completed) < len(card):
-                streak = get_streak(user_id)
-                streak_line = f"\n🔥 Стрик: {streak}" if streak else ""
                 await bot.send_message(
                     user_id,
                     "🌅 <b>Доброе утро!</b>\n\n"
-                    "Новый день — новая возможность зачеркнуть клетку в бинго."
-                    f"{streak_line}\n\nКакое задание выберешь сегодня?",
+                    "Новый день — новая возможность зачеркнуть клетку в бинго.\n\nКакое задание выберешь сегодня?",
                     parse_mode="HTML",
                     reply_markup=build_bingo_keyboard(list(card.keys()), completed)
                 )
@@ -1873,6 +2322,117 @@ async def send_evening_reminders():
             await bot.send_message(user_id, text, parse_mode="HTML")
         except Exception as e:
             print(f"Failed to send evening reminder to {user_id}: {e}")
+
+RU_MONTHS = {
+    1: "январь", 2: "февраль", 3: "март", 4: "апрель",
+    5: "май", 6: "июнь", 7: "июль", 8: "август",
+    9: "сентябрь", 10: "октябрь", 11: "ноябрь", 12: "декабрь",
+}
+
+async def send_monthly_recap():
+    """Запускается 1 числа каждого месяца: подводит итог прошедшего месяца
+    и хвалит — только тех, у кого реально есть что отметить (0 квестов не
+    повод для сообщения, это было бы похоже на упрёк, а не на похвалу)."""
+    now = datetime.now()
+    if now.month == 1:
+        prev_year, prev_month = now.year - 1, 12
+    else:
+        prev_year, prev_month = now.year, now.month - 1
+    month_name = RU_MONTHS.get(prev_month, "прошлый месяц")
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT user_id FROM users WHERE profile IS NOT NULL")
+    users = c.fetchall()
+    conn.close()
+
+    for (user_id,) in users:
+        try:
+            count = get_monthly_completed_count(user_id, prev_year, prev_month)
+            if count <= 0:
+                continue  # без упрёков — просто молчим, если месяц был пустым
+
+            if count % 10 == 1 and count % 100 != 11:
+                word = "квест"
+            elif 2 <= count % 10 <= 4 and not (11 <= count % 100 <= 14):
+                word = "квеста"
+            else:
+                word = "квестов"
+
+            await bot.send_message(
+                user_id,
+                f"🎉 <b>Итоги месяца: {month_name}</b>\n\n"
+                f"За {month_name} ты закрыл(а) {count} {word}. Это {count} раз, когда ты выбрал(а) сделать шаг, "
+                "а не отложить — и это реально считается, даже если дни были обычными.\n\n"
+                "Новый месяц — новый счёт. Погнали дальше?",
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            print(f"Failed to send monthly recap to {user_id}: {e}")
+
+async def send_day_quest_broadcast():
+    """Раз в день (см. регистрацию в main) — отдельное сообщение с квестом
+    дня, не завязанное на бинго-карту. Один и тот же квест у всех сегодня."""
+    quest = get_todays_quest()
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT user_id FROM users WHERE profile IS NOT NULL")
+    users = c.fetchall()
+    conn.close()
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Выполнил(а)!", callback_data=f"day_quest_done_{quest['key']}")]
+    ])
+
+    for (user_id,) in users:
+        try:
+            await bot.send_message(
+                user_id,
+                f"🌟 <b>Квест дня</b>\n\n"
+                f"<b>{quest['label']}</b>\n\n"
+                f"{quest['text']}\n\n"
+                f"<i>Это открывает: {quest['opens']}</i>",
+                parse_mode="HTML",
+                reply_markup=kb
+            )
+        except Exception as e:
+            print(f"Failed to send day quest to {user_id}: {e}")
+
+@dp.callback_query(F.data.startswith("day_quest_done_"))
+async def handle_day_quest_done(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    quest_key = callback.data.replace("day_quest_done_", "")
+    quest = next((q for q in DAY_QUESTS if q["key"] == quest_key), None)
+    quest_text = quest["label"] if quest else "Квест дня"
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        "SELECT COUNT(*) FROM completed_tasks WHERE user_id = ? AND task_cell = 'day_quest' AND date(completed_at) = date('now')",
+        (user_id,)
+    )
+    already_done = c.fetchone()[0] > 0
+    conn.close()
+
+    if already_done:
+        await callback.answer("Этот квест дня уже отмечен сегодня ✅")
+        return
+
+    save_completed_task(user_id, "day_quest", quest_text)
+    touch_activity(user_id)
+
+    await callback.answer("🎉 Отлично! Засчитано.")
+    try:
+        await callback.message.edit_reply_markup(
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="✅ Выполнено!", callback_data="noop")]])
+        )
+    except Exception:
+        pass
+
+@dp.callback_query(F.data == "noop")
+async def noop_callback(callback: CallbackQuery):
+    await callback.answer()
 
 @dp.message(Command("remind"))
 async def set_reminder_time(message: Message):
@@ -1938,6 +2498,8 @@ async def main():
 
     scheduler.add_job(send_daily_reminders, "cron", minute=0)
     scheduler.add_job(send_evening_reminders, "cron", minute=0)
+    scheduler.add_job(send_monthly_recap, "cron", day=1, hour=10, minute=0)
+    scheduler.add_job(send_day_quest_broadcast, "cron", hour=8, minute=0)
     scheduler.start()
 
     await dp.start_polling(bot)
