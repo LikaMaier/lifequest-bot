@@ -1356,6 +1356,11 @@ def get_todays_quest() -> dict:
     day_index = datetime.now().date().toordinal() % len(DAY_QUESTS)
     return DAY_QUESTS[day_index]
 
+def get_random_day_quest() -> dict:
+    """Случайный квест дня — для кнопки «Поменять», в отличие от
+    get_todays_quest() не привязан к дате."""
+    return random.choice(DAY_QUESTS)
+
 # ==================== COMPANY / PAIR QUESTS ====================
 # Две отдельные категории, вызываются командами /company и /pair — не часть
 # бинго-карты и не часть квеста дня. В отличие от них, специально сделаны
@@ -1731,9 +1736,32 @@ def build_group_quest_message(quest_list: list, callback_prefix: str):
     if quest.get("outcome"):
         text += f"\n\n<i>Что может произойти: {quest['outcome']}</i>"
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🎲 Другое задание", callback_data=f"{callback_prefix}_reroll")]
+        [InlineKeyboardButton(text="✅ Принять вызов", callback_data=f"{callback_prefix}_accept_{quest['key']}")],
+        [InlineKeyboardButton(text="🔄 Поменять", callback_data=f"{callback_prefix}_reroll")]
     ])
     return text, kb
+
+async def accept_group_quest(callback: CallbackQuery, quest_list: list, prefix: str):
+    """Общий обработчик «Принять вызов» для /company и /pair — так же, как
+    в «На одного» и «Задании дня», добавляет в «Мои квесты»."""
+    user_id = callback.from_user.id
+    quest_key = callback.data.replace(prefix, "")
+    quest = next((q for q in quest_list if q["key"] == quest_key), None)
+    if not quest:
+        await callback.answer("Этот квест уже недоступен, попробуй ещё раз")
+        return
+
+    save_active_quest(user_id, quest["key"], quest["label"])
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")]
+    ])
+    await callback.message.edit_text(
+        f"✅ <b>Квест добавлен в «Мои квесты»!</b>\n\n{quest['label']}",
+        parse_mode="HTML",
+        reply_markup=kb
+    )
+    await callback.answer()
 
 @dp.message(Command("company"))
 async def cmd_company_quest(message: Message):
@@ -1752,6 +1780,10 @@ async def reroll_company_quest(callback: CallbackQuery):
     await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
     await callback.answer()
 
+@dp.callback_query(F.data.startswith("company_accept_"))
+async def company_quest_accept(callback: CallbackQuery):
+    await accept_group_quest(callback, COMPANY_QUESTS, "company_accept_")
+
 @dp.message(Command("pair"))
 async def cmd_pair_quest(message: Message):
     text, kb = build_group_quest_message(PAIR_QUESTS, "pair")
@@ -1768,6 +1800,10 @@ async def reroll_pair_quest(callback: CallbackQuery):
     text, kb = build_group_quest_message(PAIR_QUESTS, "pair")
     await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
     await callback.answer()
+
+@dp.callback_query(F.data.startswith("pair_accept_"))
+async def pair_quest_accept(callback: CallbackQuery):
+    await accept_group_quest(callback, PAIR_QUESTS, "pair_accept_")
 
 # ==================== SOLO QUEST (На одного) ====================
 def build_solo_quest_message(task: dict, tier: str):
@@ -2020,9 +2056,9 @@ async def send_monthly_recap():
         except Exception as e:
             print(f"Failed to send monthly recap to {user_id}: {e}")
 
-def build_day_quest_message(quest: dict):
-    """Общая сборка текста + клавиатуры квеста дня — используется и в
-    ежедневной рассылке, и в команде /today (посмотреть вручную)."""
+def build_day_quest_broadcast_message(quest: dict):
+    """Версия для рассылки в 8:00 — быстрое выполнение в один тап, без
+    принятия в «Мои квесты» (это push-уведомление, а не выбор)."""
     text = (
         f"🌟 <b>Квест дня</b>\n\n"
         f"<b>{quest['label']}</b>\n\n"
@@ -2030,7 +2066,23 @@ def build_day_quest_message(quest: dict):
         f"<i>Это открывает: {quest['opens']}</i>"
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Выполнил(а)!", callback_data=f"day_quest_done_{quest['key']}")]
+        [InlineKeyboardButton(text="✅ Выполнил(а)!", callback_data=f"day_quest_done_{quest['key']}")],
+        [InlineKeyboardButton(text="🔄 Показать другой", callback_data="day_quest_swap")]
+    ])
+    return text, kb
+
+def build_day_quest_pick_message(quest: dict):
+    """Версия для /today и кнопки меню — как «На одного»: можно принять в
+    «Мои квесты» или поменять на другой, прежде чем решить."""
+    text = (
+        f"🌟 <b>Квест дня</b>\n\n"
+        f"<b>{quest['label']}</b>\n\n"
+        f"{quest['text']}\n\n"
+        f"<i>Это открывает: {quest['opens']}</i>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Принять", callback_data=f"day_quest_accept_{quest['key']}")],
+        [InlineKeyboardButton(text="🔄 Поменять", callback_data="day_quest_swap")]
     ])
     return text, kb
 
@@ -2038,21 +2090,50 @@ def build_day_quest_message(quest: dict):
 async def cmd_today_quest(message: Message):
     """Посмотреть квест дня в любой момент, не дожидаясь рассылки в 8:00."""
     quest = get_todays_quest()
-    text, kb = build_day_quest_message(quest)
+    text, kb = build_day_quest_pick_message(quest)
     await message.answer(text, parse_mode="HTML", reply_markup=kb)
 
 @dp.callback_query(F.data == "menu_day_quest")
 async def menu_day_quest(callback: CallbackQuery):
     quest = get_todays_quest()
-    text, kb = build_day_quest_message(quest)
+    text, kb = build_day_quest_pick_message(quest)
     await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    await callback.answer()
+
+@dp.callback_query(F.data == "day_quest_swap")
+async def day_quest_swap(callback: CallbackQuery):
+    quest = get_random_day_quest()
+    text, kb = build_day_quest_pick_message(quest)
+    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    await callback.answer()
+
+@dp.callback_query(F.data.startswith("day_quest_accept_"))
+async def day_quest_accept(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    quest_key = callback.data.replace("day_quest_accept_", "")
+    quest = next((q for q in DAY_QUESTS if q["key"] == quest_key), None)
+    if not quest:
+        await callback.answer("Этот квест уже недоступен, попробуй ещё раз /today")
+        return
+
+    save_active_quest(user_id, quest["key"], quest["label"])
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")],
+        [InlineKeyboardButton(text="🌟 Другой квест дня", callback_data="menu_day_quest")]
+    ])
+    await callback.message.edit_text(
+        f"✅ <b>Квест добавлен в «Мои квесты»!</b>\n\n{quest['label']}",
+        parse_mode="HTML",
+        reply_markup=kb
+    )
     await callback.answer()
 
 async def send_day_quest_broadcast():
     """Раз в день (см. регистрацию в main) — отдельное сообщение с квестом
     дня, не завязанное на бинго-карту. Один и тот же квест у всех сегодня."""
     quest = get_todays_quest()
-    text, kb = build_day_quest_message(quest)
+    text, kb = build_day_quest_broadcast_message(quest)
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -2176,7 +2257,7 @@ async def main():
     scheduler.add_job(send_daily_reminders, "cron", minute=0)
     scheduler.add_job(send_evening_reminders, "cron", minute=0)
     scheduler.add_job(send_monthly_recap, "cron", day=1, hour=10, minute=0)
-    scheduler.add_job(send_day_quest_broadcast, "cron", hour=8, minute=0)
+    scheduler.add_job(send_day_quest_broadcast, "cron", hour=9, minute=0)
     scheduler.start()
 
     await dp.start_polling(bot)
