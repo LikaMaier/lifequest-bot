@@ -13,8 +13,6 @@ from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command, CommandStart
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, 
@@ -108,22 +106,6 @@ def ensure_user(user_id: int, username: str = None):
     conn.commit()
     conn.close()
 
-def save_answer(user_id: int, q_id: str, value: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("INSERT OR REPLACE INTO survey_answers (user_id, question_id, answer_value) VALUES (?, ?, ?)",
-              (user_id, q_id, value))
-    conn.commit()
-    conn.close()
-
-def get_all_answers(user_id: int) -> dict:
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT question_id, answer_value FROM survey_answers WHERE user_id = ?", (user_id,))
-    rows = c.fetchall()
-    conn.close()
-    return {row[0]: row[1] for row in rows}
-
 def save_user_profile(user_id: int, profile: str, scores_json: str, bingo_json: str, top_pattern: str = None):
     """Upsert so a re-taken survey never wipes week/streak/username — only
     profile, scores, top_pattern and bingo_card are touched."""
@@ -148,84 +130,6 @@ def get_user_profile(user_id: int):
     row = c.fetchone()
     conn.close()
     return row if row else (None, None)
-
-def get_user_scores(user_id: int) -> dict:
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT scores FROM users WHERE user_id = ?", (user_id,))
-    row = c.fetchone()
-    conn.close()
-    if row and row[0]:
-        try:
-            return json.loads(row[0])
-        except (TypeError, json.JSONDecodeError):
-            pass
-    return {}
-
-def get_user_pattern(user_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT top_pattern FROM users WHERE user_id = ?", (user_id,))
-    row = c.fetchone()
-    conn.close()
-    return row[0] if row and row[0] else None
-
-def save_user_interests(user_id: int, interests: list):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("UPDATE users SET interests = ? WHERE user_id = ?",
-              (json.dumps(interests, ensure_ascii=False), user_id))
-    conn.commit()
-    conn.close()
-
-def get_user_interests(user_id: int) -> list:
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT interests FROM users WHERE user_id = ?", (user_id,))
-    row = c.fetchone()
-    conn.close()
-    if row and row[0]:
-        try:
-            return json.loads(row[0])
-        except (TypeError, json.JSONDecodeError):
-            pass
-    return []
-
-def save_user_topics(user_id: int, topics: list):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("UPDATE users SET topics = ? WHERE user_id = ?",
-              (json.dumps(topics, ensure_ascii=False), user_id))
-    conn.commit()
-    conn.close()
-
-def get_user_topics(user_id: int) -> list:
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT topics FROM users WHERE user_id = ?", (user_id,))
-    row = c.fetchone()
-    conn.close()
-    if row and row[0]:
-        try:
-            return json.loads(row[0])
-        except (TypeError, json.JSONDecodeError):
-            pass
-    return []
-
-def save_user_rest_style(user_id: int, rest_style: str):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("UPDATE users SET rest_style = ? WHERE user_id = ?", (rest_style, user_id))
-    conn.commit()
-    conn.close()
-
-def get_user_rest_style(user_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT rest_style FROM users WHERE user_id = ?", (user_id,))
-    row = c.fetchone()
-    conn.close()
-    return row[0] if row and row[0] else None
 
 def save_bingo_card(user_id: int, card: dict):
     conn = sqlite3.connect(DB_PATH)
@@ -375,103 +279,7 @@ def get_completed_today(user_id: int) -> list:
     conn.close()
     return [r[0] for r in rows]
 
-# ==================== SURVEY DATA ====================
-SURVEY_QUESTIONS = [
-    {"id": "q1", "sphere": "📋 Дисциплина", "question": "Если бы через месяц ты стал(а) немного другим человеком — каким?",
-     "options": [("Начинаю, не дожидаясь идеального момента", 1, "perfectionism"), ("Держу слово сам(а) себе", 2, "external_control"),
-                 ("Делаю то, что важно мне", 3, "disconnection"), ("Не откладываю на потом", 4, "avoidance")]},
-    {"id": "q2", "sphere": "📋 Дисциплина", "question": "Что из этого стало бы для тебя маленькой победой?",
-     "options": [("Снова доверять своим словам", 1, "self_doubt"), ("Обещать меньше, но точно", 2, "perfectionism"),
-                 ("Делать важное, а не «надо»", 3, "disconnection"), ("Перестать искать оправдания", 4, "avoidance")]},
-    {"id": "q3", "sphere": "📋 Дисциплина", "question": "Каким бы ты хотел(а) видеть свой обычный день?",
-     "options": [("Где сам(а) решаю, а не реагирую", 1, "external_control"), ("Гибким, а не жёстким по плану", 2, "perfectionism"),
-                 ("Наполненным энергией", 3, "exhaustion"), ("Осмысленным, не по инерции", 4, "disconnection")]},
-    {"id": "q4", "sphere": "⚡ Энергия", "question": "Чего тебе сейчас больше всего не хватает?",
-     "options": [("Времени для себя", 1, "external_control"), ("Понимания, чего хочу", 2, "disconnection"),
-                 ("Смелости выбирать", 3, "perfectionism"), ("Сил — их маловато", 4, "exhaustion")]},
-    {"id": "q5", "sphere": "⚡ Энергия", "question": "Что бы точно вернуло тебе силы?",
-     "options": [("Дать голове отдохнуть", 1, "exhaustion"), ("Снова делать то, что заряжает", 2, "disconnection"),
-                 ("Отдыхать без чувства вины", 3, "perfectionism"), ("Разобраться с усталостью", 4, "avoidance")]},
-    {"id": "q6", "sphere": "⚡ Энергия", "question": "Каким бы ты хотел(а) видеть свой отдых?",
-     "options": [("Спокойным, без тревоги", 1, "perfectionism"), ("Настоящим восстановлением", 2, "exhaustion"),
-                 ("Осознанным выбором", 3, "avoidance"), ("Живым, не скучным", 4, "disconnection")]},
-    {"id": "q7", "sphere": "🧠 Саморазвитие", "question": "Что из этого ты хочешь научиться делать?",
-     "options": [("Доводить начатое до конца", 1, "avoidance"), ("Не отвлекаться на новое", 2, "disconnection"),
-                 ("Продолжать без напоминаний", 3, "external_control"), ("Верить, что дотяну", 4, "self_doubt")]},
-    {"id": "q8", "sphere": "🧠 Саморазвитие", "question": "Как ты хочешь выбирать, за что взяться?",
-     "options": [("Смелее, не только безопасное", 1, "perfectionism"), ("Быстрее переходить к делу", 2, "self_doubt"),
-                 ("По своему желанию", 3, "fear_judgment"), ("Не хвататься за всё сразу", 4, "external_control")]},
-    {"id": "q9", "sphere": "💪 Смелость", "question": "Что из этого звучит как твоя мечта на ближайшее время?",
-     "options": [("Не бояться своих ошибок", 1, "perfectionism"), ("Позволить себе быть заметным(ой)", 2, "fear_judgment"),
-                 ("Поверить, что справлюсь", 3, "self_doubt"), ("Начать, не дожидаясь знака", 4, "avoidance")]},
-    {"id": "q10", "sphere": "💪 Смелость", "question": "Как бы ты хотел(а) справляться со страхом?",
-     "options": [("Идти навстречу, а не тянуть", 1, "avoidance"), ("Действовать без выгорания", 2, "exhaustion"),
-                 ("Не предавать свои желания", 3, "disconnection"), ("Решать сам(а), без оглядки", 4, "external_control")]},
-    {"id": "q11", "sphere": "🌍 Приключения", "question": "Каким бы ты хотел(а), чтобы был твой обычный день?",
-     "options": [("Не таким предсказуемым", 1, "avoidance"), ("Таким, на который хватает сил", 2, "exhaustion"),
-                 ("С целью, ради которой встаю", 3, "disconnection"), ("Без страха всё усложнить", 4, "perfectionism")]},
-    {"id": "q12", "sphere": "🌍 Приключения", "question": "Чего тебе сейчас больше всего хочется?",
-     "options": [("Больше путешествий", 1, "avoidance"), ("Больше спонтанности", 2, "perfectionism"),
-                 ("Больше ярких эмоций", 3, "disconnection"), ("Больше красивых мест", 4, "exhaustion")]},
-    {"id": "q13", "sphere": "🎨 Творчество", "question": "Через что тебе легче всего выражать себя?",
-     "options": [("🎨 Рисование или визуал", 1, "drawing_visual"), ("🎵 Музыка", 2, "music"),
-                 ("✍️ Слова, письмо", 3, "writing"), ("🧵 Руками, рукоделие", 4, "handicraft")]},
-    {"id": "q14", "sphere": "🎨 Творчество", "question": "Что мешает тебе выражаться через творчество?",
-     "options": [("Не довожу начатое до конца", 1, "avoidance"), ("Жду подходящего момента", 2, "perfectionism"),
-                 ("Боюсь показывать то, что делаю", 3, "fear_judgment"), ("Не считаю это важным для себя", 4, "disconnection")]},
-]
-
-SURVEY_QUESTIONS_BY_ID = {q["id"]: q for q in SURVEY_QUESTIONS}
-
-# ==================== FSM STATES ====================
-class SurveyStates(StatesGroup):
-    q1 = State(); q2 = State(); q3 = State(); q4 = State(); q5 = State()
-    q6 = State(); q7 = State(); q8 = State(); q9 = State(); q10 = State()
-    q11 = State(); q12 = State(); q13 = State(); q14 = State()
-    rest_current = State()
-    interests_topics = State()
-    analyzing = State()
-
-STATE_MAP = {
-    SurveyStates.q1: 0, SurveyStates.q2: 1, SurveyStates.q3: 2,
-    SurveyStates.q4: 3, SurveyStates.q5: 4, SurveyStates.q6: 5,
-    SurveyStates.q7: 6, SurveyStates.q8: 7, SurveyStates.q9: 8,
-    SurveyStates.q10: 9, SurveyStates.q11: 10, SurveyStates.q12: 11,
-    SurveyStates.q13: 12, SurveyStates.q14: 13,
-}
-
 # ==================== KEYBOARD BUILDER ====================
-def build_question_keyboard(q_id: str, options: list, show_back: bool = False) -> InlineKeyboardMarkup:
-    buttons = []
-    for text, value, _pattern in options:
-        buttons.append([InlineKeyboardButton(text=text, callback_data=f"{q_id}_{value}")])
-    if show_back:
-        buttons.append([InlineKeyboardButton(text="« Назад", callback_data=f"back_{q_id}")])
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
-
-def build_rest_current_keyboard() -> InlineKeyboardMarkup:
-    buttons = [[InlineKeyboardButton(text=label, callback_data=f"rest_current_{code}")]
-               for code, label in REST_CURRENT.items()]
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
-
-def build_interests_topics_keyboard(selected: list) -> InlineKeyboardMarkup:
-    """Один экран вместо трёх: форма досуга (INTERESTS) и темы для изучения
-    (TOPICS) — коды в этих двух словарях не пересекаются, так что можно
-    смешать их в одном мультивыборе и разложить обратно при сохранении."""
-    buttons = []
-    for code, label in INTERESTS.items():
-        prefix = "✅ " if code in selected else "⬜ "
-        buttons.append([InlineKeyboardButton(text=f"{prefix}{label}", callback_data=f"meta_toggle_{code}")])
-    for code, label in TOPICS.items():
-        prefix = "✅ " if code in selected else "⬜ "
-        buttons.append([InlineKeyboardButton(text=f"{prefix}{label}", callback_data=f"meta_toggle_{code}")])
-    buttons.append([InlineKeyboardButton(text="Готово →", callback_data="meta_done")])
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
-
-def state_for_index(idx: int):
-    return list(STATE_MAP.keys())[list(STATE_MAP.values()).index(idx)]
-
-# (emoji_label, plain_label_for_image, callback_data_key)
 def build_bingo_keyboard(card_keys: list, completed: list) -> InlineKeyboardMarkup:
     buttons = []
     row = []
@@ -493,17 +301,17 @@ WELCOME_TEXT = """🗺️ <b>Добро пожаловать в LifeQuest!</b>
 
 Моя миссия — помочь тебе превратить свою жизнь в удивительное приключение.
 
-Каждую неделю ты получаешь персональную бинго-карту — 9 квестов, подобранных именно под тебя: под твои сильные стороны, твои сферы жизни и то, что откликается лично тебе. Выполняй их не в чате, а по-настоящему: пробуй новое, встречайся со своими страхами, открывай в себе то, что раньше было незаметно.
+Каждую неделю ты получаешь бинго-карту — 9 квестов из разных сфер жизни. Выполняй их не в чате, а по-настоящему: пробуй новое, встречайся со своими страхами, открывай в себе то, что раньше было незаметно.
 
 <b>Как это работает:</b>
-🎯 14 вопросов — чтобы я лучше тебя узнал(а)
-🎲 Персональная бинго-карта — 9 квестов на неделю, под тебя
+🎲 Бинго-карта — 9 квестов на неделю
+🔄 Не понравилась карта — сгенерируй новую, пока не отмечена ни одна клетка
+🌟 Плюс квест дня — отдельный вызов каждое утро
 
-<i>Это про то, чтобы снова почувствовать вкус к жизни — маленькими смелыми шагами, каждую неделю.</i>"""
+<i>Никакой диагностики — просто жми «Начать» и играй.</i>"""
 
 @dp.message(CommandStart())
-async def cmd_start(message: Message, state: FSMContext):
-    await state.clear()
+async def cmd_start(message: Message):
     user_id = message.from_user.id
     ensure_user(user_id, message.from_user.username)
 
@@ -514,215 +322,42 @@ async def cmd_start(message: Message, state: FSMContext):
         quest_line = f"\n🏆 Квестов в этом месяце: {total_completed}" if total_completed else ""
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🎲 Показать мою карту", callback_data="back_to_bingo")],
-            [InlineKeyboardButton(text="🔄 Пройти опрос заново", callback_data="start_survey")]
         ])
         await message.answer(
-            f"С возвращением! Ты на неделе {week}.{quest_line}\n\nУ тебя уже есть профиль и бинго-карта.",
+            f"С возвращением! Ты на неделе {week}.{quest_line}",
             reply_markup=kb
         )
         return
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🚀 Начать (14 вопросов)", callback_data="start_survey")]
+        [InlineKeyboardButton(text="🚀 Начать", callback_data="start_random_card")]
     ])
     await message.answer(WELCOME_TEXT, parse_mode="HTML", reply_markup=kb)
 
-# ==================== SURVEY HANDLERS ====================
-@dp.callback_query(F.data == "start_survey")
-async def start_survey(callback: CallbackQuery, state: FSMContext):
-    await state.set_state(SurveyStates.q1)
-    q = SURVEY_QUESTIONS[0]
-    await callback.message.edit_text(
-        f"🧭 <b>Диагностика: где ты сейчас?</b>\n\n"
-        "<b>" + q["sphere"] + "</b>\n\n"
-        f"{q['question']}",
-        parse_mode="HTML",
-        reply_markup=build_question_keyboard(q["id"], q["options"])
+@dp.callback_query(F.data == "start_random_card")
+async def start_random_card(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    week = get_user_week(user_id)
+
+    card = await build_weekly_card(user_id, week)
+    save_bingo_card(user_id, card)
+    save_user_profile(
+        user_id,
+        "Участник LifeQuest — играет в случайные квесты каждую неделю.",
+        "{}",
+        json.dumps(card, ensure_ascii=False)
     )
 
-@dp.callback_query(F.data.startswith("back_q"))
-async def handle_survey_back(callback: CallbackQuery, state: FSMContext):
-    q_id = callback.data.replace("back_", "")
-    idx = int(q_id[1:]) - 1
-    prev_idx = idx - 1
-    if prev_idx < 0:
-        await callback.answer()
-        return
-
-    prev_q = SURVEY_QUESTIONS[prev_idx]
-    await state.set_state(state_for_index(prev_idx))
-
-    progress = f"\n\n<i>Вопрос {prev_idx + 1} из {len(SURVEY_QUESTIONS)}</i>" if prev_idx > 0 else ""
     await callback.message.edit_text(
-        f"🧭 <b>Диагностика: где ты сейчас?</b>{progress}\n\n"
-        "<b>" + prev_q["sphere"] + "</b>\n\n"
-        f"{prev_q['question']}",
-        parse_mode="HTML",
-        reply_markup=build_question_keyboard(prev_q["id"], prev_q["options"], show_back=(prev_idx > 0))
-    )
-    await callback.answer()
-
-@dp.callback_query(F.data.startswith("q"))
-async def handle_survey_answer(callback: CallbackQuery, state: FSMContext):
-    data = callback.data
-    parts = data.split("_")
-    q_id = parts[0]
-    value = int(parts[1])
-    user_id = callback.from_user.id
-
-    save_answer(user_id, q_id, value)
-
-    current_state = await state.get_state()
-    current_idx = STATE_MAP.get(current_state)
-
-    if current_idx is None:
-        await callback.answer("Ошибка состояния. Начни сначала /start")
-        return
-
-    next_idx = current_idx + 1
-
-    if next_idx >= len(SURVEY_QUESTIONS):
-        await state.set_state(SurveyStates.rest_current)
-        await callback.message.edit_text(
-            "😌 <b>Почти готово</b>\n\n"
-            "Как ты обычно отдыхаешь?",
-            parse_mode="HTML",
-            reply_markup=build_rest_current_keyboard()
-        )
-    else:
-        next_q = SURVEY_QUESTIONS[next_idx]
-        await state.set_state(state_for_index(next_idx))
-
-        progress = f"\n\n<i>Вопрос {next_idx + 1} из {len(SURVEY_QUESTIONS)}</i>"
-        await callback.message.edit_text(
-            f"🧭 <b>Диагностика: где ты сейчас?</b>{progress}\n\n"
-            "<b>" + next_q["sphere"] + "</b>\n\n"
-            f"{next_q['question']}",
-            parse_mode="HTML",
-            reply_markup=build_question_keyboard(next_q["id"], next_q["options"], show_back=True)
-        )
-
-    await callback.answer()
-
-@dp.callback_query(F.data.startswith("rest_current_"), SurveyStates.rest_current)
-async def handle_rest_current(callback: CallbackQuery, state: FSMContext):
-    code = callback.data.replace("rest_current_", "")
-    user_id = callback.from_user.id
-
-    save_user_rest_style(user_id, code)
-
-    await state.set_state(SurveyStates.interests_topics)
-    await state.update_data(selected_meta=[])
-    await callback.message.edit_text(
-        "🎯 <b>Последний штрих</b>\n\n"
-        "Что тебе интересно — и то, что уже любишь, и то, что хочется попробовать? Тут же и темы для изучения. Можно выбрать сколько угодно.",
-        parse_mode="HTML",
-        reply_markup=build_interests_topics_keyboard([])
-    )
-    await callback.answer()
-
-@dp.callback_query(F.data.startswith("meta_toggle_"), SurveyStates.interests_topics)
-async def toggle_interests_topics(callback: CallbackQuery, state: FSMContext):
-    code = callback.data.replace("meta_toggle_", "")
-    data = await state.get_data()
-    selected = data.get("selected_meta", [])
-
-    if code in selected:
-        selected.remove(code)
-    else:
-        selected.append(code)
-
-    await state.update_data(selected_meta=selected)
-    await callback.message.edit_reply_markup(reply_markup=build_interests_topics_keyboard(selected))
-    await callback.answer()
-
-@dp.callback_query(F.data == "meta_done", SurveyStates.interests_topics)
-async def finish_interests_topics(callback: CallbackQuery, state: FSMContext):
-    user_id = callback.from_user.id
-    data = await state.get_data()
-    selected = data.get("selected_meta", [])
-
-    # Коды INTERESTS и TOPICS не пересекаются, поэтому раскладываем один
-    # общий список обратно по двум таблицам простой проверкой membership.
-    interests_selected = [c for c in selected if c in INTERESTS]
-    topics_selected = [c for c in selected if c in TOPICS]
-    save_user_interests(user_id, interests_selected)
-    save_user_topics(user_id, topics_selected)
-
-    await state.set_state(SurveyStates.analyzing)
-    await callback.message.edit_text(
-        "🧠 <b>Анализирую твои ответы...</b>\n\n"
-        "Создаю персональный профиль и бинго-карту. Это займёт несколько секунд.",
+        "🎲 <b>Твоя карта готова!</b>\n\n"
+        "Ниже — 9 квестов на эту неделю, собранных случайно. Не понравился набор — можно перегенерировать, пока не начал(а) выполнять.",
         parse_mode="HTML"
     )
-    await generate_and_send_profile(callback.message, user_id)
-    await state.clear()
+    await send_bingo_card(callback.message, user_id)
     await callback.answer()
 
-# ==================== GROQ GENERATION ====================
+# ==================== BINGO BANK ====================
 BINGO_SPHERES = ["Дисциплина", "Энергия", "Саморазвитие", "Смелость", "Приключения", "Творчество"]
-SPHERE_EMOJI = {
-    "Дисциплина": "📋",
-    "Энергия": "⚡",
-    "Саморазвитие": "🧠",
-    "Смелость": "💪",
-    "Приключения": "🌍",
-    "Творчество": "🎨",
-}
-
-# Психологические паттерны, стоящие за поведением. Каждый вариант ответа в
-# опросе помечен одним паттерном; каждое задание в банке — тоже. Это чисто
-# служебная таксономия для подбора заданий — пользователю паттерн никогда не
-# показывается как ярлык или диагноз.
-PATTERNS = {
-    "perfectionism": "Страх ошибки / перфекционизм",
-    "external_control": "Нужен внешний контроль",
-    "disconnection": "Оторванность от своих желаний",
-    "exhaustion": "Эмоциональное истощение",
-    "fear_judgment": "Страх чужой оценки",
-    "self_doubt": "Неверие в свои силы",
-    "avoidance": "Избегание дискомфорта",
-}
-
-# Интересы человека — что ему сейчас откликается по форме, а не по причине.
-# Отвечают на отдельный вопрос-мультивыбор в конце опроса; влияют на подбор
-# заданий вместе с паттерном (см. _weighted_pick).
-INTERESTS = {
-    "sport": "🏃 Спорт и движение",
-    "drawing_visual": "🎨 Рисование и визуал",
-    "music": "🎵 Музыка",
-    "writing": "✍️ Письмо и тексты",
-    "cooking": "🍳 Готовка",
-    "travel": "🌍 Путешествия и новые места",
-    "learning": "📚 Учёба и чтение",
-    "handicraft": "🧵 Рукоделие",
-    "mindfulness": "🧘 Медитация и осознанность",
-}
-
-# Темы для саморазвития — какие области знания человеку интересно изучать.
-# Второй вопрос-мультивыбор, отдельно от INTERESTS (формы досуга). Сейчас
-# используется только заданием "horizons" (🔭 Кругозор), чтобы подставлять
-# конкретную тему вместо общего «философа, учёного или религию».
-TOPICS = {
-    "philosophy": "🧘 Философия",
-    "literature": "📖 Литература",
-    "languages": "🗣 Иностранные языки",
-    "art_history": "🖼 Искусство и художники",
-    "history": "🏛 История",
-    "science": "🔬 Наука и технологии",
-    "psychology": "🧠 Психология",
-    "cinema": "🎬 Кино и режиссёры",
-}
-
-# Как человек сейчас обычно отдыхает — чисто информационный вопрос (одиночный
-# выбор), не влияет на подбор заданий, только даёт контекст для текста профиля.
-REST_CURRENT = {
-    "nothing": "😌 Ничего не делаю, просто отдыхаю",
-    "friends": "👥 Провожу время с близкими",
-    "hobby": "🎨 Занимаюсь хобби",
-    "screens": "📺 Смотрю фильмы или сериалы",
-    "sleep": "😴 Просто высыпаюсь",
-}
 
 # Задания на каждую сферу, у каждого — 2 уровня сложности ("easy"/"medium"),
 # выбираются по баллу сферы из профиля (см. build_personal_bingo).
@@ -1613,59 +1248,26 @@ def get_doubled_spheres(week: int) -> set:
     group_b = set(BINGO_SPHERES[3:])
     return group_a if week % 2 == 1 else group_b
 
-def _weighted_pick(rng: random.Random, tasks: list, k: int, top_pattern, interests: list = None) -> list:
-    """Взвешенная выборка k заданий без повторов: задания, отвечающие
-    top_pattern, втрое вероятнее попадут в карту; задания, совпадающие с
-    выбранными интересами, вдвое вероятнее — веса перемножаются, если
-    совпало и то и другое. Немного случайности сохраняется ради разнообразия
-    по неделям. Если ни paттерн, ни интересы не заданы — выбор полностью
-    случайный."""
-    interests = interests or []
-    def weight(t):
-        w = 3.0 if top_pattern and t.get("pattern") == top_pattern else 1.0
-        if interests and t.get("interest") in interests:
-            w *= 2.0
-        return w
-    # Стандартный трюк для взвешенной выборки без повторов: ключ = U^(1/вес),
-    # берём top-k по этому ключу.
-    scored = sorted(tasks, key=lambda t: rng.random() ** (1.0 / weight(t)), reverse=True)
-    return scored[:k]
-
-def build_personal_bingo(scores: dict, week: int = 1, user_id: int = 0, regen: int = 0, top_pattern: str = None, interests: list = None, topics: list = None) -> dict:
+def build_personal_bingo(week: int = 1, user_id: int = 0, regen: int = 0) -> dict:
     """Собирает карту на неделю: 9 клеток, сбалансированных по 6 сферам с
-    ротацией «удвоенных» сфер (1 или 2 слота на сферу). Внутри сферы задания
-    выбираются с перевесом в сторону ведущего психологического паттерна
-    человека (top_pattern) и его интересов — не жёстко, чтобы сохранялось
-    разнообразие по неделям. Каждой клетке — уровень сложности по баллу сферы
-    (лёгкий/средний). Если у задания есть topic_variants (сейчас только у
-    «Кругозора») и у человека выбраны темы — текст подставляется под одну из
-    них, случайно, но детерминированно. Всё выбирается детерминированно по
-    (user_id, week, regen)."""
+    ротацией «удвоенных» сфер (1 или 2 слота на сферу). Внутри сферы задание
+    выбирается случайно, уровень сложности (лёгкий/средний) — тоже случайно
+    для каждой клетки. Всё выбирается детерминированно по (user_id, week,
+    regen), так что карта не меняется при каждом обновлении в течение одной
+    недели — но меняется, если явно перегенерировать (кнопка на карте)."""
     rng = random.Random(f"{user_id}-{week}-{regen}")
     doubled = get_doubled_spheres(week)
     active_keys = []
     for sphere in BINGO_SPHERES:
         tasks = BINGO_BANK[sphere]
         slot_count = min(2 if sphere in doubled else 1, len(tasks))
-        chosen = _weighted_pick(rng, tasks, slot_count, top_pattern, interests)
+        chosen = rng.sample(tasks, slot_count)
         active_keys.extend([t["key"] for t in chosen])
 
     card = {}
     for key in active_keys:
         task = KEY_TO_TASK[key]
-        sphere = KEY_TO_SPHERE[key]
-        sphere_score = scores.get(sphere, 50) if scores else 50
-        tier = "easy" if sphere_score < 50 else "medium"
-
-        variants = task.get("topic_variants")
-        if variants and topics:
-            available = [t for t in topics if t in variants]
-            if available:
-                topic_rng = random.Random(f"{user_id}-{week}-{regen}-{key}-topic")
-                chosen_topic = topic_rng.choice(available)
-                card[key] = {"text": variants[chosen_topic][tier], "tier": tier}
-                continue
-
+        tier = rng.choice(["easy", "medium"])
         card[key] = {"text": task[tier], "tier": tier}
     return card
 
@@ -1902,6 +1504,107 @@ def get_todays_quest() -> dict:
     day_index = datetime.now().date().toordinal() % len(DAY_QUESTS)
     return DAY_QUESTS[day_index]
 
+# ==================== COMPANY / PAIR QUESTS ====================
+# Две отдельные категории, вызываются командами /company и /pair — не часть
+# бинго-карты и не часть квеста дня. В отличие от них, специально сделаны
+# социальными: задание предполагает компанию друзей или партнёра рядом.
+# Выбор случайный при каждом вызове (не привязан к дате или пользователю).
+COMPANY_QUESTS = [
+    {"key": "two_truths", "label": "🕵️ Две правды одна ложь",
+     "text": "Каждый по очереди говорит три факта о себе, один из которых — ложь. Остальные угадывают, какой."},
+    {"key": "impromptu_quiz", "label": "🎬 Экспромт-квиз",
+     "text": "Устройте викторину друг про друга: кто лучше знает вкусы, привычки и истории остальных."},
+    {"key": "story_in_circle", "label": "📖 История по кругу",
+     "text": "Придумайте общую историю: каждый добавляет по одному предложению, не зная, что будет дальше."},
+    {"key": "classic_party_game", "label": "🎭 Крокодил или Мафия",
+     "text": "Сыграйте в классическую компанейскую игру — крокодил, мафию или что придумаете сами."},
+    {"key": "cooking_battle", "label": "🍳 Кулинарный баттл",
+     "text": "Разделитесь на команды и приготовьте блюдо на одну тему — потом устройте дегустацию."},
+    {"key": "dream_map", "label": "✈️ Мечта на карте",
+     "text": "Каждый называет одно место, куда мечтает съездить, и почему. Обсудите, куда поехать вместе."},
+    {"key": "shared_playlist", "label": "🎵 Общий плейлист",
+     "text": "Каждый добавляет 3 песни в один плейлист — послушайте его вместе от начала до конца."},
+    {"key": "photo_quest", "label": "📸 Фотоквест",
+     "text": "За час найдите и сфотографируйте 10 самых странных или красивых вещей в округе."},
+    {"key": "no_phones_evening", "label": "📵 Вечер без телефонов",
+     "text": "Сложите все телефоны в одно место на весь вечер — до конца встречи."},
+    {"key": "what_if_circle", "label": "🤔 Что если",
+     "text": "По кругу каждый задаёт вопрос «что бы ты сделал(а), если...» — остальные отвечают честно."},
+    {"key": "collective_drawing", "label": "🎨 Коллективный рисунок",
+     "text": "Возьмите один большой лист и рисуйте одновременно, без слов и договорённостей."},
+    {"key": "mini_olympics", "label": "🏆 Мини-олимпиада",
+     "text": "Придумайте 3 несерьёзных соревнования (кто дольше простоит на одной ноге и т.п.) и проведите свою олимпиаду."},
+    {"key": "gratitude_circle", "label": "🗣 Круг благодарности",
+     "text": "По очереди каждый говорит, за что благодарен(на) остальным в этой компании."},
+    {"key": "random_route_group", "label": "🎲 Случайный маршрут",
+     "text": "Вместе решите, куда пойти, кидая монетку или кубик на каждом перекрёстке."},
+    {"key": "karaoke_night", "label": "🎤 Караоке-вечер",
+     "text": "Устройте импровизированный концерт — по очереди или все вместе."},
+]
+
+PAIR_QUESTS = [
+    {"key": "five_honest_questions", "label": "💬 Пять честных вопросов",
+     "text": "Задайте друг другу по 5 вопросов, которые обычно не задаёте."},
+    {"key": "dinner_four_hands", "label": "🍽 Ужин в четыре руки",
+     "text": "Приготовьте ужин вместе, разделив роли: один придумывает меню, другой готовит."},
+    {"key": "shared_bucket_list", "label": "📝 Список на двоих",
+     "text": "Составьте список из 10 вещей, которые хотите попробовать вместе в этом году."},
+    {"key": "phone_free_hour", "label": "📵 Час без телефонов",
+     "text": "Проведите час вдвоём без телефонов — за разговором или настольной игрой."},
+    {"key": "letters_to_each_other", "label": "💌 Письмо друг другу",
+     "text": "Напишите друг другу короткое письмо о том, что цените в другом, и обменяйтесь."},
+    {"key": "home_date", "label": "🕯 Свидание дома",
+     "text": "Устройте свидание, не выходя из дома: смените обстановку, свет, музыку, подачу еды."},
+    {"key": "best_moments", "label": "📼 Три лучших момента",
+     "text": "Вспомните и обсудите три лучших момента вашей истории вместе."},
+    {"key": "new_place_together", "label": "🗺 Новое место вдвоём",
+     "text": "Сходите туда, где никогда не были вместе, даже если это рядом с домом."},
+    {"key": "dance_no_reason", "label": "💃 Танец без повода",
+     "text": "Включите одну песню и потанцуйте вдвоём — без причины и подготовки."},
+    {"key": "how_well_we_know", "label": "❓ Насколько хорошо мы знаемся",
+     "text": "Составьте по 5 вопросов друг о друге и сравните, насколько совпали ответы."},
+    {"key": "secret_plan", "label": "🎯 План на выходные без обсуждения",
+     "text": "Каждый втайне планирует полдня для двоих — раскройте сюрприз в момент встречи."},
+    {"key": "photo_walk_two", "label": "📷 Фотопрогулка вдвоём",
+     "text": "Погуляйте час, фотографируя друг друга и то, что понравится по дороге."},
+    {"key": "shared_project", "label": "🧩 Совместный проект",
+     "text": "Начните что-то, что будете делать вместе постепенно: пазл, растение, альбом фото."},
+    {"key": "draw_each_other", "label": "🎨 Рисуем друг друга",
+     "text": "Каждый рисует портрет другого — не старайтесь, чтобы было похоже."},
+    {"key": "no_complaints_evening", "label": "🕰 Час без жалоб на день",
+     "text": "Проведите вечер, обсуждая только хорошее, что было за неделю."},
+]
+
+def build_group_quest_message(quest_list: list, callback_prefix: str):
+    quest = random.choice(quest_list)
+    text = f"👥 <b>{quest['label']}</b>\n\n{quest['text']}"
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🎲 Другое задание", callback_data=f"{callback_prefix}_reroll")]
+    ])
+    return text, kb
+
+@dp.message(Command("company"))
+async def cmd_company_quest(message: Message):
+    text, kb = build_group_quest_message(COMPANY_QUESTS, "company")
+    await message.answer(text, parse_mode="HTML", reply_markup=kb)
+
+@dp.callback_query(F.data == "company_reroll")
+async def reroll_company_quest(callback: CallbackQuery):
+    text, kb = build_group_quest_message(COMPANY_QUESTS, "company")
+    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    await callback.answer()
+
+@dp.message(Command("pair"))
+async def cmd_pair_quest(message: Message):
+    text, kb = build_group_quest_message(PAIR_QUESTS, "pair")
+    await message.answer(text, parse_mode="HTML", reply_markup=kb)
+
+@dp.callback_query(F.data == "pair_reroll")
+async def reroll_pair_quest(callback: CallbackQuery):
+    text, kb = build_group_quest_message(PAIR_QUESTS, "pair")
+    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    await callback.answer()
+
 async def refresh_card_via_llm(user_id: int, base_card: dict) -> dict:
     """Переписывает текст заданий через Groq, сохраняя структуру (сфера и
     уровень сложности) как есть — LLM только освежает формулировки и
@@ -1961,165 +1664,15 @@ async def refresh_card_via_llm(user_id: int, base_card: dict) -> dict:
         print(f"LLM card refresh failed, falling back to bank: {e}")
         return base_card
 
-async def build_weekly_card(user_id: int, scores: dict, week: int, top_pattern: str = None) -> dict:
+async def build_weekly_card(user_id: int, week: int) -> dict:
     """Структура карты всегда считается банком (предсказуемо, бесплатно).
-    Раз в LLM_REFRESH_EVERY_N_WEEKS недель текст заданий освежается через LLM."""
+    Раз в LLM_REFRESH_EVERY_N_WEEKS недель текст заданий освежается через LLM
+    (без персонализации — просто для разнообразия формулировок)."""
     regen = get_card_regens(user_id)
-    if top_pattern is None:
-        top_pattern = get_user_pattern(user_id)
-    interests = get_user_interests(user_id)
-    topics = get_user_topics(user_id)
-    base_card = build_personal_bingo(scores, week, user_id, regen, top_pattern, interests, topics)
+    base_card = build_personal_bingo(week, user_id, regen)
     if week % LLM_REFRESH_EVERY_N_WEEKS == 0:
         return await refresh_card_via_llm(user_id, base_card)
     return base_card
-
-# Латиница, китайский/японский/корейский — если это встретилось в ответе модели,
-# значит она сорвалась в другой язык, несмотря на инструкцию. Профиль в таком
-# виде показывать нельзя.
-_FOREIGN_SCRIPT_RE = re.compile(r'[a-zA-Z\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]')
-
-def _has_foreign_script(text: str) -> bool:
-    return bool(_FOREIGN_SCRIPT_RE.search(text))
-
-async def _call_profile_llm(prompt: str):
-    response = await client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {"role": "system", "content": "Ты — тёплый друг с психологическим образованием. Объясняешь механизмы поведения, а не оцениваешь их. Пишешь только на русском, от второго лица, без ярлыков и осуждения. Ни одного слова не на русском языке — ни на английском, ни на любом другом."},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.7,
-        max_tokens=800
-    )
-    content = response.choices[0].message.content
-    json_start = content.find("{")
-    json_end = content.rfind("}") + 1
-    result = json.loads(content[json_start:json_end])
-    profile_text = result.get("profile_text", "Профиль создан.")
-    scores = result.get("scores", {})
-    return profile_text, scores
-
-async def _generate_profile_json(prompt: str):
-    """Запрашивает профиль у Groq и проверяет результат на посторонние алфавиты
-    (модель иногда срывается в другой язык, несмотря на инструкцию). При
-    обнаружении — одна повторная попытка с усиленным напоминанием; если и она
-    не прошла проверку — поднимает исключение, чтобы сработал безопасный
-    запасной текст в generate_and_send_profile, а не битый результат."""
-    profile_text, scores = await _call_profile_llm(prompt)
-    if _has_foreign_script(profile_text):
-        retry_prompt = prompt + "\n\nВАЖНО: предыдущая попытка содержала слова не на русском языке — это недопустимо. Проверь каждое слово перед ответом: только кириллица."
-        profile_text, scores = await _call_profile_llm(retry_prompt)
-        if _has_foreign_script(profile_text):
-            raise ValueError("Модель дважды вернула текст с посторонними алфавитами")
-    return profile_text, scores
-
-async def generate_and_send_profile(message, user_id: int):
-    answers = get_all_answers(user_id)
-
-    # q13 и q14 (форма самовыражения) устроены иначе: их варианты — коды
-    # интересов (INTERESTS), а не психологические паттерны. Они не участвуют
-    # в pattern_tally, а объединяются с уже выбранными интересами.
-    EXPRESSION_QUESTION_IDS = {"q13"}
-
-    readable_lines = []
-    pattern_tally = {p: 0 for p in PATTERNS}
-    expression_interests = []
-    for q in SURVEY_QUESTIONS:
-        value = answers.get(q["id"])
-        if value is None:
-            continue
-        option = next((opt for opt in q["options"] if opt[1] == value), None)
-        if option is None:
-            continue
-        option_label, _value, tag = option
-        if q["id"] in EXPRESSION_QUESTION_IDS:
-            expression_interests.append(tag)
-        else:
-            pattern_tally[tag] = pattern_tally.get(tag, 0) + 1
-        sphere_plain = q["sphere"].split(" ", 1)[-1]  # strip the leading emoji
-        readable_lines.append(f"[{sphere_plain}] {q['question']} → {option_label}")
-
-    if expression_interests:
-        current_interests = get_user_interests(user_id)
-        merged_interests = list(dict.fromkeys(current_interests + expression_interests))
-        save_user_interests(user_id, merged_interests)
-
-    rest_style = get_user_rest_style(user_id)
-    if rest_style and rest_style in REST_CURRENT:
-        readable_lines.append(f"[Отдых] Как обычно отдыхает → {REST_CURRENT[rest_style]}")
-
-    answers_text = "\n".join(readable_lines)
-    top_pattern = max(pattern_tally, key=pattern_tally.get) if any(pattern_tally.values()) else None
-
-    prompt = f"""Ты — тёплый друг с психологическим образованием, который умеет объяснять поведение человека, а не оценивать его. Я прошла опрос из 14 вопросов.
-Вот мои вопросы и выбранные ответы:
-{answers_text}
-
-Напиши мой психологический профиль — 4-6 предложений, от второго лица («ты»), только по-русски, без иностранных слов.
-
-Требования к тексту:
-- Хороший приём для начала — контраст: «Ты любишь X, но Y» (например, «Ты любишь новое, но редко позволяешь себе спонтанность»). Он сразу показывает разрыв между желанием и действием — из этого разрыва и растёт объяснение механизма дальше.
-- Не описывай, ЧТО происходит («ты откладываешь дела», «у тебя мало энергии») — объясни МЕХАНИЗМ: какую внутреннюю задачу решает это поведение, от чего оно защищает или что даёт взамен. Пример логики: не «ты прокрастинируешь», а «когда нет ничего, что цепляет, любой выбор кажется одинаково бессмысленным — и мозг выбирает то, что вообще не требует выбора».
-- Ноль оценочных и обвиняющих слов: никаких «лень», «слабоволие», «не смог», «проблема с...». Это наблюдение, а не диагноз и не приговор.
-- Обязательно сошлись на 1-2 конкретные детали из моих реальных ответов (перефразируй их своими словами) — профиль должен ощущаться как «меня узнали», а не как гороскоп, подходящий всем.
-- Тон дружеский и тёплый, но не поверхностный — как будто человек прошёл хороший тест и узнал о себе что-то настоящее.
-- Последним предложением сделай мостик к бинго-карте: объясни, почему задания в ней подобраны именно так (например, маленькие, но с элементом неожиданности — не для проверки, а чтобы постепенно расширить зону возможностей) — но не описывай сами задания, их я пришлю следующим сообщением.
-
-Также оцени по 6 сферам в процентах (0-100%): где по ответам сильнее выражена нехватка/сложность (низкий %), а где уверенность (высокий %). Сферы: Дисциплина, Энергия, Саморазвитие, Смелость, Приключения, Творчество.
-
-Верни ТОЛЬКО JSON в таком формате:
-{{"profile_text": "...", "scores": {{"Дисциплина": 58, "Энергия": 83, "Саморазвитие": 40, "Смелость": 65, "Приключения": 72, "Творчество": 50}}}}"""
-
-    try:
-        profile_text, scores = await _generate_profile_json(prompt)
-
-        # Формируем текст профиля: фиксированный порядок сфер, короткая
-        # полоска из 5 делений + точный процент
-        scores_lines = []
-        for sphere in BINGO_SPHERES:
-            v = scores.get(sphere, 0)
-            filled = max(0, min(5, round(v / 20)))
-            bar = "●" * filled + "○" * (5 - filled)
-            emoji = SPHERE_EMOJI.get(sphere, "")
-            scores_lines.append(f"{emoji} {sphere:<14} {bar}  {v}%")
-        scores_text = "\n".join(scores_lines)
-
-        full_profile = f"""🎯 <b>Твой профиль</b>
-
-{profile_text}
-
-📊 <b>Сферы:</b>
-<pre>{scores_text}</pre>
-
-<i>Теперь — твоя бинго-карта на неделю. Выполняй в любом порядке. Зачеркивай клетки.</i>"""
-
-        week = get_user_week(user_id)
-        personal_card = await build_weekly_card(user_id, scores, week, top_pattern)
-        save_user_profile(user_id, profile_text, json.dumps(scores, ensure_ascii=False), json.dumps(personal_card, ensure_ascii=False), top_pattern)
-
-        await message.edit_text(full_profile, parse_mode="HTML")
-
-        # Отправляем бинго-карту отдельным сообщением
-        await send_bingo_card(message, user_id)
-
-    except Exception as e:
-        print(f"Error generating profile: {e}")
-        # Fallback — отправляем шаблонную карту (без персонализации по баллам, но паттерн уже есть)
-        week = get_user_week(user_id)
-        personal_card = await build_weekly_card(user_id, {}, week, top_pattern)
-        fallback_text = (
-            "Иногда дело не в мотивации, а в моменте выбора: когда вариантов много, а ни один не цепляет, "
-            "мозг выбирает то, что вообще не требует решения — и это нормальная реакция, а не слабость. "
-            "Поэтому в карте — не абстрактные цели, а маленькие конкретные шаги, с которых легко начать, не выбирая."
-        )
-        save_user_profile(user_id, fallback_text, json.dumps({}), json.dumps(personal_card, ensure_ascii=False), top_pattern)
-        await message.edit_text(
-            f"🎯 <b>Твой профиль</b>\n\n{fallback_text}\n\n"
-            "🎲 <b>Твоя бинго-карта на неделю:</b>",
-            parse_mode="HTML"
-        )
-        await send_bingo_card(message, user_id)
 
 # Приставка по уровню сложности — добавляется к объяснению механизма («why»)
 # на экране конкретного задания. medium ничего не добавляет — объяснение
@@ -2143,7 +1696,7 @@ async def send_bingo_card(message, user_id: int):
     completed = get_completed_cells(user_id, week)
     card = get_bingo_card(user_id)
     if not card:
-        card = await build_weekly_card(user_id, get_user_scores(user_id), week)
+        card = await build_weekly_card(user_id, week)
         save_bingo_card(user_id, card)
 
     header = f"🎲 <b>Бинго-карта — неделя {week}</b> ({len(completed)}/{len(card)})"
@@ -2165,7 +1718,7 @@ async def send_bingo_card(message, user_id: int):
 
 # ==================== BINGO INTERACTION ====================
 @dp.callback_query(F.data.startswith("bingo_cell_"))
-async def handle_bingo_click(callback: CallbackQuery, state: FSMContext):
+async def handle_bingo_click(callback: CallbackQuery):
     cell = callback.data.replace("bingo_cell_", "")
     user_id = callback.from_user.id
     week = get_user_week(user_id)
@@ -2218,8 +1771,7 @@ async def complete_task(callback: CallbackQuery):
         )
         advance_week(user_id)
         new_week = get_user_week(user_id)
-        scores = get_user_scores(user_id)
-        new_card = await build_weekly_card(user_id, scores, new_week)
+        new_card = await build_weekly_card(user_id, new_week)
         save_bingo_card(user_id, new_card)
         await send_bingo_card(callback.message, user_id)
     else:
@@ -2248,8 +1800,7 @@ async def regen_card(callback: CallbackQuery):
         return
 
     increment_card_regens(user_id)
-    scores = get_user_scores(user_id)
-    new_card = await build_weekly_card(user_id, scores, week)
+    new_card = await build_weekly_card(user_id, week)
     save_bingo_card(user_id, new_card)
 
     await callback.answer("🔄 Новая карта готова!")
@@ -2272,7 +1823,7 @@ async def send_daily_reminders():
             completed = get_completed_cells(user_id, week)
             card = get_bingo_card(user_id)
             if not card:
-                card = await build_weekly_card(user_id, get_user_scores(user_id), week)
+                card = await build_weekly_card(user_id, week)
                 save_bingo_card(user_id, card)
             if len(completed) < len(card):
                 await bot.send_message(
@@ -2370,10 +1921,32 @@ async def send_monthly_recap():
         except Exception as e:
             print(f"Failed to send monthly recap to {user_id}: {e}")
 
+def build_day_quest_message(quest: dict):
+    """Общая сборка текста + клавиатуры квеста дня — используется и в
+    ежедневной рассылке, и в команде /today (посмотреть вручную)."""
+    text = (
+        f"🌟 <b>Квест дня</b>\n\n"
+        f"<b>{quest['label']}</b>\n\n"
+        f"{quest['text']}\n\n"
+        f"<i>Это открывает: {quest['opens']}</i>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Выполнил(а)!", callback_data=f"day_quest_done_{quest['key']}")]
+    ])
+    return text, kb
+
+@dp.message(Command("today"))
+async def cmd_today_quest(message: Message):
+    """Посмотреть квест дня в любой момент, не дожидаясь рассылки в 8:00."""
+    quest = get_todays_quest()
+    text, kb = build_day_quest_message(quest)
+    await message.answer(text, parse_mode="HTML", reply_markup=kb)
+
 async def send_day_quest_broadcast():
     """Раз в день (см. регистрацию в main) — отдельное сообщение с квестом
     дня, не завязанное на бинго-карту. Один и тот же квест у всех сегодня."""
     quest = get_todays_quest()
+    text, kb = build_day_quest_message(quest)
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -2381,18 +1954,11 @@ async def send_day_quest_broadcast():
     users = c.fetchall()
     conn.close()
 
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Выполнил(а)!", callback_data=f"day_quest_done_{quest['key']}")]
-    ])
-
     for (user_id,) in users:
         try:
             await bot.send_message(
                 user_id,
-                f"🌟 <b>Квест дня</b>\n\n"
-                f"<b>{quest['label']}</b>\n\n"
-                f"{quest['text']}\n\n"
-                f"<i>Это открывает: {quest['opens']}</i>",
+                text,
                 parse_mode="HTML",
                 reply_markup=kb
             )
@@ -2492,6 +2058,9 @@ async def admin_stats(message: Message):
 async def main():
     await bot.set_my_commands([
         BotCommand(command="start", description="🚀 Начать / открыть мою карту"),
+        BotCommand(command="today", description="🌟 Посмотреть квест дня"),
+        BotCommand(command="company", description="👥 Квест на компанию"),
+        BotCommand(command="pair", description="💞 Квест для пары"),
         BotCommand(command="remind", description="⏰ Настроить утреннее напоминание"),
         BotCommand(command="evening", description="🌙 Настроить вечернее напоминание"),
     ])
