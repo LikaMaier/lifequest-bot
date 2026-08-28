@@ -81,6 +81,15 @@ def init_db():
             completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS active_quests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            task_key TEXT,
+            task_text TEXT,
+            taken_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
 
     # Migrations for bots created before these features existed.
     _ensure_column(c, "users", "last_active_date", "TEXT")
@@ -131,27 +140,6 @@ def get_user_profile(user_id: int):
     conn.close()
     return row if row else (None, None)
 
-def save_bingo_card(user_id: int, card: dict):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("UPDATE users SET bingo_card = ? WHERE user_id = ?",
-              (json.dumps(card, ensure_ascii=False), user_id))
-    conn.commit()
-    conn.close()
-
-def get_bingo_card(user_id: int) -> dict:
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT bingo_card FROM users WHERE user_id = ?", (user_id,))
-    row = c.fetchone()
-    conn.close()
-    if row and row[0]:
-        try:
-            return json.loads(row[0])
-        except (TypeError, json.JSONDecodeError):
-            pass
-    return {}
-
 def get_user_week(user_id: int) -> int:
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -159,31 +147,6 @@ def get_user_week(user_id: int) -> int:
     row = c.fetchone()
     conn.close()
     return row[0] if row and row[0] else 1
-
-def advance_week(user_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("UPDATE users SET current_week = COALESCE(current_week, 1) + 1, card_regens = 0 WHERE user_id = ?", (user_id,))
-    conn.commit()
-    conn.close()
-
-def get_card_regens(user_id: int) -> int:
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT card_regens FROM users WHERE user_id = ?", (user_id,))
-    row = c.fetchone()
-    conn.close()
-    return row[0] if row and row[0] else 0
-
-def increment_card_regens(user_id: int) -> int:
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("UPDATE users SET card_regens = COALESCE(card_regens, 0) + 1 WHERE user_id = ?", (user_id,))
-    conn.commit()
-    c.execute("SELECT card_regens FROM users WHERE user_id = ?", (user_id,))
-    row = c.fetchone()
-    conn.close()
-    return row[0] if row else 0
 
 def touch_activity(user_id: int):
     """Updates the daily streak: +1 if last active yesterday, reset to 1 on a gap,
@@ -227,16 +190,6 @@ def save_completed_task(user_id: int, cell: str, text: str, week: int = None):
     conn.commit()
     conn.close()
 
-def get_completed_cells(user_id: int, week: int = None) -> list:
-    if week is None:
-        week = get_user_week(user_id)
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT DISTINCT task_cell FROM completed_tasks WHERE user_id = ? AND week = ?", (user_id, week))
-    rows = c.fetchall()
-    conn.close()
-    return [r[0] for r in rows]
-
 def get_recent_completed_texts(user_id: int, limit: int = 8) -> list:
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -248,6 +201,71 @@ def get_recent_completed_texts(user_id: int, limit: int = 8) -> list:
     rows = c.fetchall()
     conn.close()
     return [r[0] for r in rows if r[0]]
+
+def save_active_quest(user_id: int, task_key: str, task_text: str) -> int:
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO active_quests (user_id, task_key, task_text) VALUES (?, ?, ?)",
+        (user_id, task_key, task_text)
+    )
+    conn.commit()
+    quest_id = c.lastrowid
+    conn.close()
+    return quest_id
+
+def get_active_quests(user_id: int) -> list:
+    """Возвращает [(id, task_key, task_text, taken_at), ...], старые сверху."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        "SELECT id, task_key, task_text, taken_at FROM active_quests WHERE user_id = ? ORDER BY taken_at",
+        (user_id,)
+    )
+    rows = c.fetchall()
+    conn.close()
+    return rows
+
+def get_active_quest(user_id: int, quest_id: int):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        "SELECT id, task_key, task_text FROM active_quests WHERE id = ? AND user_id = ?",
+        (quest_id, user_id)
+    )
+    row = c.fetchone()
+    conn.close()
+    return row
+
+def is_quest_already_active(user_id: int, task_key: str) -> bool:
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        "SELECT COUNT(*) FROM active_quests WHERE user_id = ? AND task_key = ?",
+        (user_id, task_key)
+    )
+    count = c.fetchone()[0]
+    conn.close()
+    return count > 0
+
+def remove_active_quest(user_id: int, quest_id: int):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("DELETE FROM active_quests WHERE id = ? AND user_id = ?", (quest_id, user_id))
+    conn.commit()
+    conn.close()
+
+def complete_active_quest(user_id: int, quest_id: int) -> bool:
+    """Переносит квест из «Моих» в выполненные. Возвращает False, если квест
+    не найден (например, уже завершён в другом окне)."""
+    quest = get_active_quest(user_id, quest_id)
+    if not quest:
+        return False
+    _id, task_key, task_text = quest
+    remove_active_quest(user_id, quest_id)
+    save_completed_task(user_id, task_key, task_text)
+    touch_activity(user_id)
+    return True
 
 def get_monthly_completed_count(user_id: int, year: int = None, month: int = None) -> int:
     """Сколько клеток человек закрыл за указанный месяц (по умолчанию — текущий).
@@ -267,12 +285,13 @@ def get_monthly_completed_count(user_id: int, year: int = None, month: int = Non
     return count
 
 def get_completed_today(user_id: int) -> list:
-    """Клетки, отмеченные сегодня (по дате сервера) — для вечернего напоминания."""
+    """Тексты заданий, отмеченных сегодня (по дате сервера) — для вечернего
+    напоминания."""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("""
-        SELECT task_cell FROM completed_tasks
-        WHERE user_id = ? AND date(completed_at) = date('now')
+        SELECT task_text FROM completed_tasks
+        WHERE user_id = ? AND date(completed_at) = date('now') AND task_text IS NOT NULL
         ORDER BY completed_at
     """, (user_id,))
     rows = c.fetchall()
@@ -280,87 +299,41 @@ def get_completed_today(user_id: int) -> list:
     return [r[0] for r in rows]
 
 # ==================== KEYBOARD BUILDER ====================
-def build_bingo_keyboard(card_keys: list, completed: list) -> InlineKeyboardMarkup:
-    buttons = []
-    row = []
-    for i, key in enumerate(card_keys):
-        label = KEY_TO_LABEL.get(key, key)
-        prefix = "✅ " if key in completed else ""
-        row.append(InlineKeyboardButton(text=f"{prefix}{label}", callback_data=f"bingo_cell_{key}"))
-        if (i + 1) % 3 == 0:
-            buttons.append(row)
-            row = []
-    if row:
-        buttons.append(row)
-    if not completed:
-        buttons.append([InlineKeyboardButton(text="🔄 Сгенерировать новую карту", callback_data="regen_card")])
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
-
 # ==================== WELCOME ====================
 WELCOME_TEXT = """🗺️ <b>Добро пожаловать в LifeQuest!</b>
 
 Моя миссия — помочь тебе превратить свою жизнь в удивительное приключение.
 
-Каждую неделю ты получаешь бинго-карту — 9 квестов из разных сфер жизни. Выполняй их не в чате, а по-настоящему: пробуй новое, встречайся со своими страхами, открывай в себе то, что раньше было незаметно.
+Выбирай квесты и выполняй их не в чате, а по-настоящему: пробуй новое, встречайся со своими страхами, открывай в себе то, что раньше было незаметно.
 
-<b>Как это работает:</b>
-🎲 Бинго-карта — 9 квестов на неделю
-🔄 Не понравилась карта — сгенерируй новую, пока не отмечена ни одна клетка
-🌟 Плюс квест дня — отдельный вызов каждое утро
+<b>Что можно взять:</b>
+🎯 На одного — случайный квест, бери, что откликается
+🌟 Задание дня — один вызов покрупнее, общий для всех сегодня
+👥 Для компании — если рядом друзья
+💞 Для пары — если рядом партнёр
 
-<i>Никакой диагностики — просто жми «Начать» и играй.</i>"""
+<i>Взятые квесты копятся в «Моих квестах» — заходи туда через /myquests, когда захочешь их выполнить.</i>"""
+
+def build_start_menu_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🎯 На одного", callback_data="menu_solo")],
+        [InlineKeyboardButton(text="🌟 Задание дня", callback_data="menu_day_quest")],
+        [InlineKeyboardButton(text="👥 Для компании", callback_data="menu_company")],
+        [InlineKeyboardButton(text="💞 Для пары", callback_data="menu_pair")],
+    ])
 
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
     user_id = message.from_user.id
     ensure_user(user_id, message.from_user.username)
+    await message.answer(WELCOME_TEXT, parse_mode="HTML", reply_markup=build_start_menu_keyboard())
 
-    profile, _bingo = get_user_profile(user_id)
-    if profile:
-        week = get_user_week(user_id)
-        total_completed = get_monthly_completed_count(user_id)
-        quest_line = f"\n🏆 Квестов в этом месяце: {total_completed}" if total_completed else ""
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🎲 Показать мою карту", callback_data="back_to_bingo")],
-        ])
-        await message.answer(
-            f"С возвращением! Ты на неделе {week}.{quest_line}",
-            reply_markup=kb
-        )
-        return
-
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🚀 Начать", callback_data="start_random_card")]
-    ])
-    await message.answer(WELCOME_TEXT, parse_mode="HTML", reply_markup=kb)
-
-@dp.callback_query(F.data == "start_random_card")
-async def start_random_card(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    week = get_user_week(user_id)
-
-    card = await build_weekly_card(user_id, week)
-    save_bingo_card(user_id, card)
-    save_user_profile(
-        user_id,
-        "Участник LifeQuest — играет в случайные квесты каждую неделю.",
-        "{}",
-        json.dumps(card, ensure_ascii=False)
-    )
-
-    await callback.message.edit_text(
-        "🎲 <b>Твоя карта готова!</b>\n\n"
-        "Ниже — 9 квестов на эту неделю, собранных случайно. Не понравился набор — можно перегенерировать, пока не начал(а) выполнять.",
-        parse_mode="HTML"
-    )
-    await send_bingo_card(callback.message, user_id)
-    await callback.answer()
 
 # ==================== BINGO BANK ====================
 BINGO_SPHERES = ["Дисциплина", "Энергия", "Саморазвитие", "Смелость", "Приключения", "Творчество"]
 
 # Задания на каждую сферу, у каждого — 2 уровня сложности ("easy"/"medium"),
-# выбираются по баллу сферы из профиля (см. build_personal_bingo).
+# выбираются случайно (см. get_random_solo_task) при просмотре «На одного».
 BINGO_BANK = {
     "Дисциплина": [
         {"key": "frog", "label": "🐸 Лягушка",
@@ -1241,37 +1214,15 @@ KEY_TO_LABEL = {t["key"]: t["label"] for tasks in BINGO_BANK.values() for t in t
 KEY_TO_SPHERE = {t["key"]: sphere for sphere, tasks in BINGO_BANK.items() for t in tasks}
 KEY_TO_TASK = {t["key"]: t for tasks in BINGO_BANK.values() for t in tasks}
 
-def get_doubled_spheres(week: int) -> set:
-    """Какие 3 из 6 сфер дают 2 клетки на этой неделе (остальные 3 дают по 1).
-    Чередуется по чётности недели, так что за 2 недели все сферы равны."""
-    group_a = set(BINGO_SPHERES[:3])
-    group_b = set(BINGO_SPHERES[3:])
-    return group_a if week % 2 == 1 else group_b
+ALL_TASKS_FLAT = [t for tasks in BINGO_BANK.values() for t in tasks]
 
-def build_personal_bingo(week: int = 1, user_id: int = 0, regen: int = 0) -> dict:
-    """Собирает карту на неделю: 9 клеток, сбалансированных по 6 сферам с
-    ротацией «удвоенных» сфер (1 или 2 слота на сферу). Внутри сферы задание
-    выбирается случайно, уровень сложности (лёгкий/средний) — тоже случайно
-    для каждой клетки. Всё выбирается детерминированно по (user_id, week,
-    regen), так что карта не меняется при каждом обновлении в течение одной
-    недели — но меняется, если явно перегенерировать (кнопка на карте)."""
-    rng = random.Random(f"{user_id}-{week}-{regen}")
-    doubled = get_doubled_spheres(week)
-    active_keys = []
-    for sphere in BINGO_SPHERES:
-        tasks = BINGO_BANK[sphere]
-        slot_count = min(2 if sphere in doubled else 1, len(tasks))
-        chosen = rng.sample(tasks, slot_count)
-        active_keys.extend([t["key"] for t in chosen])
-
-    card = {}
-    for key in active_keys:
-        task = KEY_TO_TASK[key]
-        tier = rng.choice(["easy", "medium"])
-        card[key] = {"text": task[tier], "tier": tier}
-    return card
-
-LLM_REFRESH_EVERY_N_WEEKS = 2
+def get_random_solo_task():
+    """Один случайный квест из всего банка (любая сфера, равновероятно) —
+    основа механики «На одного»: показывается один на выбор, можно взять или
+    поменять на другой. Уровень сложности (лёгкий/средний) — тоже случайный."""
+    task = random.choice(ALL_TASKS_FLAT)
+    tier = random.choice(["easy", "medium"])
+    return task, tier
 
 # ==================== QUEST OF THE DAY ====================
 # Отдельный слой поверх бинго-карты: раз в день бот сам присылает один более
@@ -1540,6 +1491,103 @@ COMPANY_QUESTS = [
      "text": "Вместе решите, куда пойти, кидая монетку или кубик на каждом перекрёстке."},
     {"key": "karaoke_night", "label": "🎤 Караоке-вечер",
      "text": "Устройте импровизированный концерт — по очереди или все вместе."},
+    {"key": "dice_decides_everything", "label": "🎲 Сегодня решает случайность",
+     "text": "Соберитесь компанией и доверьте монетке или кубику все мелкие решения вечера: куда идти, где остановиться, что заказать, чем заняться дальше.",
+     "outcome": "Вечер пойдёт совсем не по плану"},
+    {"key": "who_am_i_to_you", "label": "🕵️ Кто я для вас?",
+     "text": "Каждый анонимно пишет на бумаге по одной черте, которая, как ему кажется, лучше всего описывает каждого участника. Потом угадывайте, кто что написал.",
+     "outcome": "Неожиданные открытия друг о друге"},
+    {"key": "swap_lives", "label": "🎭 Поменяйтесь жизнями",
+     "text": "Каждый выбирает другого участника и в течение часа должен принимать решения так, как, по его мнению, поступил бы этот человек.",
+     "outcome": "Смешные и иногда удивительно точные наблюдения"},
+    {"key": "life_tour", "label": "🧳 Экскурсия по жизни",
+     "text": "Каждый становится экскурсоводом по собственной жизни: приводит остальных в место, которое для него что-то значит, и рассказывает его историю.",
+     "outcome": "Люди узнают то, чего обычно не рассказывают"},
+    {"key": "gift_from_nothing", "label": "🎁 Подарок из ничего",
+     "text": "За час каждый должен создать другому человеку подарок, используя только то, что уже есть под рукой.",
+     "outcome": "Креативность и личное внимание"},
+    {"key": "one_shot_one_story", "label": "📸 Один кадр — одна история",
+     "text": "Каждый делает один снимок остальных так, чтобы фотография рассказывала какую-то историю о группе. Потом все объясняют задумку.",
+     "outcome": "Удивительные интерпретации"},
+    {"key": "how_well_you_know_me", "label": "🧠 Насколько хорошо ты меня знаешь?",
+     "text": "Каждый пишет 5 вопросов о себе, ответы на которые невозможно угадать из очевидных фактов. Остальные отвечают.",
+     "outcome": "Проверка настоящей близости"},
+    {"key": "film_in_3_hours", "label": "🎬 Снимите фильм за 3 часа",
+     "text": "Придумайте сюжет, выберите случайный предмет, который обязательно должен появиться в фильме, и снимите всё за один вечер.",
+     "outcome": "Хаос и совместное творчество"},
+    {"key": "secret_mission_group", "label": "🕵️ Тайная миссия",
+     "text": "Каждый получает секретную задачу, которую должен выполнить незаметно для остальных. В конце все пытаются угадать миссии друг друга.",
+     "outcome": "Паранойя и смех"},
+    {"key": "company_museum", "label": "🏛️ Музей нашей компании",
+     "text": "Каждый приносит один предмет, связанный с общей историей. Из них создаётся выставка с подписями.",
+     "outcome": "Общие воспоминания"},
+    {"key": "reverse_interview", "label": "🎤 Интервью наоборот",
+     "text": "Один человек становится журналистом, но остальные выбирают вопросы, которые он обязан задавать. Запрещены стандартные вопросы.",
+     "outcome": "Разговоры неожиданно уходят глубоко"},
+    {"key": "stranded_in_another_world", "label": "🧑‍🚀 Мы оказались в другом мире",
+     "text": "Представьте, что ваша компания проснулась в неизвестном городе без денег и телефонов. За 2 часа придумайте план, как провести день и добыть необходимые ресурсы.",
+     "outcome": "Командное мышление"},
+    {"key": "chef_and_team", "label": "🍳 Шеф и команда",
+     "text": "Один человек выбирает 3 случайных ингредиента. Остальные должны вместе придумать и приготовить из них нормальное блюдо.",
+     "outcome": "Импровизация"},
+    {"key": "secret_character", "label": "🎭 Секретный персонаж",
+     "text": "Каждый получает случайный характер: оптимист, скептик, философ, авантюрист, педант и т. д. В течение вечера никто не должен раскрывать свою роль.",
+     "outcome": "Люди начинают играть, сами того не замечая"},
+    {"key": "door_chooses_us", "label": "🚪 Дверь выбирает нас",
+     "text": "Каждый предлагает одно место, куда компания никогда не ходила. Выбираете одно случайно и идёте туда без дальнейшего плана.",
+     "outcome": "Новая среда"},
+    {"key": "limited_budget_night", "label": "💰 Вечер с ограниченным бюджетом",
+     "text": "У вас есть небольшой общий бюджет на всех и 3 часа. Нужно создать максимально запоминающийся вечер.",
+     "outcome": "Креативность вместо денег"},
+    {"key": "guess_the_person", "label": "🧠 Угадай человека",
+     "text": "Каждый пишет факт о себе, который никто из компании, скорее всего, не знает. Все пытаются определить автора.",
+     "outcome": "Неожиданные признания"},
+    {"key": "underrated_quality", "label": "🪞 Каким меня видят?",
+     "text": "Каждый выбирает одного человека и пишет: «В тебе есть качество, которое ты сам недооцениваешь». Потом читают вслух.",
+     "outcome": "Неожиданная поддержка"},
+    {"key": "invent_a_tradition", "label": "🧩 Создайте собственную традицию",
+     "text": "За вечер придумайте абсолютно бессмысленную традицию, которую ваша компания теперь обязуется повторять раз в год.",
+     "outcome": "Появляется собственная история"},
+    {"key": "reverse_day", "label": "🎲 День наоборот",
+     "text": "Выберите несколько привычных правил вашей компании и переверните их: самый тихий принимает решения, самый пунктуальный опаздывает, лидер становится наблюдателем.",
+     "outcome": "Меняется привычная динамика"},
+    {"key": "faceless_portrait", "label": "🎨 Портрет без лица",
+     "text": "Каждый создаёт для другого человека портрет, используя только предметы, символы, фотографии или найденные объекты.",
+     "outcome": "Как мы воспринимаем друг друга"},
+    {"key": "memory_map", "label": "🗺️ Карта воспоминаний",
+     "text": "На большой карте отметьте места, связанные с вашими историями. Потом выберите одно случайное и отправляйтесь туда.",
+     "outcome": "Общая история становится маршрутом"},
+    {"key": "destiny_swap", "label": "🎁 Обмен судьбами",
+     "text": "Каждый вытягивает имя другого человека и придумывает ему идеальный день, исходя из того, каким его видит.",
+     "outcome": "Очень личные и неожиданные идеи"},
+    {"key": "trial_of_a_habit", "label": "🧑‍⚖️ Суд над привычкой",
+     "text": "Выберите какую-нибудь обычную вещь: соцсети, кофе, работу, опоздания, понедельники. Половина становится обвинением, половина — защитой.",
+     "outcome": "Весёлая дискуссия"},
+    {"key": "company_radio", "label": "📻 Радио нашей компании",
+     "text": "Каждый выбирает песню, которая каким-то образом связана с другим участником. Потом все объясняют выбор.",
+     "outcome": "Музыка раскрывает людей"},
+    {"key": "unasked_questions_night", "label": "🕯️ Вечер вопросов, которые обычно не задают",
+     "text": "Каждый приносит один вопрос, который ему самому было бы интересно услышать от остальных. Никаких вопросов про работу и бытовуху.",
+     "outcome": "Настоящий разговор"},
+    {"key": "strangers_experiment", "label": "🧪 Эксперимент с незнакомцами",
+     "text": "Выйдите компанией в город и поставьте себе задачу: за вечер получить три неожиданных человеческих истории от людей, которые согласны ими поделиться.",
+     "outcome": "Живое общение"},
+    {"key": "show_your_world", "label": "🌎 Покажи нам свой мир",
+     "text": "Каждый выбирает место, которое остальные никогда бы не выбрали сами. По очереди объясните, почему именно это место важно или интересно вам. В конце посетите одно из них."},
+    {"key": "we_misunderstood_each_other", "label": "🎭 Мы все друг друга неправильно поняли",
+     "text": "Каждый тайно пишет, какое первое впечатление он когда-то получил о каждом участнике. Потом сравниваете с тем, что думаете сейчас."},
+    {"key": "meeting_for_first_time", "label": "🧳 Если бы мы встретились впервые",
+     "text": "Представьте, что никто никого не знает. В течение вечера нельзя использовать общие воспоминания. Нужно заново знакомиться друг с другом."},
+    {"key": "make_a_memory", "label": "🎬 Сделайте воспоминание",
+     "text": "У вас есть 4 часа, чтобы создать событие, о котором через 10 лет кто-нибудь скажет: «Помнишь тот день?»"},
+    {"key": "key_to_a_person", "label": "🗝️ Ключ к человеку",
+     "text": "Каждый отвечает на один вопрос: «Какую вещь обо мне почти никто не понимает?» Остальные могут задавать только уточняющие вопросы."},
+    {"key": "seven_rules_night", "label": "🎲 Один вечер — семь правил",
+     "text": "Каждый придумывает одно странное, но выполнимое правило вечера. В течение встречи соблюдаете все семь."},
+    {"key": "create_a_person", "label": "🧠 Мы создаём человека",
+     "text": "Представьте, что вашей компании нужно создать нового человека из ваших качеств. Каждый отдаёт одно своё качество, а затем вместе решаете, каким получился этот персонаж."},
+    {"key": "last_evening", "label": "🌌 Последний вечер",
+     "text": "Представьте, что это последний вечер, когда ваша компания может собраться именно таким составом. У вас 5 часов. Каждый предлагает только одну вещь, которую обязательно нужно успеть сделать."},
 ]
 
 PAIR_QUESTS = [
@@ -1578,6 +1626,8 @@ PAIR_QUESTS = [
 def build_group_quest_message(quest_list: list, callback_prefix: str):
     quest = random.choice(quest_list)
     text = f"👥 <b>{quest['label']}</b>\n\n{quest['text']}"
+    if quest.get("outcome"):
+        text += f"\n\n<i>Что может произойти: {quest['outcome']}</i>"
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🎲 Другое задание", callback_data=f"{callback_prefix}_reroll")]
     ])
@@ -1587,6 +1637,12 @@ def build_group_quest_message(quest_list: list, callback_prefix: str):
 async def cmd_company_quest(message: Message):
     text, kb = build_group_quest_message(COMPANY_QUESTS, "company")
     await message.answer(text, parse_mode="HTML", reply_markup=kb)
+
+@dp.callback_query(F.data == "menu_company")
+async def menu_company_quest(callback: CallbackQuery):
+    text, kb = build_group_quest_message(COMPANY_QUESTS, "company")
+    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    await callback.answer()
 
 @dp.callback_query(F.data == "company_reroll")
 async def reroll_company_quest(callback: CallbackQuery):
@@ -1599,212 +1655,155 @@ async def cmd_pair_quest(message: Message):
     text, kb = build_group_quest_message(PAIR_QUESTS, "pair")
     await message.answer(text, parse_mode="HTML", reply_markup=kb)
 
+@dp.callback_query(F.data == "menu_pair")
+async def menu_pair_quest(callback: CallbackQuery):
+    text, kb = build_group_quest_message(PAIR_QUESTS, "pair")
+    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    await callback.answer()
+
 @dp.callback_query(F.data == "pair_reroll")
 async def reroll_pair_quest(callback: CallbackQuery):
     text, kb = build_group_quest_message(PAIR_QUESTS, "pair")
     await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
     await callback.answer()
 
-async def refresh_card_via_llm(user_id: int, base_card: dict) -> dict:
-    """Переписывает текст заданий через Groq, сохраняя структуру (сфера и
-    уровень сложности) как есть — LLM только освежает формулировки и
-    старается не повторять недавно выполненные темы. При любой ошибке или
-    некорректном ответе тихо откатывается на базовый (банковский) текст."""
-    profile, _ = get_user_profile(user_id)
-    recent = get_recent_completed_texts(user_id, limit=8)
-    recent_text = "\n".join(f"- {t}" for t in recent) if recent else "(пока ничего не выполнено)"
+# ==================== SOLO QUEST (На одного) ====================
+def build_solo_quest_message(task: dict, tier: str):
+    text = f"{task[tier]}\n\n💡 {task.get('why', '')}"
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Взять задание", callback_data=f"solo_take_{task['key']}_{tier}")],
+        [InlineKeyboardButton(text="🔄 Поменять задание", callback_data="solo_swap")]
+    ])
+    return text, kb
 
-    cells_spec = []
-    for key, info in base_card.items():
-        sphere = KEY_TO_SPHERE[key]
-        tier = info["tier"]
-        cells_spec.append(f"- key={key}, сфера={sphere}, уровень={tier}, ориентир по масштабу: {info['text']}")
-    cells_text = "\n".join(cells_spec)
+@dp.callback_query(F.data == "menu_solo")
+async def menu_solo(callback: CallbackQuery):
+    task, tier = get_random_solo_task()
+    text, kb = build_solo_quest_message(task, tier)
+    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    await callback.answer()
 
-    prompt = f"""Ты пишешь короткие задания для бинго-карты личностного роста.
-Профиль человека: {profile or "нет данных"}
+@dp.callback_query(F.data == "solo_swap")
+async def solo_swap(callback: CallbackQuery):
+    task, tier = get_random_solo_task()
+    text, kb = build_solo_quest_message(task, tier)
+    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    await callback.answer()
 
-Уже выполненные задания за последнее время (не повторяй эти темы и формулировки):
-{recent_text}
-
-Перепиши текст задания для каждой из следующих клеток. Сохрани сферу и уровень сложности каждой клетки — новое задание должно быть примерно того же масштаба, что и «ориентир», не легче и не тяжелее:
-{cells_text}
-
-Требования к стилю: сухо и коротко, 1-2 предложения. Только суть задания, без личных обращений и объяснений «почему». Только по-русски.
-
-Верни ТОЛЬКО JSON вида {{"key1": "текст задания", "key2": "текст задания", ...}} — по одному полю на каждый key из списка выше."""
-
-    try:
-        response = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": "Пишешь короткие, конкретные задания на русском. Сухо, без личных обращений и без объяснений — только суть задания."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.8,
-            max_tokens=900
-        )
-        content = response.choices[0].message.content
-        json_start = content.find("{")
-        json_end = content.rfind("}") + 1
-        result = json.loads(content[json_start:json_end])
-
-        new_card = {}
-        for key, info in base_card.items():
-            body = result.get(key)
-            if not body or not isinstance(body, str):
-                new_card[key] = info  # откат на банк для этой конкретной клетки
-                continue
-            label = KEY_TO_LABEL.get(key, key)
-            emoji, _, word = label.partition(" ")
-            header = f"{emoji} <b>{word}</b>" if word else label
-            new_card[key] = {"text": f"{header}\n{body.strip()}", "tier": info["tier"]}
-        return new_card
-    except Exception as e:
-        print(f"LLM card refresh failed, falling back to bank: {e}")
-        return base_card
-
-async def build_weekly_card(user_id: int, week: int) -> dict:
-    """Структура карты всегда считается банком (предсказуемо, бесплатно).
-    Раз в LLM_REFRESH_EVERY_N_WEEKS недель текст заданий освежается через LLM
-    (без персонализации — просто для разнообразия формулировок)."""
-    regen = get_card_regens(user_id)
-    base_card = build_personal_bingo(week, user_id, regen)
-    if week % LLM_REFRESH_EVERY_N_WEEKS == 0:
-        return await refresh_card_via_llm(user_id, base_card)
-    return base_card
-
-# Приставка по уровню сложности — добавляется к объяснению механизма («why»)
-# на экране конкретного задания. medium ничего не добавляет — объяснение
-# самодостаточно; easy поясняет, почему маленький шаг тоже работает.
-TIER_FRAMING = {
-    "easy": " Маленький шаг здесь работает не хуже большого — главное сдвинуть паттерн, а не совершить подвиг.",
-    "medium": "",
-}
-
-def _card_text(entry) -> str:
-    """Достаёт текст задания из значения карты — поддерживает и новый формат
-    {"text":..., "tier":...}, и старый плоский текст (для карт, сохранённых
-    до этого обновления)."""
-    return entry["text"] if isinstance(entry, dict) else entry
-
-def _card_tier(entry) -> str:
-    return entry["tier"] if isinstance(entry, dict) else "medium"
-
-async def send_bingo_card(message, user_id: int):
-    week = get_user_week(user_id)
-    completed = get_completed_cells(user_id, week)
-    card = get_bingo_card(user_id)
-    if not card:
-        card = await build_weekly_card(user_id, week)
-        save_bingo_card(user_id, card)
-
-    header = f"🎲 <b>Бинго-карта — неделя {week}</b> ({len(completed)}/{len(card)})"
-    total_completed = get_monthly_completed_count(user_id)
-    if total_completed:
-        header += f"\n🏆 Квестов в этом месяце: {total_completed}"
-
-    lines = [header]
-    for key, entry in card.items():
-        prefix = "✅ " if key in completed else ""
-        lines.append(f"{prefix}{_card_text(entry)}")
-    lines.append("Нажми на клетку, чтобы отметить выполнение 👇")
-
-    await message.answer(
-        "\n\n".join(lines),
-        parse_mode="HTML",
-        reply_markup=build_bingo_keyboard(list(card.keys()), completed)
-    )
-
-# ==================== BINGO INTERACTION ====================
-@dp.callback_query(F.data.startswith("bingo_cell_"))
-async def handle_bingo_click(callback: CallbackQuery):
-    cell = callback.data.replace("bingo_cell_", "")
+@dp.callback_query(F.data.startswith("solo_take_"))
+async def solo_take(callback: CallbackQuery):
     user_id = callback.from_user.id
-    week = get_user_week(user_id)
-
-    if cell in get_completed_cells(user_id, week):
-        await callback.answer("Эта клетка уже отмечена на этой неделе ✅")
+    _, _, task_key, tier = callback.data.split("_", 3)
+    task = KEY_TO_TASK.get(task_key)
+    if not task:
+        await callback.answer("Это задание уже недоступно, попробуй ещё раз /start")
         return
 
-    card = get_bingo_card(user_id)
-    entry = card.get(cell)
-    task_text = _card_text(entry) if entry else KEY_TO_TASK.get(cell, {}).get("medium", "Задание")
-    tier = _card_tier(entry) if entry else "medium"
-
-    why = KEY_TO_TASK.get(cell, {}).get("why", "")
-    why_block = f"\n\n💡 {why}{TIER_FRAMING.get(tier, '')}" if why else ""
+    task_text = task[tier]
+    save_active_quest(user_id, task_key, task_text)
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Выполнено!", callback_data=f"complete_{cell}")],
-        [InlineKeyboardButton(text="« Назад к карте", callback_data="back_to_bingo")]
+        [InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")],
+        [InlineKeyboardButton(text="🎯 Взять ещё один", callback_data="menu_solo")]
     ])
+    await callback.message.edit_text(
+        f"✅ <b>Квест добавлен в «Мои квесты»!</b>\n\n{task_text}",
+        parse_mode="HTML",
+        reply_markup=kb
+    )
+    await callback.answer()
 
+# ==================== MY QUESTS / COMPLETED ====================
+def build_my_quests_keyboard(quests: list) -> InlineKeyboardMarkup:
+    buttons = [[InlineKeyboardButton(text=text[:60], callback_data=f"myquest_open_{qid}")]
+               for qid, _key, text, _taken_at in quests]
+    buttons.append([InlineKeyboardButton(text="🎯 Взять ещё один", callback_data="menu_solo")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+async def show_my_quests(target, user_id: int, as_edit: bool):
+    quests = get_active_quests(user_id)
+    if not quests:
+        text = "📋 <b>Мои квесты</b>\n\nПока пусто. Возьми первый квест кнопкой ниже."
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🎯 На одного", callback_data="menu_solo")]
+        ])
+    else:
+        text = f"📋 <b>Мои квесты</b> ({len(quests)})\n\nЖми на задание, чтобы открыть и отметить выполнение."
+        kb = build_my_quests_keyboard(quests)
+
+    if as_edit:
+        await target.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    else:
+        await target.answer(text, parse_mode="HTML", reply_markup=kb)
+
+@dp.message(Command("myquests"))
+async def cmd_my_quests(message: Message):
+    await show_my_quests(message, message.from_user.id, as_edit=False)
+
+@dp.callback_query(F.data == "menu_myquests")
+async def menu_my_quests(callback: CallbackQuery):
+    await show_my_quests(callback.message, callback.from_user.id, as_edit=True)
+    await callback.answer()
+
+@dp.callback_query(F.data.startswith("myquest_open_"))
+async def open_my_quest(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    quest_id = int(callback.data.replace("myquest_open_", ""))
+    quest = get_active_quest(user_id, quest_id)
+    if not quest:
+        await callback.answer("Этот квест уже не найден — возможно, уже выполнен.")
+        return
+    _id, task_key, task_text = quest
+
+    why = KEY_TO_TASK.get(task_key, {}).get("why", "")
+    why_block = f"\n\n💡 {why}" if why else ""
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Выполнено!", callback_data=f"myquest_done_{quest_id}")],
+        [InlineKeyboardButton(text="« Назад к моим квестам", callback_data="menu_myquests")]
+    ])
     await callback.message.edit_text(task_text + why_block, parse_mode="HTML", reply_markup=kb)
     await callback.answer()
 
-@dp.callback_query(F.data.startswith("complete_"))
-async def complete_task(callback: CallbackQuery):
-    cell = callback.data.replace("complete_", "")
+@dp.callback_query(F.data.startswith("myquest_done_"))
+async def complete_my_quest(callback: CallbackQuery):
     user_id = callback.from_user.id
-    week = get_user_week(user_id)
+    quest_id = int(callback.data.replace("myquest_done_", ""))
 
-    if cell in get_completed_cells(user_id, week):
-        await callback.answer("Эта клетка уже отмечена на этой неделе ✅")
+    ok = complete_active_quest(user_id, quest_id)
+    if not ok:
+        await callback.answer("Этот квест уже отмечен выполненным.")
+        await show_my_quests(callback.message, user_id, as_edit=True)
         return
 
-    card = get_bingo_card(user_id)
-    entry = card.get(cell)
-    task_text = _card_text(entry) if entry else KEY_TO_TASK.get(cell, {}).get("medium", "Задание")
+    await callback.answer("🎉 Засчитано!")
+    await show_my_quests(callback.message, user_id, as_edit=True)
 
-    save_completed_task(user_id, cell, task_text, week=week)
-    touch_activity(user_id)
-
-    completed = get_completed_cells(user_id, week)
-
-    if len(completed) >= len(card):
-        await callback.message.edit_text(
-            f"🏆 <b>Неделя {week} закрыта!</b>\n\n"
-            f"Все {len(card)} клеток пройдены.\n\n"
-            "Собираю карту на следующую неделю...",
-            parse_mode="HTML"
-        )
-        advance_week(user_id)
-        new_week = get_user_week(user_id)
-        new_card = await build_weekly_card(user_id, new_week)
-        save_bingo_card(user_id, new_card)
-        await send_bingo_card(callback.message, user_id)
+async def show_completed_quests(target, user_id: int, as_edit: bool):
+    rows = get_recent_completed_texts(user_id, limit=20)
+    if not rows:
+        text = "🏆 <b>Выполненные</b>\n\nПока пусто — здесь появятся квесты, которые ты отметишь выполненными."
     else:
-        await callback.message.edit_text(
-            f"✅ <b>Клетка выполнена!</b>\n\n{task_text}\n\n"
-            f"Отличная работа! Продолжай в том же духе.",
-            parse_mode="HTML"
-        )
-        await send_bingo_card(callback.message, user_id)
+        lines = [f"🏆 <b>Выполненные</b> (последние {len(rows)})\n"]
+        lines.extend(f"✅ {t}" for t in rows)
+        text = "\n".join(lines)
 
-    await callback.answer("🎉 Молодец!")
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")]
+    ])
+    if as_edit:
+        await target.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    else:
+        await target.answer(text, parse_mode="HTML", reply_markup=kb)
 
-@dp.callback_query(F.data == "back_to_bingo")
-async def back_to_bingo(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    await send_bingo_card(callback.message, user_id)
+@dp.message(Command("completed"))
+async def cmd_completed(message: Message):
+    await show_completed_quests(message, message.from_user.id, as_edit=False)
+
+@dp.callback_query(F.data == "menu_completed")
+async def menu_completed(callback: CallbackQuery):
+    await show_completed_quests(callback.message, callback.from_user.id, as_edit=True)
     await callback.answer()
-
-@dp.callback_query(F.data == "regen_card")
-async def regen_card(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    week = get_user_week(user_id)
-
-    if get_completed_cells(user_id, week):
-        await callback.answer("Нельзя перегенерировать карту, если уже что-то отмечено — прогресс потеряется.", show_alert=True)
-        return
-
-    increment_card_regens(user_id)
-    new_card = await build_weekly_card(user_id, week)
-    save_bingo_card(user_id, new_card)
-
-    await callback.answer("🔄 Новая карта готова!")
-    await send_bingo_card(callback.message, user_id)
 
 # ==================== DAILY REMINDERS ====================
 async def send_daily_reminders():
@@ -1819,19 +1818,26 @@ async def send_daily_reminders():
 
     for (user_id,) in users:
         try:
-            week = get_user_week(user_id)
-            completed = get_completed_cells(user_id, week)
-            card = get_bingo_card(user_id)
-            if not card:
-                card = await build_weekly_card(user_id, week)
-                save_bingo_card(user_id, card)
-            if len(completed) < len(card):
+            quests = get_active_quests(user_id)
+            if quests:
+                await bot.send_message(
+                    user_id,
+                    f"🌅 <b>Доброе утро!</b>\n\n"
+                    f"В «Моих квестах» ждут {len(quests)} — самое время закрыть хотя бы один.",
+                    parse_mode="HTML",
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")]
+                    ])
+                )
+            else:
                 await bot.send_message(
                     user_id,
                     "🌅 <b>Доброе утро!</b>\n\n"
-                    "Новый день — новая возможность зачеркнуть клетку в бинго.\n\nКакое задание выберешь сегодня?",
+                    "В «Моих квестах» пусто — новый день отлично подходит, чтобы взять квест.",
                     parse_mode="HTML",
-                    reply_markup=build_bingo_keyboard(list(card.keys()), completed)
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="🎯 На одного", callback_data="menu_solo")]
+                    ])
                 )
         except Exception as e:
             print(f"Failed to send reminder to {user_id}: {e}")
@@ -1849,20 +1855,11 @@ async def send_evening_reminders():
 
     for (user_id,) in users:
         try:
-            week = get_user_week(user_id)
-            card = get_bingo_card(user_id)
-            if not card:
-                continue  # ещё не проходил опрос — вечернее напоминание ему рано
+            today_texts = get_completed_today(user_id)
 
-            today_cells = get_completed_today(user_id)
-
-            if today_cells:
-                lines = [f"🌙 <b>Как прошёл день?</b>\n\nСегодня отмечено:"]
-                for key in today_cells:
-                    label = KEY_TO_LABEL.get(key, key)
-                    lines.append(f"✅ {label}")
-                completed = get_completed_cells(user_id, week)
-                lines.append(f"\nВсего на неделе: {len(completed)}/{len(card)}")
+            if today_texts:
+                lines = ["🌙 <b>Как прошёл день?</b>\n\nСегодня отмечено:"]
+                lines.extend(f"✅ {t}" for t in today_texts)
                 text = "\n".join(lines)
             else:
                 text = (
@@ -1941,6 +1938,13 @@ async def cmd_today_quest(message: Message):
     quest = get_todays_quest()
     text, kb = build_day_quest_message(quest)
     await message.answer(text, parse_mode="HTML", reply_markup=kb)
+
+@dp.callback_query(F.data == "menu_day_quest")
+async def menu_day_quest(callback: CallbackQuery):
+    quest = get_todays_quest()
+    text, kb = build_day_quest_message(quest)
+    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    await callback.answer()
 
 async def send_day_quest_broadcast():
     """Раз в день (см. регистрацию в main) — отдельное сообщение с квестом
@@ -2057,7 +2061,9 @@ async def admin_stats(message: Message):
 # ==================== MAIN ====================
 async def main():
     await bot.set_my_commands([
-        BotCommand(command="start", description="🚀 Начать / открыть мою карту"),
+        BotCommand(command="start", description="🚀 Начать / открыть меню"),
+        BotCommand(command="myquests", description="📋 Мои квесты"),
+        BotCommand(command="completed", description="🏆 Выполненные"),
         BotCommand(command="today", description="🌟 Посмотреть квест дня"),
         BotCommand(command="company", description="👥 Квест на компанию"),
         BotCommand(command="pair", description="💞 Квест для пары"),
