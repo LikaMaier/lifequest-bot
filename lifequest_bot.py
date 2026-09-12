@@ -9,6 +9,7 @@ import os
 import random
 import re
 import sqlite3
+import urllib.parse
 from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, F
@@ -17,7 +18,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, 
     InlineKeyboardButton, ReplyKeyboardRemove,
-    BotCommand
+    BotCommand, WebAppInfo
 )
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
@@ -88,6 +89,14 @@ def init_db():
             task_key TEXT,
             task_text TEXT,
             taken_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS weekly_boards (
+            user_id INTEGER PRIMARY KEY,
+            week_key TEXT,
+            board_json TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
@@ -266,6 +275,67 @@ def complete_active_quest(user_id: int, quest_id: int) -> bool:
     save_completed_task(user_id, task_key, task_text)
     touch_activity(user_id)
     return True
+
+def get_current_week_key() -> str:
+    """ISO-неделя вида '2026-W07' — карта привязана к ней, так что при
+    наступлении новой недели get_weekly_board вернёт пустой шаблон
+    автоматически, без явного сброса."""
+    iso = datetime.now().isocalendar()
+    return f"{iso[0]}-W{iso[1]:02d}"
+
+def get_week_range_label() -> str:
+    """Человекочитаемый диапазон текущей недели для шапки мини-аппа, например
+    «9–15 марта»."""
+    months = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]
+    today = datetime.now()
+    monday = today - timedelta(days=today.weekday())
+    sunday = monday + timedelta(days=6)
+    if monday.month == sunday.month:
+        return f"{monday.day}–{sunday.day} {months[monday.month - 1]}"
+    return f"{monday.day} {months[monday.month - 1]} – {sunday.day} {months[sunday.month - 1]}"
+
+EMPTY_BOARD = {
+    "cells": [""] * 9,
+    "done": [False] * 9,
+    "reward": "",
+    "rating": 0,
+    "notes": "",
+}
+
+def get_weekly_board(user_id: int) -> dict:
+    """Отдаёт карту текущей недели. Если пользователь ещё не сохранял карту
+    на этой неделе (новая неделя или первый запуск) — пустой шаблон."""
+    week_key = get_current_week_key()
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT week_key, board_json FROM weekly_boards WHERE user_id = ?", (user_id,))
+    row = c.fetchone()
+    conn.close()
+
+    if row and row[0] == week_key and row[1]:
+        try:
+            board = json.loads(row[1])
+            board.setdefault("cells", [""] * 9)
+            board.setdefault("done", [False] * 9)
+            return board
+        except (TypeError, json.JSONDecodeError):
+            pass
+    return dict(EMPTY_BOARD)
+
+def save_weekly_board(user_id: int, board: dict):
+    week_key = get_current_week_key()
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO weekly_boards (user_id, week_key, board_json, updated_at)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(user_id) DO UPDATE SET
+            week_key = excluded.week_key,
+            board_json = excluded.board_json,
+            updated_at = CURRENT_TIMESTAMP
+    """, (user_id, week_key, json.dumps(board, ensure_ascii=False)))
+    conn.commit()
+    conn.close()
 
 def get_monthly_completed_count(user_id: int, year: int = None, month: int = None) -> int:
     """Сколько клеток человек закрыл за указанный месяц (по умолчанию — текущий).
@@ -1588,10 +1658,10 @@ async def accept_group_quest(callback: CallbackQuery, quest_list: list, prefix: 
     save_active_quest(user_id, quest["key"], quest["label"])
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")]
+        [InlineKeyboardButton(text="📋 Принятые вызовы", callback_data="menu_accepted_quests")]
     ])
     await callback.message.edit_text(
-        f"✅ <b>Квест добавлен в «Мои квесты»!</b>\n\n{quest['label']}",
+        f"✅ <b>Квест добавлен в «Принятые вызовы»!</b>\n\n{quest['label']}",
         parse_mode="HTML",
         reply_markup=kb
     )
@@ -1675,17 +1745,16 @@ async def solo_take(callback: CallbackQuery):
     save_active_quest(user_id, task_key, task_text)
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")],
+        [InlineKeyboardButton(text="📋 Принятые вызовы", callback_data="menu_accepted_quests")],
         [InlineKeyboardButton(text="🎯 Взять ещё один", callback_data="menu_solo")]
     ])
     await callback.message.edit_text(
-        f"✅ <b>Квест добавлен в «Мои квесты»!</b>\n\n{task_text}",
+        f"✅ <b>Квест добавлен в «Принятые вызовы»!</b>\n\n{task_text}",
         parse_mode="HTML",
         reply_markup=kb
     )
     await callback.answer()
 
-# ==================== MY QUESTS / COMPLETED ====================
 def build_my_quests_keyboard(quests: list) -> InlineKeyboardMarkup:
     buttons = [[InlineKeyboardButton(text=text[:60], callback_data=f"myquest_open_{qid}")]
                for qid, _key, text, _taken_at in quests]
@@ -1695,12 +1764,12 @@ def build_my_quests_keyboard(quests: list) -> InlineKeyboardMarkup:
 async def show_my_quests(target, user_id: int, as_edit: bool):
     quests = get_active_quests(user_id)
     if not quests:
-        text = "📋 <b>Мои квесты</b>\n\nПока пусто. Возьми первый квест кнопкой ниже."
+        text = "📋 <b>Принятые вызовы</b>\n\nПока пусто. Возьми первый квест кнопкой ниже."
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🎯 На одного", callback_data="menu_solo")]
         ])
     else:
-        text = f"📋 <b>Мои квесты</b> ({len(quests)})\n\nЖми на задание, чтобы открыть и отметить выполнение."
+        text = f"📋 <b>Принятые вызовы</b> ({len(quests)})\n\nЖми на задание, чтобы открыть и отметить выполнение."
         kb = build_my_quests_keyboard(quests)
 
     if as_edit:
@@ -1708,14 +1777,75 @@ async def show_my_quests(target, user_id: int, as_edit: bool):
     else:
         await target.answer(text, parse_mode="HTML", reply_markup=kb)
 
+# ==================== WEEKLY BOARD MINI APP ====================
+# Замена "Моих квестов": вместо списка принятых заданий — мини-апп с картой
+# 3х3, которую человек заполняет сам. Требует публичный HTTPS-адрес — см.
+# инструкцию по деплою. MINIAPP_URL задаётся через переменную окружения.
+MINIAPP_URL = os.getenv("MINIAPP_URL", "https://example.com/miniapp/index.html")
+
+def build_miniapp_button(user_id: int) -> InlineKeyboardMarkup:
+    board = get_weekly_board(user_id)
+    board["week_range"] = get_week_range_label()
+    encoded = urllib.parse.quote(json.dumps(board, ensure_ascii=False))
+    url = f"{MINIAPP_URL}?board={encoded}"
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🗺️ Открыть карту недели", web_app=WebAppInfo(url=url))]
+    ])
+
+async def show_weekly_board_entry(target, user_id: int, as_edit: bool):
+    text = (
+        "🗺️ <b>Карта недели</b>\n\n"
+        "Впиши 9 своих задач на неделю — привычку, что-то новое, тему для изучения "
+        "и самое сложное дело в центре. Отмечай клетки по мере выполнения."
+    )
+    kb = build_miniapp_button(user_id)
+    kb.inline_keyboard.append(
+        [InlineKeyboardButton(text="📋 Принятые вызовы", callback_data="menu_accepted_quests")]
+    )
+    if as_edit:
+        await target.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    else:
+        await target.answer(text, parse_mode="HTML", reply_markup=kb)
+
+@dp.callback_query(F.data == "menu_accepted_quests")
+async def menu_accepted_quests(callback: CallbackQuery):
+    """Вызовы, принятые кнопкой «Принять вызов» в На одного/Паре/Компании —
+    отдельно от карты недели, которая заполняется вручную."""
+    await show_my_quests(callback.message, callback.from_user.id, as_edit=True)
+    await callback.answer()
+
 @dp.message(Command("myquests"))
 async def cmd_my_quests(message: Message):
-    await show_my_quests(message, message.from_user.id, as_edit=False)
+    await show_weekly_board_entry(message, message.from_user.id, as_edit=False)
 
 @dp.callback_query(F.data == "menu_myquests")
 async def menu_my_quests(callback: CallbackQuery):
-    await show_my_quests(callback.message, callback.from_user.id, as_edit=True)
+    await show_weekly_board_entry(callback.message, callback.from_user.id, as_edit=True)
     await callback.answer()
+
+@dp.message(F.web_app_data)
+async def handle_miniapp_data(message: Message):
+    """Мини-апп присылает это через Telegram.WebApp.sendData() при нажатии
+    «Сохранить карту»."""
+    user_id = message.from_user.id
+    try:
+        board = json.loads(message.web_app_data.data)
+    except (TypeError, json.JSONDecodeError, AttributeError):
+        await message.answer("Не получилось сохранить карту — попробуй ещё раз через /myquests.")
+        return
+
+    board.pop("week_range", None)
+    was_incomplete = not (get_weekly_board(user_id)["done"] and all(get_weekly_board(user_id)["done"]))
+    save_weekly_board(user_id, board)
+
+    all_done = bool(board.get("done")) and all(board["done"]) and all(c.strip() for c in board.get("cells", []))
+    if all_done:
+        touch_activity(user_id)
+        text = "🎉 <b>Карта недели сохранена — и вся закрыта!</b>\n\nНе забудь про награду, которую сам(а) себе обещал(а)."
+    else:
+        text = "✅ Карта недели сохранена."
+
+    await message.answer(text, parse_mode="HTML", reply_markup=build_miniapp_button(user_id))
 
 @dp.callback_query(F.data.startswith("myquest_open_"))
 async def open_my_quest(callback: CallbackQuery):
@@ -1729,7 +1859,7 @@ async def open_my_quest(callback: CallbackQuery):
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Выполнено!", callback_data=f"myquest_done_{quest_id}")],
-        [InlineKeyboardButton(text="« Назад к моим квестам", callback_data="menu_myquests")]
+        [InlineKeyboardButton(text="« Назад к принятым вызовам", callback_data="menu_accepted_quests")]
     ])
     await callback.message.edit_text(task_text, parse_mode="HTML", reply_markup=kb)
     await callback.answer()
@@ -1758,7 +1888,7 @@ async def show_completed_quests(target, user_id: int, as_edit: bool):
         text = "\n".join(lines)
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")]
+        [InlineKeyboardButton(text="📋 Принятые вызовы", callback_data="menu_accepted_quests")]
     ])
     if as_edit:
         await target.edit_text(text, parse_mode="HTML", reply_markup=kb)
@@ -1792,17 +1922,17 @@ async def send_daily_reminders():
                 await bot.send_message(
                     user_id,
                     f"🌅 <b>Доброе утро!</b>\n\n"
-                    f"В «Моих квестах» ждут {len(quests)} — самое время закрыть хотя бы один.",
+                    f"В «Принятых вызовах» ждут {len(quests)} — самое время закрыть хотя бы один.",
                     parse_mode="HTML",
                     reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")]
+                        [InlineKeyboardButton(text="📋 Принятые вызовы", callback_data="menu_accepted_quests")]
                     ])
                 )
             else:
                 await bot.send_message(
                     user_id,
                     "🌅 <b>Доброе утро!</b>\n\n"
-                    "В «Моих квестах» пусто — новый день отлично подходит, чтобы взять квест.",
+                    "В «Принятых вызовах» пусто — новый день отлично подходит, чтобы взять квест.",
                     parse_mode="HTML",
                     reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                         [InlineKeyboardButton(text="🎯 На одного", callback_data="menu_solo")]
