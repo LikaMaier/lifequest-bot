@@ -1659,6 +1659,12 @@ def build_solo_quest_message(task: dict, tier: str):
     ])
     return text, kb
 
+@dp.message(Command("solo"))
+async def cmd_solo(message: Message):
+    task, tier = get_random_solo_task()
+    text, kb = build_solo_quest_message(task, tier)
+    await message.answer(text, parse_mode="HTML", reply_markup=kb)
+
 @dp.callback_query(F.data == "menu_solo")
 async def menu_solo(callback: CallbackQuery):
     task, tier = get_random_solo_task()
@@ -2098,9 +2104,10 @@ async def admin_stats(message: Message):
 async def main():
     await bot.set_my_commands([
         BotCommand(command="start", description="🚀 Начать / открыть меню"),
+        BotCommand(command="solo", description="🎯 Квест на одного"),
+        BotCommand(command="board", description="🗺️ Карта недели"),
         BotCommand(command="myquests", description="📋 Мои квесты"),
         BotCommand(command="completed", description="🏆 Выполненные"),
-        BotCommand(command="board", description="🗺️ Карта недели"),
         BotCommand(command="pair", description="💞 Квест для пары"),
         BotCommand(command="company", description="👥 Квест на компанию"),
         BotCommand(command="remind", description="⏰ Настроить утреннее напоминание"),
