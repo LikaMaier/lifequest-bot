@@ -4,6 +4,8 @@
 # ============================================================
 
 import asyncio
+import base64
+import html
 import json
 import os
 import random
@@ -17,7 +19,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, 
     InlineKeyboardButton, ReplyKeyboardRemove,
-    BotCommand
+    BotCommand, KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 )
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
@@ -88,6 +90,14 @@ def init_db():
             task_key TEXT,
             task_text TEXT,
             taken_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS weekly_boards (
+            user_id INTEGER PRIMARY KEY,
+            week_key TEXT,
+            board_json TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
@@ -344,6 +354,7 @@ def build_start_menu_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="🎯 На одного", callback_data="menu_solo")],
         [InlineKeyboardButton(text="💞 Для пары", callback_data="menu_pair")],
         [InlineKeyboardButton(text="👥 Для компании", callback_data="menu_company")],
+        [InlineKeyboardButton(text="🗺️ Карта недели", callback_data="menu_board")],
     ])
 
 @dp.message(CommandStart())
@@ -1774,6 +1785,148 @@ async def menu_completed(callback: CallbackQuery):
     await show_completed_quests(callback.message, callback.from_user.id, as_edit=True)
     await callback.answer()
 
+# ==================== WEEKLY BOARD MINI APP ====================
+# Мини-апп (index.html, раздаётся через GitHub Pages) с картой недели 3х3.
+# Важно: Telegram.WebApp.sendData() работает, только если мини-апп открыт
+# кнопкой обычной (reply) клавиатуры — из inline-кнопки данные до бота не
+# доходят. Поэтому карта открывается кнопкой под полем ввода.
+MINIAPP_URL = os.getenv("MINIAPP_URL", "https://likamaier.github.io/lifequest-bot/")
+BOARD_BUTTON_TEXT = "🗺️ Карта недели"
+BOARD_CELLS = 9
+BOARD_CELL_MAX = 80
+BOARD_REWARD_MAX = 80
+BOARD_NOTES_MAX = 300
+
+def get_current_week_key() -> str:
+    """ISO-неделя вида '2026-W39': с началом новой недели карта пустая."""
+    iso = datetime.now().isocalendar()
+    return f"{iso[0]}-W{iso[1]:02d}"
+
+def get_week_range_label() -> str:
+    """Диапазон текущей недели для шапки мини-аппа, например «21–27 сен»."""
+    months = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]
+    monday = datetime.now() - timedelta(days=datetime.now().weekday())
+    sunday = monday + timedelta(days=6)
+    if monday.month == sunday.month:
+        return f"{monday.day}–{sunday.day} {months[monday.month - 1]}"
+    return f"{monday.day} {months[monday.month - 1]} – {sunday.day} {months[sunday.month - 1]}"
+
+def normalize_board(raw) -> dict:
+    """Приводит карту к ожидаемой форме и обрезает длинные тексты, чтобы
+    она поместилась в ссылку мини-аппа."""
+    raw = raw if isinstance(raw, dict) else {}
+    cells = raw.get("cells") if isinstance(raw.get("cells"), list) else []
+    done = raw.get("done") if isinstance(raw.get("done"), list) else []
+    cells = [str(x or "")[:BOARD_CELL_MAX] for x in cells[:BOARD_CELLS]]
+    cells += [""] * (BOARD_CELLS - len(cells))
+    done = [bool(x) for x in done[:BOARD_CELLS]]
+    done += [False] * (BOARD_CELLS - len(done))
+    try:
+        rating = max(0, min(10, int(raw.get("rating") or 0)))
+    except (TypeError, ValueError):
+        rating = 0
+    return {
+        "cells": cells,
+        "done": done,
+        "reward": str(raw.get("reward") or "")[:BOARD_REWARD_MAX],
+        "rating": rating,
+        "notes": str(raw.get("notes") or "")[:BOARD_NOTES_MAX],
+    }
+
+def get_weekly_board(user_id: int) -> dict:
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT week_key, board_json FROM weekly_boards WHERE user_id = ?", (user_id,))
+    row = c.fetchone()
+    conn.close()
+    if row and row[0] == get_current_week_key() and row[1]:
+        try:
+            return normalize_board(json.loads(row[1]))
+        except (TypeError, json.JSONDecodeError):
+            pass
+    return normalize_board({})
+
+def save_weekly_board(user_id: int, board: dict):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO weekly_boards (user_id, week_key, board_json, updated_at)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(user_id) DO UPDATE SET
+            week_key = excluded.week_key,
+            board_json = excluded.board_json,
+            updated_at = CURRENT_TIMESTAMP
+    """, (user_id, get_current_week_key(), json.dumps(board, ensure_ascii=False)))
+    conn.commit()
+    conn.close()
+
+def build_board_keyboard(user_id: int) -> ReplyKeyboardMarkup:
+    """Кнопка мини-аппа. Текущая карта передаётся в ссылке (base64url от
+    JSON) — поэтому после каждого сохранения клавиатура отправляется заново."""
+    board = get_weekly_board(user_id)
+    board["week_range"] = get_week_range_label()
+    encoded = base64.urlsafe_b64encode(
+        json.dumps(board, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    ).decode("ascii").rstrip("=")
+    sep = "&" if "?" in MINIAPP_URL else "?"
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(
+            text=BOARD_BUTTON_TEXT,
+            web_app=WebAppInfo(url=f"{MINIAPP_URL}{sep}board={encoded}")
+        )]],
+        resize_keyboard=True,
+        is_persistent=True,
+    )
+
+async def show_weekly_board_entry(message: Message, user_id: int):
+    await message.answer(
+        "🗺️ <b>Карта недели</b>\n\n"
+        "Впиши 9 своих задач на неделю — привычку, что-то новое, тему для изучения "
+        "и самое сложное дело в центре. Отмечай клетки по мере выполнения "
+        "(тап по правому нижнему углу клетки).\n\n"
+        "👇 Открой карту кнопкой под полем ввода.",
+        parse_mode="HTML",
+        reply_markup=build_board_keyboard(user_id)
+    )
+
+@dp.message(Command("board"))
+async def cmd_board(message: Message):
+    ensure_user(message.from_user.id, message.from_user.username)
+    await show_weekly_board_entry(message, message.from_user.id)
+
+@dp.callback_query(F.data == "menu_board")
+async def menu_board(callback: CallbackQuery):
+    ensure_user(callback.from_user.id, callback.from_user.username)
+    # Reply-клавиатуру нельзя прикрепить редактированием — шлём новое сообщение.
+    await show_weekly_board_entry(callback.message, callback.from_user.id)
+    await callback.answer()
+
+@dp.message(F.web_app_data)
+async def handle_miniapp_data(message: Message):
+    """Мини-апп присылает карту через Telegram.WebApp.sendData() по кнопке
+    «Сохранить карту»."""
+    user_id = message.from_user.id
+    try:
+        board = normalize_board(json.loads(message.web_app_data.data))
+    except (TypeError, ValueError, AttributeError):
+        await message.answer("Не получилось сохранить карту — попробуй ещё раз через /board.")
+        return
+
+    ensure_user(user_id, message.from_user.username)
+    save_weekly_board(user_id, board)
+    touch_activity(user_id)
+
+    filled = sum(1 for c in board["cells"] if c.strip())
+    done = sum(1 for c, d in zip(board["cells"], board["done"]) if d and c.strip())
+    if filled == BOARD_CELLS and done == BOARD_CELLS:
+        text = "🎉 <b>Бинго! Карта недели закрыта полностью.</b>"
+        if board["reward"].strip():
+            text += f"\n\nТвоя награда: {html.escape(board['reward'])} — ты её заслужил(а)!"
+    else:
+        text = f"✅ Карта недели сохранена. Выполнено {done} из {BOARD_CELLS}."
+
+    await message.answer(text, parse_mode="HTML", reply_markup=build_board_keyboard(user_id))
+
 # ==================== DAILY REMINDERS ====================
 async def send_daily_reminders():
     """Runs every hour; only messages users whose chosen reminder_hour matches
@@ -1947,6 +2100,7 @@ async def main():
         BotCommand(command="start", description="🚀 Начать / открыть меню"),
         BotCommand(command="myquests", description="📋 Мои квесты"),
         BotCommand(command="completed", description="🏆 Выполненные"),
+        BotCommand(command="board", description="🗺️ Карта недели"),
         BotCommand(command="pair", description="💞 Квест для пары"),
         BotCommand(command="company", description="👥 Квест на компанию"),
         BotCommand(command="remind", description="⏰ Настроить утреннее напоминание"),
