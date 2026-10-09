@@ -365,3 +365,43 @@ p { margin: 0; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }
+
+/* ---------- Графики ---------- */
+.chart { position: relative; }
+.chart-svg { display: block; }
+.chart-svg svg { display: block; overflow: visible; }
+.chart-svg .hit { cursor: pointer; }
+.chart-svg .hit.is-active path, .chart-svg .hit:hover path { opacity: .75; }
+.chart-svg.line .dot { opacity: 0; transition: opacity .15s; }
+.chart-svg.line .hit.is-active .dot, .chart-svg.line .hit:hover .dot { opacity: 1; }
+.chart-tip {
+  position: absolute; transform: translate(-50%, -100%); background: var(--ink); color: var(--cream);
+  font-weight: 800; font-size: 12px; padding: 6px 10px; border-radius: 10px; white-space: nowrap; pointer-events: none; z-index: 2;
+}
+.hbars { display: flex; flex-direction: column; gap: 10px; }
+.hbar-row { display: grid; grid-template-columns: 128px 1fr 28px; align-items: center; gap: 10px; }
+.hbar-label { min-width: 0; }
+.hbar-track { height: 12px; background: var(--cream-2); border-radius: 999px; overflow: hidden; }
+.hbar-track span { display: block; height: 100%; border-radius: 999px; background: var(--accent-deep); transition: width .8s ease; }
+.hbar-value { font-size: 14px; text-align: right; }
+
+.heat-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.heat-head { text-align: center; font-weight: 800; font-size: 11px; color: var(--muted); padding-bottom: 2px; }
+.heat-cell {
+  aspect-ratio: 1; border-radius: 10px; display: grid; place-items: center; font-weight: 800; font-size: 11.5px; color: var(--ink-soft);
+  background: var(--cream-2);
+}
+.heat-cell.l1 { background: #E3D7FC; }
+.heat-cell.l2 { background: #C9B3F9; color: var(--ink); }
+.heat-cell.l3 { background: #9C7BE6; color: #fff; }
+.heat-cell.l4 { background: #6B4B9E; color: #fff; }
+.heat-cell.today { box-shadow: inset 0 0 0 2.5px var(--ink); }
+.heat-legend { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 10px; font-weight: 700; font-size: 11px; color: var(--muted); }
+.heat-legend .heat-cell { width: 14px; height: 14px; border-radius: 4px; aspect-ratio: auto; }
+
+/* ---------- Награды ---------- */
+.badge-big {
+  width: 96px; height: 96px; margin: 14px auto 0; border-radius: 30px; display: grid; place-items: center; font-size: 48px;
+  background: var(--c); box-shadow: 0 6px 0 var(--c-deep); transform: rotate(-4deg);
+}
+.quest-card .tag { background: var(--white); color: var(--ink); box-shadow: none; }
