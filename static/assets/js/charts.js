@@ -30,7 +30,8 @@ function withTooltip(container, svgWrap, describe) {
     tip.hidden = false;
     const cb = container.getBoundingClientRect();
     const tb = target.getBoundingClientRect();
-    const x = Math.min(Math.max(tb.left + tb.width / 2 - cb.left, 50), cb.width - 50);
+    const half = tip.offsetWidth / 2 + 2;
+    const x = Math.min(Math.max(tb.left + tb.width / 2 - cb.left, half), cb.width - half);
     tip.style.left = `${x}px`;
     tip.style.top = `${Math.max(tb.top - cb.top - 8, 0)}px`;
   };
