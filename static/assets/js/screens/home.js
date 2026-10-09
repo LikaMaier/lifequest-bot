@@ -15,7 +15,7 @@ export function render(el, { state, go }) {
   clear(el);
   const u = state.user;
   const mood = moodFor(state);
-  const name = u.first_name || 'путешественница';
+  const name = u.first_name || '';
 
   // Шапка
   const avatar = h('button', { type: 'button', class: 'avatar-btn', 'aria-label': 'Профиль и настройки' }, (name[0] || '★').toUpperCase());
@@ -28,7 +28,7 @@ export function render(el, { state, go }) {
   const pet = mascot(u.mascot, mood.expr, { size: 76, label: 'Твой маскот' });
   pet.addEventListener('click', () => { haptic.tap('soft'); jump(pet); });
   el.append(h('section', { class: 'row', style: { alignItems: 'flex-start', marginBottom: '16px' } }, pet,
-    h('div', { class: 'grow' }, h('h1', { style: { fontSize: '23px', marginBottom: '8px' } }, `Привет, ${name}!`),
+    h('div', { class: 'grow' }, h('h1', { style: { fontSize: '23px', marginBottom: '8px' } }, name ? `Привет, ${name}!` : 'Привет!'),
       h('div', { class: 'speech' }, mood.line))));
 
   // Кольцо дня + серия

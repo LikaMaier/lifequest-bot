@@ -166,3 +166,20 @@ class FlowTest(TempDBTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TitleSyncTest(TempDBTestCase):
+    def test_renamed_quest_updates_history_and_active(self):
+        storage.ensure_user(4)
+        conn = storage.connect()
+        conn.execute("INSERT INTO active_quests (user_id, task_key, task_text, tier) VALUES (4, 'evening_tidy', '🧹 <b>5 минут вечером</b>\\nВесь день убирай', 'medium')")
+        conn.execute("INSERT INTO quest_history (user_id, quest_key, title, status) VALUES (4, 'evening_tidy', '5 минут вечером', 'done')")
+        conn.commit()
+        conn.close()
+        storage.init_db()
+        conn = storage.connect()
+        text = conn.execute("SELECT task_text FROM active_quests WHERE user_id = 4").fetchone()[0]
+        title = conn.execute("SELECT title FROM quest_history WHERE user_id = 4").fetchone()[0]
+        conn.close()
+        self.assertIn("Чистота снаружи — чистота в голове", text)
+        self.assertEqual(title, "Чистота снаружи — чистота в голове")

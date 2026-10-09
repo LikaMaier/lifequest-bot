@@ -25,6 +25,7 @@ load_dotenv()  # до импорта storage: он читает DB_PATH при �
 
 import api
 import game
+import habits
 from quests_database import KEY_TO_TASK, ALL_TASKS_FLAT, COMPANY_QUESTS, PAIR_QUESTS
 from storage import (
     connect, init_db, ensure_user, get_active_quests, get_active_quest,
@@ -510,7 +511,14 @@ async def send_evening_reminders():
                     "Сегодня пока ничего не отмечено — вечер ещё не кончился, если что-то откликается, самое время."
                 )
 
-            await bot.send_message(user_id, text, parse_mode="HTML")
+            habits_block = habits.evening_text(user_id)
+            markup = None
+            if habits_block:
+                text += "\n\n" + habits_block
+                if MINIAPP_URL and "▫️" in habits_block:
+                    markup = InlineKeyboardMarkup(inline_keyboard=[[build_miniapp_button("🌱 Отметить привычки", "habits")]])
+
+            await bot.send_message(user_id, text, parse_mode="HTML", reply_markup=markup)
         except Exception as e:
             print(f"Failed to send evening reminder to {user_id}: {e}")
 
