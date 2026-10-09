@@ -405,3 +405,41 @@ p { margin: 0; }
   background: var(--c); box-shadow: 0 6px 0 var(--c-deep); transform: rotate(-4deg);
 }
 .quest-card .tag { background: var(--white); color: var(--ink); box-shadow: none; }
+
+/* ---------- Карта недели ---------- */
+.board-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; background: var(--blue); padding: 10px; border-radius: var(--r-lg); box-shadow: 0 5px 0 var(--blue-deep); }
+.board-cell {
+  aspect-ratio: 1 / 1.08; background: var(--white); border-radius: 16px; padding: 8px 8px 6px; position: relative;
+  display: flex; flex-direction: column; transition: background .2s, transform .2s;
+  box-shadow: inset 0 -4px 0 color-mix(in srgb, var(--c) 55%, transparent);
+}
+.board-cell .cell-label { font-weight: 800; font-size: 9.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--c-deep); margin-bottom: 2px; padding-right: 26px; }
+.board-cell textarea {
+  width: 100%; flex: 1; border: 0; background: transparent; resize: none; outline: none; padding: 0;
+  font-weight: 700; font-size: 11.5px; line-height: 1.25; color: var(--ink);
+}
+.board-cell textarea::placeholder { color: #B7AF8E; font-weight: 600; }
+.board-cell.is-center { background: var(--pink); box-shadow: 0 0 0 3px var(--red); }
+.board-cell.is-center .cell-label, .board-cell.is-center textarea { color: #fff; }
+.board-cell.is-center textarea::placeholder { color: rgba(255,255,255,.8); }
+.board-cell.done { background: var(--c); }
+.board-cell.done textarea { text-decoration: line-through; text-decoration-color: rgba(44,42,34,.45); }
+.board-cell.done .cell-label { color: var(--ink); }
+.board-cell.is-center.done { background: var(--lime); box-shadow: 0 0 0 3px var(--lime-deep); }
+.board-cell.is-center.done .cell-label, .board-cell.is-center.done textarea { color: var(--ink); }
+.board-cell.in-line { box-shadow: 0 0 0 3px var(--ink); }
+.cell-check {
+  position: absolute; top: 4px; right: 4px; width: 30px; height: 30px; border-radius: 10px; border: 0;
+  background: var(--cream-2); color: var(--ink); font-weight: 900; font-size: 16px; display: grid; place-items: center;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c-deep) 40%, transparent);
+}
+.cell-check::before { content: ''; position: absolute; inset: -7px; } /* тап-зона 44px */
+.board-cell.done .cell-check { background: var(--ink); color: var(--lime); box-shadow: none; }
+.cell-sticker { position: absolute; right: -8px; bottom: -8px; width: 32px; height: 32px; transform: scale(0) rotate(-25deg); transition: transform .3s cubic-bezier(.34,1.56,.64,1); pointer-events: none; }
+.board-cell.done .cell-sticker { transform: scale(1) rotate(-12deg); }
+.stars { display: flex; gap: 3px; justify-content: space-between; max-width: 300px; }
+.star-btn {
+  width: 26px; height: 26px; border: 0; padding: 0; background: rgba(255,255,255,.55); position: relative; flex-shrink: 0;
+  clip-path: polygon(50% 0%, 63% 35%, 100% 35%, 70% 57%, 82% 92%, 50% 71%, 18% 92%, 30% 57%, 0% 35%, 37% 35%);
+}
+.star-btn.on { background: var(--lime); }
