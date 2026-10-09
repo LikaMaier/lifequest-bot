@@ -19,6 +19,7 @@ export function assertEnv() {
   const missing: string[] = [];
   if (!env.DATABASE_URL) missing.push('DATABASE_URL');
   if (!env.SESSION_SECRET && !env.DEV_AUTH) missing.push('SESSION_SECRET');
-  if (!env.BOT_TOKEN && !env.DEV_AUTH) missing.push('BOT_TOKEN');
+  // BOT_TOKEN не обязателен для старта: без него сервер работает, но вход через Telegram и оплата отключены
+  if (!env.BOT_TOKEN && !env.DEV_AUTH) console.warn('BOT_TOKEN не задан — вход через Telegram и оплата недоступны');
   if (missing.length) throw new Error(`Не заданы переменные окружения: ${missing.join(', ')}`);
 }

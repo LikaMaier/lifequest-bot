@@ -31,6 +31,7 @@ export function meView(user: any) {
 export async function authRoutes(app: FastifyInstance) {
   app.post('/api/auth/telegram', async (req) => {
     const { initData } = z.object({ initData: z.string().min(1) }).parse(req.body);
+    if (!env.BOT_TOKEN) throw new HttpError(503, 'Бот ещё не настроен на сервере (нет BOT_TOKEN)', 'bot_not_configured');
     let tg;
     try { tg = verifyInitData(initData, env.BOT_TOKEN); } catch (e: any) { throw new HttpError(401, e.message, 'bad_init_data'); }
     const user = await upsertUser(tg.id, tg.first_name, tg.username);
