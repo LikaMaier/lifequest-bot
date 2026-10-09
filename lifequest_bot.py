@@ -16,13 +16,14 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, 
     InlineKeyboardButton, BotCommand, KeyboardButton, ReplyKeyboardMarkup,
-    WebAppInfo
+    WebAppInfo, MenuButtonWebApp
 )
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
 
 load_dotenv()  # до импорта storage: он читает DB_PATH при загрузке
 
+import api
 import game
 from quests_database import KEY_TO_TASK, ALL_TASKS_FLAT, COMPANY_QUESTS, PAIR_QUESTS
 from storage import (
@@ -85,7 +86,8 @@ WELCOME_TEXT = """👋 <b>Привет! Добро пожаловать в LifeQ
 Какое приключение начнём сегодня?"""
 
 def build_start_menu_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
+    rows = [[build_miniapp_button()]] if MINIAPP_URL else []
+    return InlineKeyboardMarkup(inline_keyboard=rows + [
         [InlineKeyboardButton(text="🎯 На одного", callback_data="menu_solo")],
         [InlineKeyboardButton(text="💞 Для пары", callback_data="menu_pair")],
         [InlineKeyboardButton(text="👥 Для компании", callback_data="menu_company")],
@@ -333,32 +335,63 @@ async def menu_completed(callback: CallbackQuery):
     await show_completed_quests(callback.message, callback.from_user.id, as_edit=True)
     await callback.answer()
 
-# ==================== WEEKLY BOARD MINI APP ====================
-# Мини-апп (index.html, раздаётся через GitHub Pages) с картой недели 3х3.
-# Важно: Telegram.WebApp.sendData() работает, только если мини-апп открыт
-# кнопкой обычной (reply) клавиатуры — из inline-кнопки данные до бота не
-# доходят. Поэтому карта открывается кнопкой под полем ввода.
-MINIAPP_URL = os.getenv("MINIAPP_URL", "https://likamaier.github.io/lifequest-bot/")
+# ==================== MINI APP ====================
+# Мини-апп v2 раздаёт этот же процесс (api.py, папка static/) — он работает
+# через HTTP API, поэтому открывается обычной inline-кнопкой и кнопкой меню.
+# Старая карта недели (index.html в корне, GitHub Pages) сохраняет данные
+# через sendData() и открывается только кнопкой reply-клавиатуры — она
+# остаётся запасным вариантом, если адрес нового приложения не задан.
+LEGACY_BOARD_URL = os.getenv("LEGACY_BOARD_URL", "https://likamaier.github.io/lifequest-bot/")
 BOARD_BUTTON_TEXT = "🗺️ Карта недели"
+
+def resolve_miniapp_url() -> str:
+    """MINIAPP_URL, а если он не задан или всё ещё указывает на старую карту
+    на GitHub Pages — публичный домен Railway (RAILWAY_PUBLIC_DOMAIN)."""
+    url = os.getenv("MINIAPP_URL", "").strip()
+    railway = os.getenv("RAILWAY_PUBLIC_DOMAIN", "").strip()
+    if (not url or "github.io" in url) and railway:
+        url = f"https://{railway}/"
+    if url.startswith("https://") and "github.io" not in url:
+        return url
+    return ""
+
+MINIAPP_URL = resolve_miniapp_url()
+
+def build_miniapp_button(text: str = "✨ Открыть LifeQuest", section: str = "") -> InlineKeyboardButton:
+    url = MINIAPP_URL + (f"#{section}" if section else "")
+    return InlineKeyboardButton(text=text, web_app=WebAppInfo(url=url))
+
 def build_board_keyboard(user_id: int) -> ReplyKeyboardMarkup:
-    """Кнопка мини-аппа. Текущая карта передаётся в ссылке (base64url от
-    JSON) — поэтому после каждого сохранения клавиатура отправляется заново."""
+    """Старая карта (запасной вариант). Текущая карта передаётся в ссылке
+    (base64url от JSON) — поэтому после каждого сохранения клавиатура
+    отправляется заново."""
     board = get_weekly_board(user_id)
     board["week_range"] = get_week_range_label()
     encoded = base64.urlsafe_b64encode(
         json.dumps(board, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     ).decode("ascii").rstrip("=")
-    sep = "&" if "?" in MINIAPP_URL else "?"
+    sep = "&" if "?" in LEGACY_BOARD_URL else "?"
     return ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(
             text=BOARD_BUTTON_TEXT,
-            web_app=WebAppInfo(url=f"{MINIAPP_URL}{sep}board={encoded}")
+            web_app=WebAppInfo(url=f"{LEGACY_BOARD_URL}{sep}board={encoded}")
         )]],
         resize_keyboard=True,
         is_persistent=True,
     )
 
 async def show_weekly_board_entry(message: Message, user_id: int):
+    if MINIAPP_URL:
+        await message.answer(
+            "🗺️ <b>Карта недели</b>\n\n"
+            "Впиши 9 своих задач на неделю, отмечай выполненное и собирай линии — "
+            "за каждую линию и полную карту начисляется XP.",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [build_miniapp_button("🗺️ Открыть карту недели", "board")]
+            ])
+        )
+        return
     await message.answer(
         "🗺️ <b>Карта недели</b>\n\n"
         "Впиши 9 своих задач на неделю — привычку, что-то новое, тему для изучения "
@@ -567,6 +600,9 @@ async def admin_stats(message: Message):
 
 # ==================== MAIN ====================
 async def main():
+    # HTTP API и статика мини-аппа — в этом же процессе (Railway: тип web, $PORT).
+    await api.start_web(BOT_TOKEN, bot)
+
     await bot.set_my_commands([
         BotCommand(command="start", description="🚀 Начать / открыть меню"),
         BotCommand(command="solo", description="🎯 Квест на одного"),
@@ -578,6 +614,16 @@ async def main():
         BotCommand(command="remind", description="⏰ Настроить утреннее напоминание"),
         BotCommand(command="evening", description="🌙 Настроить вечернее напоминание"),
     ])
+
+    if MINIAPP_URL:
+        try:
+            await bot.set_chat_menu_button(menu_button=MenuButtonWebApp(
+                text="Открыть LifeQuest", web_app=WebAppInfo(url=MINIAPP_URL)))
+        except Exception as e:
+            print(f"Failed to set menu button: {e}")
+    else:
+        print("MINIAPP_URL не задан — новое приложение не будет открываться из бота")
+
 
     scheduler.add_job(send_daily_reminders, "cron", minute=0)
     scheduler.add_job(send_evening_reminders, "cron", minute=0)

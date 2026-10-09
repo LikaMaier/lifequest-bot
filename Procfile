@@ -1,1 +1,1 @@
-worker: python lifequest_bot.py
+web: python lifequest_bot.py
