@@ -312,7 +312,7 @@ p { margin: 0; }
 
 .quest-card {
   border-radius: var(--r-xl); padding: 18px; background: var(--c); box-shadow: 0 6px 0 var(--c-deep);
-  position: relative; overflow: hidden; perspective: 900px;
+  position: relative; overflow: hidden;
 }
 .quest-card .qc-emoji { font-size: 40px; line-height: 1; }
 .quest-card .qc-title { font-family: var(--font-display); font-weight: 800; font-size: 21px; margin: 10px 0 8px; }
@@ -320,8 +320,10 @@ p { margin: 0; }
 .qc-box { margin-top: 12px; background: color-mix(in srgb, var(--white) 72%, transparent); border-radius: 16px; padding: 10px 12px; }
 .qc-box b { display: block; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--c-deep); margin-bottom: 3px; }
 .qc-box p { font-weight: 600; font-size: 13.5px; }
-.flip-in { animation: flip-in .55s cubic-bezier(.3,1.3,.5,1) both; }
-@keyframes flip-in { from { transform: rotateY(90deg) scale(.9); opacity: .3; } to { transform: none; opacity: 1; } }
+.flip-in { animation: card-in .45s cubic-bezier(.3,1.3,.5,1); }
+/* Плоская анимация без fill-mode: если WebView её не проиграет, карточка всё
+   равно видна (3D-поворот в прокручиваемом листе ломался на части iOS). */
+@keyframes card-in { from { transform: scale(.88) rotate(-2deg); opacity: .4; } to { transform: none; opacity: 1; } }
 .roulette { min-height: 260px; display: grid; place-items: center; }
 .roulette .spin-emoji { font-size: 64px; animation: roulette .12s steps(1) infinite; }
 @keyframes roulette { 50% { transform: scale(1.12) rotate(8deg); } }
@@ -364,7 +366,7 @@ p { margin: 0; }
 
 /* ---------- Доступность: меньше движения ---------- */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
 /* ---------- Графики ---------- */
