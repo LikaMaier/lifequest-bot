@@ -15,6 +15,7 @@ from collections import defaultdict, deque
 from aiohttp import web
 
 import game
+import habits
 import storage
 from webapp_auth import InitDataError, validate_init_data
 
@@ -128,6 +129,7 @@ def _int(value, name="id") -> int:
 def _state(request) -> dict:
     data = game.get_state(request["user_id"])
     data["bot_username"] = request.app.get(BOT_USERNAME_KEY)
+    data["habits"] = habits.summary(request["user_id"])
     return data
 
 
@@ -230,6 +232,35 @@ async def post_share(request):
     return web.json_response({"ok": True})
 
 
+async def get_habits(request):
+    return web.json_response({"habits": habits.habits_view(request["user_id"]), "limit": habits.HABITS_LIMIT,
+                              "colors": list(habits.COLORS)})
+
+
+async def habit_create(request):
+    _limit(request, "write")
+    return web.json_response(habits.create_habit(request["user_id"], await _body(request)))
+
+
+async def habit_update(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(habits.update_habit(request["user_id"], _int(data.get("id")), data))
+
+
+async def habit_delete(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(habits.delete_habit(request["user_id"], _int(data.get("id"))))
+
+
+async def habit_log(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(habits.log_habit(request["user_id"], _int(data.get("id")),
+                                              delta=data.get("delta"), count=data.get("count"), day=data.get("date")))
+
+
 async def index(request):
     return web.FileResponse(os.path.join(STATIC_DIR, "index.html"))
 
@@ -258,6 +289,11 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_post("/api/board", post_board)
     app.router.add_post("/api/settings", post_settings)
     app.router.add_post("/api/share", post_share)
+    app.router.add_get("/api/habits", get_habits)
+    app.router.add_post("/api/habits", habit_create)
+    app.router.add_post("/api/habits/update", habit_update)
+    app.router.add_post("/api/habits/delete", habit_delete)
+    app.router.add_post("/api/habits/log", habit_log)
     app.router.add_get("/health", health)
     app.router.add_get("/", index)
     assets = os.path.join(STATIC_DIR, "assets")

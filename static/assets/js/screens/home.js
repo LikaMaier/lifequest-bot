@@ -7,6 +7,7 @@ import { mascot, moodFor, jump } from '../mascot.js';
 import { ring, progressBar, sectionTitle, emptyState, busy } from '../ui.js';
 import { barChart } from '../charts.js';
 import { modeButtons, openQuest, questItem, completeQuest } from '../questflow.js';
+import { habitCard } from '../habitui.js';
 
 const DATE_FMT = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -84,6 +85,20 @@ export function render(el, { state, go }) {
     openQuest(active || { ...daily, daily: true }, { daily: !active && daily.status !== 'done' });
   });
   el.append(sectionTitle('Сегодня'), dailyCard);
+
+  // Привычки на сегодня
+  const habitsLink = h('button', { type: 'button', class: 'link' }, state.habits.total ? 'Все привычки' : 'Добавить');
+  habitsLink.addEventListener('click', () => { haptic.tap(); go('habits'); });
+  el.append(sectionTitle(`Привычки${state.habits.total ? ` · ${state.habits.done}/${state.habits.total}` : ''}`, habitsLink));
+  if (!state.habits.total) {
+    const add = h('button', { type: 'button', class: 'quest-item c-lime' }, h('span', { class: 'q-emoji', 'aria-hidden': 'true' }, '🌱'),
+      h('span', { class: 'grow' }, h('span', { class: 'q-title' }, 'Заведи первую привычку'),
+        h('span', { class: 'q-meta', style: { display: 'block' } }, 'Вода, чтение, зарядка — или что-то своё')));
+    add.addEventListener('click', () => { haptic.tap(); go('habits'); });
+    el.append(add);
+  } else {
+    el.append(h('div', { class: 'stack-sm' }, state.habits.items.slice(0, 4).map(hb => habitCard(hb, { compact: true }))));
+  }
 
   // Активные квесты
   const allLink = h('button', { type: 'button', class: 'link' }, 'Все квесты');

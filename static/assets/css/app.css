@@ -248,12 +248,12 @@ p { margin: 0; }
   background: color-mix(in srgb, var(--cream) 88%, transparent);
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
   border-top: 2px solid var(--line);
-  display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px;
 }
 .tab {
   border: 0; background: transparent; border-radius: 16px; min-height: 52px;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-  font-weight: 800; font-size: 10.5px; color: var(--muted);
+  font-weight: 800; font-size: 10px; color: var(--muted); min-width: 0;
   transition: color .2s, background .2s;
 }
 .tab svg { width: 24px; height: 24px; transition: transform .25s cubic-bezier(.34,1.56,.64,1); }
@@ -502,3 +502,40 @@ p { margin: 0; }
   text-align: center; padding: 22px 16px; border-radius: var(--r-xl);
   background: linear-gradient(160deg, var(--yellow), var(--lav)); box-shadow: 0 6px 0 var(--lav-deep);
 }
+
+/* ---------- Привычки ---------- */
+.habit-card { background: var(--white); border-radius: var(--r-md); padding: 12px; box-shadow: 0 3px 0 var(--line); }
+.habit-card.done { background: color-mix(in srgb, var(--c) 30%, var(--white)); box-shadow: 0 3px 0 color-mix(in srgb, var(--c-deep) 50%, var(--line)); }
+.habit-info { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; border: 0; background: transparent; padding: 0; text-align: left; color: var(--ink); min-height: 44px; }
+.habit-emoji { width: 44px; height: 44px; border-radius: 14px; flex-shrink: 0; display: grid; place-items: center; font-size: 22px; background: color-mix(in srgb, var(--c) 45%, var(--white)); }
+.habit-title { display: block; font-weight: 800; font-size: 14.5px; line-height: 1.25; overflow-wrap: anywhere; }
+.habit-meta { display: block; font-weight: 700; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.habit-check {
+  width: 48px; height: 48px; border-radius: 16px; border: 0; flex-shrink: 0; display: grid; place-items: center;
+  background: var(--cream-2); color: transparent; box-shadow: inset 0 0 0 2.5px color-mix(in srgb, var(--c-deep) 45%, transparent);
+  transition: transform .15s;
+}
+.habit-check svg { width: 26px; height: 26px; }
+.habit-check.on { background: var(--c); color: var(--ink); box-shadow: 0 4px 0 var(--c-deep); }
+.habit-check:active { transform: scale(.92); }
+.habit-step {
+  width: 44px; height: 44px; border-radius: 14px; border: 0; flex-shrink: 0; display: grid; place-items: center;
+  background: var(--cream-2); color: var(--ink);
+}
+.habit-step svg { width: 20px; height: 20px; }
+.habit-step.plus { background: var(--c); box-shadow: 0 4px 0 var(--c-deep); }
+.habit-step:disabled { opacity: .4; }
+.habit-count { font-size: 18px; min-width: 26px; text-align: center; }
+.habit-bar { height: 8px; border-radius: 99px; background: var(--cream-2); margin-top: 10px; overflow: hidden; }
+.habit-bar span { display: block; height: 100%; border-radius: inherit; background: var(--c-deep); transition: width .4s ease; }
+.habit-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 10px; }
+.habit-day { border: 0; background: transparent; padding: 2px 0; display: flex; flex-direction: column; align-items: center; gap: 3px; min-height: 44px; color: var(--muted); }
+.habit-day .wd { font-weight: 800; font-size: 10.5px; }
+.habit-day .dot { width: 24px; height: 24px; border-radius: 9px; display: grid; place-items: center; background: var(--cream-2); font-weight: 900; font-size: 13px; color: var(--ink); }
+.habit-day.part .dot { background: color-mix(in srgb, var(--c) 40%, var(--cream-2)); }
+.habit-day.on .dot { background: var(--c-deep); color: #fff; }
+.habit-day.today .wd { color: var(--ink); }
+.habit-day.today .dot { box-shadow: 0 0 0 2px var(--ink); }
+.emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+.emoji-pick { border: 0; border-radius: 12px; min-height: 40px; background: var(--white); font-size: 20px; box-shadow: inset 0 0 0 2px var(--line); }
+.emoji-pick.on { box-shadow: inset 0 0 0 3px var(--accent-deep); background: color-mix(in srgb, var(--accent) 22%, var(--white)); }

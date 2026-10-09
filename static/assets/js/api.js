@@ -55,4 +55,9 @@ export const api = {
   saveBoard: board => request('POST', 'api/board', { board }),
   settings: data => request('POST', 'api/settings', data),
   share: image => request('POST', 'api/share', { image }),
+  habits: () => request('GET', 'api/habits'),
+  createHabit: data => request('POST', 'api/habits', data),
+  updateHabit: (id, data) => request('POST', 'api/habits/update', { id, ...data }),
+  deleteHabit: id => request('POST', 'api/habits/delete', { id }),
+  logHabit: (id, { delta, count, date } = {}) => request('POST', 'api/habits/log', { id, delta, count, date }),
 };

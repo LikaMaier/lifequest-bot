@@ -402,6 +402,19 @@ async def show_weekly_board_entry(message: Message, user_id: int):
         reply_markup=build_board_keyboard(user_id)
     )
 
+@dp.message(Command("habits"))
+async def cmd_habits(message: Message):
+    ensure_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
+    if not MINIAPP_URL:
+        await message.answer("Трекер привычек живёт в мини-приложении, а оно пока не подключено.")
+        return
+    await message.answer(
+        "🌱 <b>Трекер привычек</b>\n\nПридумай свои привычки, задай, сколько раз в день их выполнять, "
+        "и отмечай прогресс — за каждую выполненную за день привычку начисляется XP.",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[build_miniapp_button("🌱 Открыть привычки", "habits")]])
+    )
+
 @dp.message(Command("board"))
 async def cmd_board(message: Message):
     ensure_user(message.from_user.id, message.from_user.username)
@@ -610,6 +623,7 @@ async def main():
             BotCommand(command="start", description="🚀 Начать / открыть меню"),
             BotCommand(command="solo", description="🎯 Квест на одного"),
             BotCommand(command="board", description="🗺️ Карта недели"),
+            BotCommand(command="habits", description="🌱 Трекер привычек"),
             BotCommand(command="myquests", description="📋 Мои квесты"),
             BotCommand(command="completed", description="🏆 Выполненные"),
             BotCommand(command="pair", description="💞 Квест для пары"),

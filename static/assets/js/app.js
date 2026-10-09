@@ -11,13 +11,14 @@ import { store, onState, refreshState } from './store.js';
 const SCREENS = {
   home: { title: 'Главная', icon: ICONS.home, load: () => import('./screens/home.js') },
   quests: { title: 'Квесты', icon: ICONS.quests, load: () => import('./screens/quests.js') },
+  habits: { title: 'Привычки', icon: ICONS.habits, load: () => import('./screens/habits.js') },
   board: { title: 'Карта', icon: ICONS.board, load: () => import('./screens/board.js') },
   progress: { title: 'Прогресс', icon: ICONS.progress, load: () => import('./screens/progress.js') },
   awards: { title: 'Награды', icon: ICONS.awards, load: () => import('./screens/awards.js') },
   profile: { title: 'Профиль', sub: true, load: () => import('./screens/profile.js') },
   premium: { title: 'Premium', sub: true, load: () => import('./screens/profile.js'), entry: 'renderPremium' },
 };
-const TABS = ['home', 'quests', 'board', 'progress', 'awards'];
+const TABS = ['home', 'quests', 'habits', 'board', 'progress', 'awards'];
 
 const root = document.getElementById('app');
 const mounted = {}; // name -> { el, module, dirty }

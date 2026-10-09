@@ -103,3 +103,32 @@ class ApiTest(TempDBTestCase, AioHTTPTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HabitsApiTest(TempDBTestCase, AioHTTPTestCase):
+    def setUp(self):
+        TempDBTestCase.setUp(self)
+        AioHTTPTestCase.setUp(self)
+
+    def tearDown(self):
+        AioHTTPTestCase.tearDown(self)
+        TempDBTestCase.tearDown(self)
+
+    async def get_application(self):
+        return api.create_app(TOKEN)
+
+    async def test_habit_flow(self):
+        h = headers(42)
+        self.assertEqual((await self.client.get("/api/habits")).status, 401)
+        created = await (await self.client.post("/api/habits", headers=h, json={"title": "Зарядка", "target": 1})).json()
+        hid = created["habit"]["id"]
+        logged = await (await self.client.post("/api/habits/log", headers=h, json={"id": hid, "delta": 1})).json()
+        self.assertTrue(logged["habit"]["done_today"])
+        state = await (await self.client.get("/api/state", headers=h)).json()
+        self.assertEqual((state["habits"]["done"], state["habits"]["total"]), (1, 1))
+        # чужую привычку не изменить
+        resp = await self.client.post("/api/habits/update", headers=headers(7), json={"id": hid, "title": "x"})
+        self.assertEqual(resp.status, 400)
+        resp = await self.client.post("/api/habits/delete", headers=h, json={"id": hid})
+        self.assertEqual(resp.status, 200)
+        self.assertEqual((await (await self.client.get("/api/habits", headers=h)).json())["habits"], [])
