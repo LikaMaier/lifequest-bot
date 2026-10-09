@@ -1,0 +1,229 @@
+// СМЕТА PRO — схема базы данных
+// Деньги: Decimal(14,2). Количества: Decimal(14,4).
+// Все пользовательские сущности содержат userId — сервер фильтрует каждый запрос по владельцу.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String    @id @default(cuid())
+  tgId              BigInt    @unique
+  firstName         String?
+  username          String?
+  companyName       String?
+  contacts          String?
+  aiEnabled         Boolean   @default(false)
+  trialEndsAt       DateTime
+  subscriptionUntil DateTime?
+  createdAt         DateTime  @default(now())
+
+  priceLists PriceList[]
+  items      CatalogItem[]
+  estimates  Estimate[]
+  projects   Project[]
+  financeOps FinanceOp[]
+  notes      Note[]
+  payments   Payment[]
+  audit      AuditLog[]
+}
+
+model PriceList {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  isDefault Boolean       @default(false)
+  createdAt DateTime      @default(now())
+  items     CatalogItem[]
+
+  @@index([userId])
+}
+
+model CatalogItem {
+  id             String         @id @default(cuid())
+  userId         String
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  priceListId    String
+  priceList      PriceList      @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  name           String
+  type           String // work | material | equipment | service | other
+  category       String
+  unit           String
+  price          Decimal        @db.Decimal(14, 2) // цена заказчику
+  costPrice      Decimal?       @db.Decimal(14, 2) // закупочная / себестоимость
+  description    String?
+  notes          String?
+  params         Json?
+  active         Boolean        @default(true)
+  priceUpdatedAt DateTime       @default(now())
+  deletedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  history        PriceHistory[]
+
+  @@index([userId, priceListId])
+}
+
+model PriceHistory {
+  id        String      @id @default(cuid())
+  itemId    String
+  item      CatalogItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  price     Decimal     @db.Decimal(14, 2)
+  costPrice Decimal?    @db.Decimal(14, 2)
+  changedAt DateTime    @default(now())
+
+  @@index([itemId])
+}
+
+model Estimate {
+  id             String         @id @default(cuid())
+  userId         String
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId      String?
+  project        Project?       @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  title          String
+  customer       String?
+  address        String?
+  date           DateTime       @default(now())
+  status         String         @default("draft") // draft | sent | approved | rejected | archived
+  isTemplate     Boolean        @default(false)
+  discountPct    Decimal        @default(0) @db.Decimal(6, 2)
+  markupPct      Decimal        @default(0) @db.Decimal(6, 2)
+  taxPct         Decimal        @default(0) @db.Decimal(6, 2)
+  lossReservePct Decimal        @default(0) @db.Decimal(6, 2)
+  delivery       Decimal        @default(0) @db.Decimal(14, 2)
+  extraCosts     Decimal        @default(0) @db.Decimal(14, 2)
+  notes          String?
+  source         String         @default("manual") // manual | ai
+  deletedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  lines          EstimateLine[]
+
+  @@index([userId, deletedAt])
+}
+
+model EstimateLine {
+  id            String   @id @default(cuid())
+  estimateId    String
+  estimate      Estimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  position      Int
+  category      String?
+  name          String
+  type          String   @default("work")
+  unit          String
+  qty           Decimal  @db.Decimal(14, 4)
+  price         Decimal  @db.Decimal(14, 2) // скопирована из справочника на момент добавления
+  costPrice     Decimal? @db.Decimal(14, 2)
+  catalogItemId String?
+  note          String?
+  unconfirmed   Boolean  @default(false) // для черновиков ИИ: позиция требует уточнения
+
+  @@index([estimateId])
+}
+
+model Project {
+  id             String     @id @default(cuid())
+  userId         String
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  customer       String?
+  address        String?
+  status         String     @default("draft") // draft | estimated | negotiation | in_progress | paused | done | archived
+  startDate      DateTime?
+  endDate        DateTime?
+  contractAmount Decimal    @default(0) @db.Decimal(14, 2)
+  completionPct  Decimal    @default(0) @db.Decimal(5, 2)
+  budget         Json? // ручные плановые бюджеты по категориям { materials, equipment, labor, other }
+  notes          String?
+  closedAt       DateTime?
+  deletedAt      DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  estimates      Estimate[]
+  financeOps     FinanceOp[]
+  projectNotes   Note[]
+
+  @@index([userId, deletedAt])
+}
+
+model FinanceOp {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId    String
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind         String // income | expense
+  // income: advance | interim | final (поступления денег) ; extra_work | contract_change (изменение суммы договора)
+  incomeType   String?
+  // expense: materials | equipment | labor | other | <пользовательская>
+  category     String?
+  title        String
+  qty          Decimal?  @db.Decimal(14, 4)
+  unit         String?
+  unitPrice    Decimal?  @db.Decimal(14, 2)
+  amount       Decimal   @db.Decimal(14, 2) // начислено (для поступлений = получено)
+  paidAmount   Decimal   @default(0) @db.Decimal(14, 2) // фактически оплачено (для расходов)
+  counterparty String? // поставщик, арендодатель, рабочий
+  date         DateTime  @default(now())
+  note         String?
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([userId, projectId, deletedAt])
+}
+
+model Note {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  title     String
+  body      String    @default("")
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId, deletedAt])
+}
+
+model Plan {
+  code       String  @id
+  title      String
+  months     Int
+  starsPrice Int
+  aiLimit    Int     @default(0)
+  active     Boolean @default(true)
+  sort       Int     @default(0)
+}
+
+model Payment {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planCode        String
+  stars           Int
+  telegramChargeId String  @unique
+  status          String   @default("paid") // paid | refunded
+  createdAt       DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entity    String
+  entityId  String
+  action    String
+  data      Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, entity, entityId])
+}
