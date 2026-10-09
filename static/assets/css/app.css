@@ -449,3 +449,32 @@ p { margin: 0; }
 .feed-date { font-weight: 800; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; margin: 8px 2px 0; }
 .feed-item { display: flex; align-items: center; gap: 12px; background: var(--white); border-radius: 18px; padding: 10px 12px; box-shadow: 0 3px 0 var(--line); }
 .feed-dot { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; font-size: 19px; flex-shrink: 0; background: color-mix(in srgb, var(--c) 45%, var(--white)); }
+.badge-big.locked { filter: grayscale(1); opacity: .55; }
+.level-badge {
+  width: 64px; height: 64px; border-radius: 22px; background: var(--white); display: grid; place-items: center;
+  font-size: 30px; color: var(--purple-deep); box-shadow: 0 5px 0 var(--purple-deep); transform: rotate(6deg);
+}
+.ladder { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ladder-step { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 16px; opacity: .6; }
+.ladder-step.reached { opacity: 1; }
+.ladder-step.current { background: color-mix(in srgb, var(--purple) 25%, var(--white)); opacity: 1; }
+.ladder-num { width: 32px; height: 32px; border-radius: 11px; display: grid; place-items: center; background: var(--cream-2); font-size: 14px; flex-shrink: 0; }
+.ladder-step.reached .ladder-num { background: var(--purple); color: var(--ink); }
+.ladder-reward { width: 30px; height: 28px; display: inline-flex; }
+.ladder-reward svg { width: 100%; height: 100%; }
+.accent-dot { width: 22px; height: 22px; border-radius: 50%; background: var(--c); box-shadow: 0 2px 0 var(--c-deep); }
+
+.badge-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.badge {
+  border: 0; border-radius: var(--r-md); padding: 12px 6px 10px; min-height: 128px; position: relative; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; color: var(--ink);
+  background: var(--c); box-shadow: 0 4px 0 var(--c-deep);
+}
+.badge.off { background: var(--white); box-shadow: 0 4px 0 var(--line); }
+.badge-icon { font-size: 34px; line-height: 1.1; }
+.badge.off .badge-icon { filter: grayscale(1) brightness(0) opacity(.18); }
+.badge-title { font-weight: 800; font-size: 12px; line-height: 1.2; }
+.badge-sub { font-weight: 800; font-size: 11px; color: var(--ink-soft); }
+.badge.on .badge-sub { color: var(--ink); }
+.badge-progress { position: absolute; left: 10px; right: 10px; bottom: 8px; height: 5px; border-radius: 99px; background: var(--cream-2); overflow: hidden; }
+.badge-progress span { display: block; height: 100%; background: var(--c-deep); border-radius: inherit; }
