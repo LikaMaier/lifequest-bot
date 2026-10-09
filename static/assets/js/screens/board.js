@@ -112,7 +112,7 @@ function draw(el) {
   const stars = h('div', { class: 'stars', role: 'radiogroup', 'aria-label': 'Оценка недели от 1 до 10' });
   for (let n = 1; n <= 10; n++) {
     const s = h('button', { type: 'button', class: `star-btn ${n <= board.rating ? 'on' : ''}`, role: 'radio',
-      'aria-checked': String(n === board.rating), 'aria-label': `${n} из 10` });
+      'aria-checked': String(n === board.rating), 'aria-label': `${n} из 10` }, h('span', { 'aria-hidden': 'true' }));
     s.addEventListener('click', () => { haptic.select(); board.rating = n; scheduleSave(el, 0, true); });
     stars.append(s);
   }

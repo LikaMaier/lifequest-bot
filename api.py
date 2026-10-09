@@ -47,6 +47,13 @@ class RateLimiter:
         return True
 
 
+BOT_TOKEN_KEY = web.AppKey("bot_token", str)
+BOT_KEY = web.AppKey("bot", object)
+BOT_USERNAME_KEY = web.AppKey("bot_username", object)
+INIT_DATA_MAX_AGE_KEY = web.AppKey("init_data_max_age", int)
+LIMITER_KEY = web.AppKey("limiter", "RateLimiter")
+
+
 def _error(status: int, message: str):
     return web.json_response({"error": message}, status=status)
 
@@ -67,8 +74,8 @@ async def auth_middleware(request, handler):
         return await handler(request)
     app = request.app
     try:
-        data = validate_init_data(request.headers.get(INIT_DATA_HEADER, ""), app["bot_token"],
-                                  max_age=app["init_data_max_age"])
+        data = validate_init_data(request.headers.get(INIT_DATA_HEADER, ""), app[BOT_TOKEN_KEY],
+                                  max_age=app[INIT_DATA_MAX_AGE_KEY])
     except InitDataError:
         return _error(401, "Открой приложение из Telegram, чтобы продолжить")
     user = data["user"]
@@ -96,7 +103,7 @@ async def headers_middleware(request, handler):
 
 
 def _limit(request, bucket: str):
-    if not request.app["limiter"].allow(request["user_id"], bucket):
+    if not request.app[LIMITER_KEY].allow(request["user_id"], bucket):
         raise web.HTTPTooManyRequests(text=json.dumps({"error": "Слишком быстро! Подожди немного 🙂"}),
                                       content_type="application/json")
 
@@ -120,7 +127,7 @@ def _int(value, name="id") -> int:
 # ==================== HANDLERS ====================
 def _state(request) -> dict:
     data = game.get_state(request["user_id"])
-    data["bot_username"] = request.app.get("bot_username")
+    data["bot_username"] = request.app.get(BOT_USERNAME_KEY)
     return data
 
 
@@ -203,7 +210,7 @@ async def post_share(request):
     """Картинка-карточка из canvas → бот присылает её в чат, откуда её
     удобно переслать подругам или выложить в сторис."""
     _limit(request, "share")
-    bot = request.app.get("bot")
+    bot = request.app.get(BOT_KEY)
     if bot is None:
         return _error(503, "Поделиться сейчас нельзя")
     data = await _body(request)
@@ -234,11 +241,11 @@ async def health(request):
 def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.Application:
     app = web.Application(client_max_size=MAX_BODY,
                           middlewares=[headers_middleware, errors_middleware, auth_middleware])
-    app["bot_token"] = bot_token
-    app["bot"] = bot
-    app["bot_username"] = None
-    app["init_data_max_age"] = init_data_max_age or int(os.getenv("INIT_DATA_MAX_AGE", 24 * 3600))
-    app["limiter"] = RateLimiter()
+    app[BOT_TOKEN_KEY] = bot_token
+    app[BOT_KEY] = bot
+    app[BOT_USERNAME_KEY] = None
+    app[INIT_DATA_MAX_AGE_KEY] = init_data_max_age or int(os.getenv("INIT_DATA_MAX_AGE", 24 * 3600))
+    app[LIMITER_KEY] = RateLimiter()
     app.router.add_get("/api/state", get_state)
     app.router.add_post("/api/quest/random", quest_random)
     app.router.add_post("/api/quest/accept", quest_accept)
@@ -264,7 +271,7 @@ async def start_web(bot_token: str, bot=None) -> web.AppRunner:
     app = create_app(bot_token, bot)
     if bot is not None:
         try:
-            app["bot_username"] = (await bot.get_me()).username
+            app[BOT_USERNAME_KEY] = (await bot.get_me()).username
         except Exception as e:  # сеть недоступна — приглашение просто будет без ссылки
             print(f"get_me failed: {e}")
     runner = web.AppRunner(app, access_log=None)

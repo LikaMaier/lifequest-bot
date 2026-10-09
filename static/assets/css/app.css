@@ -97,6 +97,7 @@ button { cursor: pointer; }
 .screen {
   padding: calc(16px + var(--safe-top)) 16px calc(var(--tabbar-h) + 28px + var(--safe-bottom));
   animation: screen-in .28s ease both;
+  overflow-x: clip;
 }
 .screen[hidden] { display: none; }
 @keyframes screen-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
@@ -208,7 +209,7 @@ p { margin: 0; }
 .chips::-webkit-scrollbar { display: none; }
 .chip {
   flex-shrink: 0; border: 0; border-radius: 999px; padding: 10px 14px; min-height: 40px;
-  background: var(--white); box-shadow: 0 3px 0 var(--line); font-weight: 800; font-size: 13px; color: var(--ink);
+  background: var(--white); box-shadow: 0 3px 0 var(--line); font-weight: 800; font-size: 13px; color: var(--ink); min-height: 44px;
   display: inline-flex; align-items: center; gap: 6px;
 }
 .chip[aria-pressed="true"], .chip.on { background: var(--c, var(--accent)); box-shadow: 0 3px 0 var(--c-deep, var(--accent-deep)); color: var(--ink); }
@@ -220,7 +221,7 @@ p { margin: 0; }
 
 .segmented { display: flex; background: var(--cream-2); border-radius: 999px; padding: 4px; gap: 4px; }
 .segmented button {
-  flex: 1; border: 0; background: transparent; border-radius: 999px; min-height: 40px;
+  flex: 1; border: 0; background: transparent; border-radius: 999px; min-height: 44px;
   font-weight: 800; font-size: 13px; color: var(--ink-soft);
 }
 .segmented button[aria-pressed="true"] { background: var(--white); color: var(--ink); box-shadow: 0 2px 0 var(--line); }
@@ -438,11 +439,12 @@ p { margin: 0; }
 .cell-sticker { position: absolute; right: -8px; bottom: -8px; width: 32px; height: 32px; transform: scale(0) rotate(-25deg); transition: transform .3s cubic-bezier(.34,1.56,.64,1); pointer-events: none; }
 .board-cell.done .cell-sticker { transform: scale(1) rotate(-12deg); }
 .stars { display: flex; gap: 3px; justify-content: space-between; max-width: 300px; }
-.star-btn {
-  width: 26px; height: 26px; border: 0; padding: 0; background: rgba(255,255,255,.55); position: relative; flex-shrink: 0;
+.star-btn { width: 30px; height: 44px; border: 0; padding: 0; background: transparent; display: grid; place-items: center; flex-shrink: 0; }
+.star-btn > span {
+  width: 26px; height: 26px; background: rgba(255,255,255,.55);
   clip-path: polygon(50% 0%, 63% 35%, 100% 35%, 70% 57%, 82% 92%, 50% 71%, 18% 92%, 30% 57%, 0% 35%, 37% 35%);
 }
-.star-btn.on { background: var(--lime); }
+.star-btn.on > span { background: var(--lime); }
 
 /* ---------- Лента истории ---------- */
 .feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }

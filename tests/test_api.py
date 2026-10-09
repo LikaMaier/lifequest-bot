@@ -1,0 +1,105 @@
+import time
+import unittest
+
+from aiohttp.test_utils import AioHTTPTestCase
+
+from tests.helpers import TempDBTestCase
+import api
+import storage
+from webapp_auth import sign_init_data
+
+TOKEN = "123456789:TEST-TOKEN"
+
+
+def headers(user_id=42):
+    init = sign_init_data({"auth_date": int(time.time()), "user": {"id": user_id, "first_name": "Тест"}}, TOKEN)
+    return {"X-Telegram-Init-Data": init, "X-Timezone": "Europe/Moscow"}
+
+
+class ApiTest(TempDBTestCase, AioHTTPTestCase):
+    def setUp(self):
+        TempDBTestCase.setUp(self)
+        AioHTTPTestCase.setUp(self)
+
+    def tearDown(self):
+        AioHTTPTestCase.tearDown(self)
+        TempDBTestCase.tearDown(self)
+
+    async def get_application(self):
+        return api.create_app(TOKEN)
+
+    async def test_requires_init_data(self):
+        for path in ("/api/state", "/api/stats", "/api/board"):
+            resp = await self.client.get(path)
+            self.assertEqual(resp.status, 401)
+        resp = await self.client.get("/api/state", headers={"X-Telegram-Init-Data": "user=%7B%22id%22%3A1%7D&hash=00"})
+        self.assertEqual(resp.status, 401)
+
+    async def test_state_creates_user_with_timezone(self):
+        resp = await self.client.get("/api/state", headers=headers(42))
+        self.assertEqual(resp.status, 200)
+        data = await resp.json()
+        self.assertEqual(data["user"]["id"], 42)
+        self.assertEqual(storage.get_user(42)["tz"], "Europe/Moscow")
+
+    async def test_user_id_only_from_signature(self):
+        # Попытка подменить пользователя через тело запроса ни на что не влияет.
+        resp = await self.client.post("/api/quest/accept", headers=headers(42),
+                                      json={"id": "two_truths", "user_id": 99})
+        self.assertEqual(resp.status, 200)
+        self.assertEqual(len(storage.get_active_quests(42)), 1)
+        self.assertEqual(storage.get_active_quests(99), [])
+        # Чужой квест закрыть нельзя.
+        active_id = (await resp.json())["active_id"]
+        resp = await self.client.post("/api/quest/complete", headers=headers(7), json={"active_id": active_id})
+        self.assertEqual(resp.status, 404)
+
+    async def test_full_quest_cycle(self):
+        h = headers(42)
+        quest = (await (await self.client.post("/api/quest/random", headers=h, json={"mode": "pair"})).json())["quest"]
+        self.assertEqual(quest["mode"], "pair")
+        acc = await (await self.client.post("/api/quest/accept", headers=h, json={"id": quest["id"]})).json()
+        done = await self.client.post("/api/quest/complete", headers=h, json={"active_id": acc["active_id"]})
+        self.assertEqual(done.status, 200)
+        self.assertGreater((await done.json())["xp"], 0)
+        stats = await (await self.client.get("/api/stats?range=all", headers=h)).json()
+        self.assertEqual(stats["records"]["total"], 1)
+
+    async def test_validation_errors(self):
+        h = headers(42)
+        self.assertEqual((await self.client.post("/api/quest/random", headers=h, json={"mode": "x"})).status, 400)
+        self.assertEqual((await self.client.post("/api/settings", headers=h, json={"daily_goal": "abc"})).status, 400)
+        self.assertEqual((await self.client.post("/api/settings", headers=h, json={"mascot": "cat-lime"})).status, 400)
+        self.assertEqual((await self.client.post("/api/quest/complete", headers=h, json={"active_id": "1; DROP"})).status, 400)
+        resp = await self.client.post("/api/settings", headers=h, json={"daily_goal": 9})
+        self.assertEqual((await resp.json())["user"]["daily_goal"], 3)
+
+    async def test_rate_limit(self):
+        h = headers(42)
+        codes = [(await self.client.post("/api/quest/random", headers=h, json={"mode": "solo"})).status for _ in range(25)]
+        self.assertEqual(codes.count(200), api.RATE_LIMITS["random"][0])
+        self.assertIn(429, codes)
+
+    async def test_board_roundtrip(self):
+        h = headers(42)
+        board = {"cells": ["<b>йога</b>"] + [""] * 8, "done": [True], "reward": "торт", "rating": 15, "notes": "x" * 1000}
+        saved = await (await self.client.post("/api/board", headers=h, json={"board": board})).json()
+        got = await (await self.client.get("/api/board", headers=h)).json()
+        self.assertEqual(got["board"]["cells"][0], "<b>йога</b>")  # хранится как текст, экранирует фронтенд
+        self.assertEqual(got["board"]["rating"], 10)
+        self.assertEqual(len(got["board"]["notes"]), storage.BOARD_NOTES_MAX)
+        self.assertEqual(saved["xp"], 3)
+
+    async def test_static_and_headers(self):
+        resp = await self.client.get("/")
+        self.assertEqual(resp.status, 200)
+        self.assertIn("LifeQuest", await resp.text())
+        self.assertEqual(resp.headers.get("X-Content-Type-Options"), "nosniff")
+        resp = await self.client.get("/assets/js/app.js")
+        self.assertEqual(resp.status, 200)
+        resp = await self.client.get("/assets/../storage.py")
+        self.assertNotEqual(resp.status, 200)
+
+
+if __name__ == "__main__":
+    unittest.main()

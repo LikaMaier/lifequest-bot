@@ -603,17 +603,22 @@ async def main():
     # HTTP API и статика мини-аппа — в этом же процессе (Railway: тип web, $PORT).
     await api.start_web(BOT_TOKEN, bot)
 
-    await bot.set_my_commands([
-        BotCommand(command="start", description="🚀 Начать / открыть меню"),
-        BotCommand(command="solo", description="🎯 Квест на одного"),
-        BotCommand(command="board", description="🗺️ Карта недели"),
-        BotCommand(command="myquests", description="📋 Мои квесты"),
-        BotCommand(command="completed", description="🏆 Выполненные"),
-        BotCommand(command="pair", description="💞 Квест для пары"),
-        BotCommand(command="company", description="👥 Квест на компанию"),
-        BotCommand(command="remind", description="⏰ Настроить утреннее напоминание"),
-        BotCommand(command="evening", description="🌙 Настроить вечернее напоминание"),
-    ])
+    # Ошибка сети на старте не должна ронять процесс: polling дальше сам
+    # переподключается, а мини-апп продолжает работать.
+    try:
+        await bot.set_my_commands([
+            BotCommand(command="start", description="🚀 Начать / открыть меню"),
+            BotCommand(command="solo", description="🎯 Квест на одного"),
+            BotCommand(command="board", description="🗺️ Карта недели"),
+            BotCommand(command="myquests", description="📋 Мои квесты"),
+            BotCommand(command="completed", description="🏆 Выполненные"),
+            BotCommand(command="pair", description="💞 Квест для пары"),
+            BotCommand(command="company", description="👥 Квест на компанию"),
+            BotCommand(command="remind", description="⏰ Настроить утреннее напоминание"),
+            BotCommand(command="evening", description="🌙 Настроить вечернее напоминание"),
+        ])
+    except Exception as e:
+        print(f"Failed to set bot commands: {e}")
 
     if MINIAPP_URL:
         try:
