@@ -85,3 +85,20 @@ class HabitsTest(TempDBTestCase):
         game.check_achievements(1)
         codes = [a["code"] for a in game.achievements_view(1) if a["unlocked"]]
         self.assertIn("habit_streak_7", codes)
+
+
+class EveningTextTest(TempDBTestCase):
+    def test_lists_left_and_done_and_escapes(self):
+        storage.ensure_user(3)
+        self.assertEqual(habits.evening_text(3), "")
+        water = habits.create_habit(3, {"title": "Вода", "emoji": "💧", "target": 8, "unit": "стаканов"})["habit"]
+        tricky = habits.create_habit(3, {"title": "<b>Чтение</b> & отдых", "target": 1})["habit"]
+        habits.log_habit(3, water["id"], count=3)
+        text = habits.evening_text(3)
+        self.assertIn("Привычки: 0 из 2", text)
+        self.assertIn("Вода — 3/8 стаканов", text)
+        self.assertIn("&lt;b&gt;Чтение&lt;/b&gt; &amp; отдых", text)
+        self.assertNotIn("<b>Чтение", text)
+        habits.log_habit(3, tricky["id"], delta=1)
+        habits.log_habit(3, water["id"], count=8)
+        self.assertIn("Все привычки на сегодня выполнены", habits.evening_text(3))

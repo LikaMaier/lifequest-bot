@@ -205,3 +205,25 @@ def habits_view(user_id: int) -> list:
 def summary(user_id: int) -> dict:
     items = habits_view(user_id)
     return {"total": len(items), "done": sum(1 for h in items if h["done_today"]), "items": items}
+
+
+def evening_text(user_id: int) -> str:
+    """Блок для вечернего напоминания бота: что из привычек уже сделано,
+    а что ещё осталось. Пустая строка — если привычек нет. Названия придумывает
+    пользователь, поэтому они экранируются для HTML-разметки Telegram."""
+    import html
+    items = habits_view(user_id)
+    if not items:
+        return ""
+    done = [h for h in items if h["done_today"]]
+    left = [h for h in items if not h["done_today"]]
+    lines = [f"🌱 <b>Привычки: {len(done)} из {len(items)}</b>"]
+    if not left:
+        lines.append("Все привычки на сегодня выполнены — так держать! 🎉")
+    else:
+        for h in left:
+            progress = f" — {h['today']}/{h['target']}{(' ' + h['unit']) if h['unit'] else ''}" if h["target"] > 1 else ""
+            lines.append(f"▫️ {html.escape(h['emoji'])} {html.escape(h['title'])}{html.escape(progress)}")
+        if done:
+            lines.append("✅ " + ", ".join(html.escape(h["title"]) for h in done))
+    return "\n".join(lines)

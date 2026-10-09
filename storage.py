@@ -12,7 +12,7 @@ import re
 import sqlite3
 from datetime import datetime, timedelta
 
-from quests_database import CATALOG
+from quests_database import CATALOG, KEY_TO_TASK
 
 DB_PATH = os.getenv("DB_PATH", "lifequest.db")
 
@@ -228,6 +228,7 @@ def init_db():
 
     conn.commit()
     _backfill_history(conn)
+    _sync_titles(conn)
     conn.close()
 
 
@@ -271,6 +272,29 @@ def _backfill_history(conn):
         c.execute("UPDATE active_quests SET mode = ?, sphere = ? WHERE id = ?",
                   (q.get("mode"), q.get("sphere"), qid))
     c.execute("INSERT INTO meta (key, value) VALUES ('history_backfilled', ?)", (utc_now_str(),))
+    conn.commit()
+
+
+def _sync_titles(conn):
+    """Если задание переименовали в quests_database.py, новое название
+    подтягивается в историю и в уже принятые задания."""
+    c = conn.cursor()
+    for key, q in CATALOG.items():
+        c.execute("UPDATE quest_history SET title = ? WHERE quest_key = ? AND title <> ?", (q["title"], key, q["title"]))
+    for qid, key, tier, text in c.execute("SELECT id, task_key, tier, task_text FROM active_quests").fetchall():
+        q = CATALOG.get(key)
+        if not q:
+            continue
+        if q["mode"] == "solo":
+            raw = KEY_TO_TASK.get(key, {})
+            fresh = raw.get(tier) or raw.get("medium")
+            # у старых записей уровень не сохранён — берём тот, что совпадает по тексту
+            if not tier:
+                fresh = next((raw[t] for t in ("easy", "medium") if t in raw and _TAG_RE.sub("", raw[t]).split("\n")[-1] in (text or "")), fresh)
+        else:
+            fresh = f"{q['emoji']} {q['title']}".strip()
+        if fresh and fresh != text:
+            c.execute("UPDATE active_quests SET task_text = ? WHERE id = ?", (fresh, qid))
     conn.commit()
 
 

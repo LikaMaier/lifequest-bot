@@ -40,7 +40,7 @@ export function render(el, { state, go }) {
 
   el.append(h('section', { class: 'card tinted c-lav center', style: { marginTop: '4px' } },
     mascot(u.mascot, 'happy', { size: 96, label: 'Твой маскот', cls: 'jump' }),
-    h('h1', { style: { marginTop: '8px' } }, u.first_name || 'Путешественница'),
+    h('h1', { style: { marginTop: '8px' } }, u.first_name || 'Искатель приключений'),
     h('p', { class: 'bold', style: { color: 'var(--lav-deep)', marginTop: '4px' } }, `Уровень ${lv.level} · ${lv.name}`),
     h('div', { style: { margin: '12px 10px 4px' } }, progressBar(lv.progress, 'purple')),
     h('p', { class: 'tiny bold muted' }, `${lv.xp} / ${lv.next} XP`),
@@ -52,10 +52,10 @@ export function render(el, { state, go }) {
       const image = await buildShareCard(store.state);
       await api.share(image);
       haptic.success();
-      toast('📬 Карточка уже в чате с ботом — перешли её подругам!', 'good', 3600);
+      toast('📬 Карточка уже в чате с ботом — перешли её друзьям!', 'good', 3600);
     } catch (e) { toastError(e); }
   } });
-  const invite = button('Позвать подругу', { cls: 'block ghost', onClick: () => {
+  const invite = button('Позвать друга', { cls: 'block ghost', onClick: () => {
     const link = state.bot_username ? `https://t.me/${state.bot_username}` : '';
     const text = 'Я играю в LifeQuest — бот подкидывает странные и классные задания. Давай со мной?';
     openTgLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`);
