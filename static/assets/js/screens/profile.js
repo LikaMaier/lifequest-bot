@@ -1,8 +1,157 @@
-import { h, clear } from '../dom.js';
-import { emptyState } from '../ui.js';
+// ⑥ Профиль: имя и уровень, маскот, цвет, цель дня, напоминания, часовой
+// пояс, «Поделиться достижением» и вход в заготовку Premium.
 
-export function render(el) {
-  clear(el);
-  el.append(emptyState('Этот раздел скоро появится ✨'));
+import { h, clear } from '../dom.js';
+import { haptic, openTgLink, showMainButton } from '../tg.js';
+import { api } from '../api.js';
+import { mascot, mascotSVG } from '../mascot.js';
+import { sectionTitle, progressBar, toast, toastError, busy, button, ICONS } from '../ui.js';
+import { setState, store } from '../store.js';
+import { buildShareCard } from '../share.js';
+
+const COMMON_TZ = [
+  'Europe/Kaliningrad', 'Europe/Moscow', 'Europe/Samara', 'Asia/Yekaterinburg', 'Asia/Omsk', 'Asia/Novosibirsk',
+  'Asia/Krasnoyarsk', 'Asia/Irkutsk', 'Asia/Yakutsk', 'Asia/Vladivostok', 'Asia/Magadan', 'Asia/Kamchatka',
+  'Europe/Minsk', 'Europe/Kyiv', 'Asia/Almaty', 'Asia/Tashkent', 'Asia/Tbilisi', 'Asia/Yerevan', 'Asia/Baku',
+  'Europe/Istanbul', 'Europe/Berlin', 'Europe/London', 'Asia/Dubai', 'Asia/Bangkok', 'America/New_York',
+];
+const TZ_NAMES = {
+  'Europe/Kaliningrad': 'Калининград', 'Europe/Moscow': 'Москва', 'Europe/Samara': 'Самара', 'Asia/Yekaterinburg': 'Екатеринбург',
+  'Asia/Omsk': 'Омск', 'Asia/Novosibirsk': 'Новосибирск', 'Asia/Krasnoyarsk': 'Красноярск', 'Asia/Irkutsk': 'Иркутск',
+  'Asia/Yakutsk': 'Якутск', 'Asia/Vladivostok': 'Владивосток', 'Asia/Magadan': 'Магадан', 'Asia/Kamchatka': 'Камчатка',
+  'Europe/Minsk': 'Минск', 'Europe/Kyiv': 'Киев', 'Asia/Almaty': 'Алматы', 'Asia/Tashkent': 'Ташкент', 'Asia/Tbilisi': 'Тбилиси',
+  'Asia/Yerevan': 'Ереван', 'Asia/Baku': 'Баку', 'Europe/Istanbul': 'Стамбул', 'Europe/Berlin': 'Берлин', 'Europe/London': 'Лондон',
+  'Asia/Dubai': 'Дубай', 'Asia/Bangkok': 'Бангкок', 'America/New_York': 'Нью-Йорк',
+};
+
+async function saveSettings(patch, okText = 'Сохранено ✓') {
+  try {
+    const state = await api.settings(patch);
+    haptic.success();
+    setState(state);
+    toast(okText, 'good', 1500);
+  } catch (e) { toastError(e); }
 }
-export const renderPremium = render;
+
+export function render(el, { state, go }) {
+  clear(el);
+  const u = state.user;
+  const lv = state.level;
+
+  el.append(h('section', { class: 'card tinted c-lav center', style: { marginTop: '4px' } },
+    mascot(u.mascot, 'happy', { size: 96, label: 'Твой маскот', cls: 'jump' }),
+    h('h1', { style: { marginTop: '8px' } }, u.first_name || 'Путешественница'),
+    h('p', { class: 'bold', style: { color: 'var(--lav-deep)', marginTop: '4px' } }, `Уровень ${lv.level} · ${lv.name}`),
+    h('div', { style: { margin: '12px 10px 4px' } }, progressBar(lv.progress, 'purple')),
+    h('p', { class: 'tiny bold muted' }, `${lv.xp} / ${lv.next} XP`),
+    u.is_premium ? h('span', { class: 'tag c-yellow', style: { marginTop: '8px' } }, '👑 Premium') : null));
+
+  // Поделиться
+  const shareBtn = button('Поделиться достижением', { cls: 'block', icon: ICONS.share, onClick: async () => {
+    try {
+      const image = await buildShareCard(store.state);
+      await api.share(image);
+      haptic.success();
+      toast('📬 Карточка уже в чате с ботом — перешли её подругам!', 'good', 3600);
+    } catch (e) { toastError(e); }
+  } });
+  const invite = button('Позвать подругу', { cls: 'block ghost', onClick: () => {
+    const link = state.bot_username ? `https://t.me/${state.bot_username}` : '';
+    const text = 'Я играю в LifeQuest — бот подкидывает странные и классные задания. Давай со мной?';
+    openTgLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`);
+  } });
+  el.append(h('div', { class: 'stack-sm', style: { marginTop: '16px' } }, shareBtn, invite));
+
+  // Маскот
+  const mascots = h('div', { class: 'picker-grid', role: 'radiogroup', 'aria-label': 'Маскот' },
+    state.unlocks.mascots.map(m => {
+      const b = h('button', { type: 'button', class: `picker ${m.id === u.mascot ? 'on' : ''}`, role: 'radio',
+        'aria-checked': String(m.id === u.mascot), disabled: !m.unlocked,
+        'aria-label': m.unlocked ? m.name : `${m.name} — откроется на ${m.level} уровне` },
+        h('span', { class: 'picker-img', html: mascotSVG(m.id, m.unlocked ? 'happy' : 'sleepy') }),
+        h('span', { class: 'tiny bold' }, m.unlocked ? m.name : `🔒 ур. ${m.level}`));
+      b.addEventListener('click', busy(b, () => saveSettings({ mascot: m.id }, `Теперь с тобой ${m.name}!`)));
+      return b;
+    }));
+  el.append(sectionTitle('Маскот'), h('div', { class: 'card' }, mascots));
+
+  // Цвет-акцент
+  const accents = h('div', { class: 'row-wrap', role: 'radiogroup', 'aria-label': 'Цвет приложения' },
+    state.unlocks.accents.map(a => {
+      const b = h('button', { type: 'button', class: `accent-pick c-${a.id} ${a.id === u.accent ? 'on' : ''}`, role: 'radio',
+        'aria-checked': String(a.id === u.accent), disabled: !a.unlocked,
+        'aria-label': a.unlocked ? a.name : `${a.name} — откроется на ${a.level} уровне` },
+        a.unlocked ? (a.id === u.accent ? '✓' : '') : '🔒');
+      b.addEventListener('click', busy(b, () => saveSettings({ accent: a.id })));
+      return b;
+    }));
+  el.append(sectionTitle('Цвет приложения'), h('div', { class: 'card' }, accents,
+    h('p', { class: 'tiny muted bold', style: { marginTop: '8px' } }, 'Новые цвета открываются с уровнями 3, 5, 7 и 9.')));
+
+  // Цель дня
+  const goal = h('div', { class: 'segmented', role: 'group', 'aria-label': 'Цель дня' },
+    [1, 2, 3].map(n => {
+      const b = h('button', { type: 'button', 'aria-pressed': String(u.daily_goal === n) }, `${n} ${n === 1 ? 'задание' : 'задания'}`);
+      b.addEventListener('click', () => { haptic.select(); saveSettings({ daily_goal: n }); });
+      return b;
+    }));
+  el.append(sectionTitle('Цель дня'), h('div', { class: 'card' }, goal));
+
+  // Напоминания и часовой пояс
+  const hourSelect = (value, key, label) => {
+    const sel = h('select', { class: 'input', 'aria-label': label },
+      Array.from({ length: 24 }, (_, i) => h('option', { value: String(i), selected: i === value }, `${String(i).padStart(2, '0')}:00`)));
+    sel.addEventListener('change', () => saveSettings({ [key]: Number(sel.value) }));
+    return sel;
+  };
+  let detected = '';
+  try { detected = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { /* нет Intl */ }
+  const zones = [...new Set([u.tz, detected, ...COMMON_TZ].filter(Boolean))];
+  const tzSel = h('select', { class: 'input', 'aria-label': 'Часовой пояс' },
+    zones.map(z => h('option', { value: z, selected: z === u.tz }, `${TZ_NAMES[z] || z}${z === detected ? ' (как на телефоне)' : ''}`)));
+  if (!u.tz) tzSel.prepend(h('option', { value: '', selected: true, disabled: true }, 'Не выбран'));
+  tzSel.addEventListener('change', () => saveSettings({ tz: tzSel.value }));
+  el.append(sectionTitle('Напоминания'), h('div', { class: 'card stack' },
+    h('div', { class: 'field' }, h('span', { class: 'label' }, '🌅 Утреннее напоминание'), hourSelect(u.reminder_hour, 'reminder_hour', 'Час утреннего напоминания')),
+    h('div', { class: 'field' }, h('span', { class: 'label' }, '🌙 Вечерний вопрос «как прошёл день?»'), hourSelect(u.evening_reminder_hour, 'evening_reminder_hour', 'Час вечернего напоминания')),
+    h('div', { class: 'field' }, h('span', { class: 'label' }, '🕰️ Часовой пояс'), tzSel,
+      h('p', { class: 'tiny muted bold' }, 'По нему считаются день серии, цель дня и время напоминаний.'))));
+
+  // Premium
+  const prem = h('button', { type: 'button', class: 'card tinted c-yellow', style: { width: '100%', border: '0', textAlign: 'left', marginTop: '22px' } },
+    h('div', { class: 'row' }, h('span', { style: { fontSize: '34px' }, 'aria-hidden': 'true' }, '👑'),
+      h('div', { class: 'grow' }, h('div', { class: 'card-title', style: { margin: 0 } }, 'LifeQuest Premium'),
+        h('div', { class: 'small bold' }, u.is_premium ? 'Подписка активна — спасибо! 💛' : 'Скоро: больше заданий и фишек'))));
+  prem.addEventListener('click', () => { haptic.tap(); go('premium'); });
+  el.append(prem);
+}
+
+const PERKS = [
+  ['🎲', 'Безлимит «Другое»', 'Крути задания сколько хочешь — без дневного лимита'],
+  ['🐱', 'Эксклюзивные маскоты', 'Котики, которых нет в обычной версии'],
+  ['❄️', 'Две заморозки в неделю', 'Серия переживёт даже насыщенную неделю'],
+  ['🗂️', 'Тематические подборки', 'Свидания, выходные, путешествия — наборы заданий по теме'],
+  ['📈', 'Подробная статистика', 'Итоги месяца и года с красивыми карточками'],
+];
+
+export function renderPremium(el, { state }) {
+  clear(el);
+  const isPremium = state.user.is_premium;
+  el.append(h('section', { class: 'premium-hero' },
+    mascot('star', 'love', { size: 110, cls: 'jump' }),
+    h('h1', { style: { marginTop: '10px' } }, 'LifeQuest Premium'),
+    h('p', { class: 'bold', style: { marginTop: '8px', color: 'var(--ink-soft)' } },
+      isPremium ? 'Подписка активна. Спасибо, что поддерживаешь LifeQuest! 💛' : 'Больше приключений, больше котиков, больше тебя.')));
+  el.append(h('div', { class: 'stack-sm', style: { marginTop: '16px' } }, PERKS.map(([emoji, title, text]) =>
+    h('div', { class: 'quest-item c-yellow' }, h('div', { class: 'q-emoji', 'aria-hidden': 'true' }, emoji),
+      h('div', { class: 'grow' }, h('div', { class: 'q-title' }, title), h('div', { class: 'q-meta' }, text))))));
+  if (!isPremium) {
+    el.append(h('div', { class: 'card center', style: { marginTop: '16px' } },
+      h('div', { class: 'num', style: { fontSize: '22px' } }, 'Скоро'),
+      h('p', { class: 'small bold muted', style: { marginTop: '6px' } }, 'Подписка ещё в разработке — оплата появится через Telegram Stars. Сейчас всё в LifeQuest бесплатно.')));
+    const want = () => { haptic.success(); toast('💛 Спасибо! Premium уже в работе — анонс будет в боте.', 'good', 3200); };
+    if (!showMainButton('Хочу Premium', want, '#F3619C')) {
+      el.append(h('div', { style: { marginTop: '14px' } }, button('Хочу Premium', { cls: 'block', onClick: want })));
+    }
+  }
+}

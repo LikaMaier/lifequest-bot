@@ -478,3 +478,25 @@ p { margin: 0; }
 .badge.on .badge-sub { color: var(--ink); }
 .badge-progress { position: absolute; left: 10px; right: 10px; bottom: 8px; height: 5px; border-radius: 99px; background: var(--cream-2); overflow: hidden; }
 .badge-progress span { display: block; height: 100%; background: var(--c-deep); border-radius: inherit; }
+
+/* ---------- Профиль и Premium ---------- */
+.picker-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.picker {
+  border: 0; background: var(--cream); border-radius: 16px; padding: 8px 4px; min-height: 84px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--ink);
+  box-shadow: inset 0 0 0 2px var(--line);
+}
+.picker.on { background: color-mix(in srgb, var(--accent) 25%, var(--white)); box-shadow: inset 0 0 0 3px var(--accent-deep); }
+.picker:disabled { opacity: .55; }
+.picker-img { width: 46px; height: 42px; display: inline-flex; }
+.picker-img svg { width: 100%; height: 100%; }
+.accent-pick {
+  width: 48px; height: 48px; border-radius: 16px; border: 0; background: var(--c); box-shadow: 0 4px 0 var(--c-deep);
+  font-weight: 900; font-size: 18px; color: var(--ink); display: grid; place-items: center;
+}
+.accent-pick.on { outline: 3px solid var(--ink); outline-offset: 2px; }
+.accent-pick:disabled { filter: saturate(.3); opacity: .6; }
+.premium-hero {
+  text-align: center; padding: 22px 16px; border-radius: var(--r-xl);
+  background: linear-gradient(160deg, var(--yellow), var(--lav)); box-shadow: 0 6px 0 var(--lav-deep);
+}

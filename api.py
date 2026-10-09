@@ -118,8 +118,14 @@ def _int(value, name="id") -> int:
 
 
 # ==================== HANDLERS ====================
+def _state(request) -> dict:
+    data = game.get_state(request["user_id"])
+    data["bot_username"] = request.app.get("bot_username")
+    return data
+
+
 async def get_state(request):
-    return web.json_response(game.get_state(request["user_id"]))
+    return web.json_response(_state(request))
 
 
 async def quest_random(request):
@@ -190,7 +196,7 @@ async def post_settings(request):
     _limit(request, "write")
     data = await _body(request)
     game.update_settings(request["user_id"], data)
-    return web.json_response(game.get_state(request["user_id"]))
+    return web.json_response(_state(request))
 
 
 async def post_share(request):
@@ -230,6 +236,7 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
                           middlewares=[headers_middleware, errors_middleware, auth_middleware])
     app["bot_token"] = bot_token
     app["bot"] = bot
+    app["bot_username"] = None
     app["init_data_max_age"] = init_data_max_age or int(os.getenv("INIT_DATA_MAX_AGE", 24 * 3600))
     app["limiter"] = RateLimiter()
     app.router.add_get("/api/state", get_state)
@@ -254,7 +261,13 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
 
 async def start_web(bot_token: str, bot=None) -> web.AppRunner:
     """Запускает сервер на 0.0.0.0:$PORT (Railway задаёт PORT сам)."""
-    runner = web.AppRunner(create_app(bot_token, bot), access_log=None)
+    app = create_app(bot_token, bot)
+    if bot is not None:
+        try:
+            app["bot_username"] = (await bot.get_me()).username
+        except Exception as e:  # сеть недоступна — приглашение просто будет без ссылки
+            print(f"get_me failed: {e}")
+    runner = web.AppRunner(app, access_log=None)
     await runner.setup()
     port = int(os.getenv("PORT", "8080"))
     await web.TCPSite(runner, "0.0.0.0", port).start()
