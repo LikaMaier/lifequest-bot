@@ -510,6 +510,10 @@ ACHIEVEMENTS = [
     ("level_5", "Пятый уровень", "Дойди до 5 уровня", "⭐", "lime", "level", 5),
     ("level_10", "Героиня", "Дойди до 10 уровня", "🏆", "pink", "level", 10),
     ("days_30", "30 дней с LifeQuest", "Выполняй задания в 30 разных дней", "📅", "blue", "active_days", 30),
+    ("habit_creator", "Архитектор привычек", "Придумай 3 своих привычки", "🧩", "blue", "habits_created", 3),
+    ("habit_first", "Хорошая привычка", "Выполни дневную цель по любой привычке", "✅", "lime", "habit_done", 1),
+    ("habit_streak_7", "Привычка закрепилась", "Держи любую привычку 7 дней подряд", "🌿", "lime", "habit_streak", 7),
+    ("habit_streak_21", "21 день", "Держи любую привычку 21 день подряд", "🌳", "purple", "habit_streak", 21),
 ]
 ACHIEVEMENT_BY_CODE = {a[0]: a for a in ACHIEVEMENTS}
 
@@ -523,6 +527,9 @@ def achievement_metrics(user_id: int) -> dict:
     favorites = conn.execute("SELECT COUNT(*) FROM favorites WHERE user_id = ?", (user_id,)).fetchone()[0]
     offers = conn.execute("SELECT COUNT(*) FROM quest_offers WHERE user_id = ?", (user_id,)).fetchone()[0]
     active_now = conn.execute("SELECT COUNT(*) FROM active_quests WHERE user_id = ?", (user_id,)).fetchone()[0]
+    habits_created = conn.execute("SELECT COUNT(*) FROM habits WHERE user_id = ?", (user_id,)).fetchone()[0]
+    habit_done = conn.execute("SELECT habit_id, local_date FROM habit_logs WHERE user_id = ? AND done = 1 ORDER BY habit_id, local_date",
+                              (user_id,)).fetchall()
     conn.close()
 
     modes = Counter(r["mode"] for r in done)
@@ -550,10 +557,27 @@ def achievement_metrics(user_id: int) -> dict:
         "active_now": active_now,
         "level": level_for_xp(user.get("xp") or 0),
         "active_days": len(days),
+        "habits_created": habits_created,
+        "habit_done": len(habit_done),
+        "habit_streak": _longest_habit_run(habit_done),
     }
     for sphere in BINGO_SPHERES:
         m[f"sphere:{sphere}"] = spheres.get(sphere, 0)
     return m
+
+
+def _longest_habit_run(rows) -> int:
+    """Самая длинная серия выполненных дней среди всех привычек."""
+    best, run, prev_habit, prev_day = 0, 0, None, None
+    for r in rows:
+        day = date.fromisoformat(r["local_date"])
+        if r["habit_id"] == prev_habit and prev_day and (day - prev_day).days == 1:
+            run += 1
+        else:
+            run = 1
+        prev_habit, prev_day = r["habit_id"], day
+        best = max(best, run)
+    return best
 
 
 def _unlocked(user_id: int) -> dict:

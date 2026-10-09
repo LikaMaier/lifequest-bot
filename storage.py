@@ -169,6 +169,33 @@ def init_db():
     """)
     c.execute("CREATE INDEX IF NOT EXISTS idx_xp_user ON xp_log(user_id, local_date)")
     c.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
+    # Трекер привычек: свои привычки пользователя и отметки по дням.
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS habits (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            emoji TEXT,
+            color TEXT,
+            target INTEGER DEFAULT 1,
+            unit TEXT,
+            archived INTEGER DEFAULT 0,
+            created_at TEXT
+        )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_habits_user ON habits(user_id, archived)")
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS habit_logs (
+            habit_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            local_date TEXT NOT NULL,
+            count INTEGER DEFAULT 0,
+            done INTEGER DEFAULT 0,
+            updated_at TEXT,
+            PRIMARY KEY (habit_id, local_date)
+        )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_habit_logs_user ON habit_logs(user_id, local_date)")
 
     # Migrations for bots created before these features existed.
     _ensure_column(c, "users", "last_active_date", "TEXT")
