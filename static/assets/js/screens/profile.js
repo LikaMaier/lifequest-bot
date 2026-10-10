@@ -75,18 +75,29 @@ export function render(el, { state, go }) {
     }));
   el.append(sectionTitle('Маскот'), h('div', { class: 'card' }, mascots));
 
-  // Цвет-акцент
-  const accents = h('div', { class: 'row-wrap', role: 'radiogroup', 'aria-label': 'Цвет приложения' },
-    state.unlocks.accents.map(a => {
-      const b = h('button', { type: 'button', class: `accent-pick c-${a.id} ${a.id === u.accent ? 'on' : ''}`, role: 'radio',
-        'aria-checked': String(a.id === u.accent), disabled: !a.unlocked,
-        'aria-label': a.unlocked ? a.name : `${a.name} — откроется на ${a.level} уровне` },
-        a.unlocked ? (a.id === u.accent ? '✓' : '') : '🔒');
-      b.addEventListener('click', busy(b, () => saveSettings({ accent: a.id })));
+  // Стиль приложения — все доступны сразу
+  const PREVIEW = {
+    classic: { bg: '#FDF7DE', cells: ['#F3619C', '#93ABD8', '#DBFA40'], mark: '🐱', radius: '8px' },
+    brutal: { bg: '#F1EFE7', cells: ['#FFE14D', '#FF5FA2', '#5B8CFF'], mark: '■', radius: '0', border: '2px solid #0A0A0A' },
+    pixel: { bg: '#1D2B53', cells: ['#FF004D', '#FFEC27', '#29ADFF'], mark: '👾', radius: '0' },
+    halloween: { bg: '#160D1E', cells: ['#FF8A2A', '#B98CFF', '#9BFF4F'], mark: '🎃', radius: '8px' },
+    matrix: { bg: '#020A04', cells: ['#00FF66', '#2CF2C8', '#D6FF3D'], mark: '⌨️', radius: '3px' },
+    ocean: { bg: '#062A43', cells: ['#2FE6D0', '#5CC8FF', '#FF8FD0'], mark: '🐠', radius: '12px' },
+  };
+  const themes = h('div', { class: 'theme-grid', role: 'radiogroup', 'aria-label': 'Стиль приложения' },
+    state.unlocks.themes.map(t => {
+      const p = PREVIEW[t.id] || PREVIEW.classic;
+      const on = t.id === u.theme;
+      const b = h('button', { type: 'button', class: `theme-card ${on ? 'on' : ''}`, role: 'radio', 'aria-checked': String(on), 'aria-label': `${t.name}. ${t.description}` },
+        h('span', { class: 'theme-preview', style: { background: p.bg }, 'aria-hidden': 'true' },
+          h('b', null, p.mark),
+          p.cells.map(c => h('i', { style: { background: c, borderRadius: p.radius, border: p.border || 'none' } }))),
+        h('span', { class: 'theme-name' }, `${on ? '✓ ' : ''}${t.name}`),
+        h('span', { class: 'theme-desc' }, t.description));
+      b.addEventListener('click', busy(b, () => saveSettings({ theme: t.id }, `Стиль «${t.name}» включён`)));
       return b;
     }));
-  el.append(sectionTitle('Цвет приложения'), h('div', { class: 'card' }, accents,
-    h('p', { class: 'tiny muted bold', style: { marginTop: '8px' } }, 'Новые цвета открываются с уровнями 3, 5, 7 и 9.')));
+  el.append(sectionTitle('Стиль приложения'), themes);
 
   // Цель дня
   const goal = h('div', { class: 'segmented', role: 'group', 'aria-label': 'Цель дня' },

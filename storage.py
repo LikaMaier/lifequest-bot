@@ -289,6 +289,11 @@ def init_db():
     _ensure_column(c, "active_quests", "daily", "INTEGER DEFAULT 0")
     _ensure_column(c, "users", "morning_plans", "INTEGER DEFAULT 1")
     _ensure_column(c, "users", "onboarded", "INTEGER DEFAULT 0")
+    _ensure_column(c, "users", "theme", "TEXT DEFAULT 'classic'")
+    # Старые маскоты заменены зверями того же уровня.
+    for old, new in (("cat-blue", "frog"), ("heart", "puppy"), ("cat-orange", "bear"),
+                     ("cat-lav", "leopard"), ("cat-pink2", "panda"), ("cat-lime", "pig")):
+        c.execute("UPDATE users SET mascot = ? WHERE mascot = ?", (new, old))
 
     conn.commit()
     _backfill_history(conn)

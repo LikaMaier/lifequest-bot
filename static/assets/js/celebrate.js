@@ -19,7 +19,7 @@ export async function showLevelUp(level) {
     h('p', { class: 'small bold muted', style: { marginTop: '8px' } }, 'НОВЫЙ УРОВЕНЬ'),
     h('h1', { style: { margin: '6px 0 4px', color: 'var(--accent-deep)' } }, `${level.level}`),
     h('h2', null, level.name),
-    h('p', { class: 'muted', style: { marginTop: '10px', fontWeight: 700 } }, 'Загляни в профиль — там могли открыться новый котик или цвет.'));
+    h('p', { class: 'muted', style: { marginTop: '10px', fontWeight: 700 } }, 'Загляни в профиль — там мог открыться новый маскот.'));
   const m = modal(body, { label: 'Новый уровень' });
   body.append(closeBtn('Ура! 🎉', m));
   await m.done;

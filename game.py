@@ -63,14 +63,23 @@ LEVEL_STEP_AFTER_MAX = 800
 
 # Награды за уровни: маскоты и акцентные цвета (уровень, с которого доступны).
 MASCOTS = [
-    ("cat-purple", "Сирень", 1), ("star", "Звёздочка", 1), ("cat-blue", "Небо", 2),
-    ("heart", "Сердечко", 3), ("cat-orange", "Апельсин", 4), ("cat-lav", "Лаванда", 5),
-    ("cat-pink2", "Фламинго", 6), ("cat-lime", "Лайм", 7),
+    ("cat-purple", "Сирень", 1), ("star", "Звёздочка", 1), ("frog", "Лягушонок", 2),
+    ("puppy", "Щенок", 3), ("bear", "Медвежонок", 4), ("leopard", "Леопард", 5),
+    ("panda", "Панда", 6), ("pig", "Свинка", 7),
 ]
-ACCENTS = [
-    ("pink", "Розовый", 1), ("blue", "Голубой", 3), ("purple", "Фиолетовый", 5),
-    ("orange", "Оранжевый", 7), ("lime", "Лаймовый", 9),
+# Маскоты до обновления → их замена того же уровня (миграция в storage).
+LEGACY_MASCOTS = {"cat-blue": "frog", "heart": "puppy", "cat-orange": "bear",
+                  "cat-lav": "leopard", "cat-pink2": "panda", "cat-lime": "pig"}
+# Стили приложения — доступны все и сразу, независимо от уровня.
+THEMES = [
+    ("classic", "Классика", "Кремовый фон, стикеры и пастель — как всегда"),
+    ("brutal", "Брутализм", "Чёрные рамки, жёсткие тени, никаких полутонов"),
+    ("pixel", "8-bit", "Пиксели, ретро-шрифт и квадратные кнопки"),
+    ("halloween", "Хэллоуин", "Тыквы, летучие мыши и фиолетовая ночь"),
+    ("matrix", "Матрица", "Зелёный код на чёрном. Следуй за белым кроликом"),
+    ("ocean", "Морской мир", "Глубина, пузырьки и бирюзовые волны"),
 ]
+THEME_IDS = {t[0] for t in THEMES}
 
 
 def level_threshold(level: int) -> int:
@@ -106,7 +115,7 @@ def level_info(xp: int) -> dict:
 def unlocks(level: int) -> dict:
     return {
         "mascots": [{"id": k, "name": n, "level": lv, "unlocked": level >= lv} for k, n, lv in MASCOTS],
-        "accents": [{"id": k, "name": n, "level": lv, "unlocked": level >= lv} for k, n, lv in ACCENTS],
+        "themes": [{"id": k, "name": n, "description": d} for k, n, d in THEMES],
     }
 
 
@@ -747,7 +756,8 @@ def get_state(user_id: int) -> dict:
     return {
         "user": {
             "id": user_id, "first_name": user.get("first_name") or user.get("username") or "",
-            "mascot": user.get("mascot") or "cat-purple", "accent": user.get("accent") or "pink",
+            "mascot": LEGACY_MASCOTS.get(user.get("mascot"), user.get("mascot")) or "cat-purple",
+            "theme": user.get("theme") if user.get("theme") in THEME_IDS else "classic",
             "daily_goal": user.get("daily_goal") or 1, "tz": user.get("tz"),
             "reminder_hour": user.get("reminder_hour") if user.get("reminder_hour") is not None else 9,
             "evening_reminder_hour": user.get("evening_reminder_hour") if user.get("evening_reminder_hour") is not None else 20,
@@ -833,7 +843,7 @@ def get_stats(user_id: int, days) -> dict:
     }
 
 
-SETTINGS_ALLOWED = {"daily_goal", "tz", "mascot", "accent", "reminder_hour", "evening_reminder_hour"}
+SETTINGS_ALLOWED = {"daily_goal", "tz", "mascot", "theme", "reminder_hour", "evening_reminder_hour"}
 
 
 def update_settings(user_id: int, data: dict) -> dict:
@@ -864,11 +874,10 @@ def update_settings(user_id: int, data: dict) -> dict:
         if data["mascot"] not in allowed:
             raise QuestError("Этот маскот откроется на более высоком уровне")
         fields["mascot"] = data["mascot"]
-    if "accent" in data:
-        allowed = {k for k, _n, lv in ACCENTS if level >= lv}
-        if data["accent"] not in allowed:
-            raise QuestError("Этот цвет откроется на более высоком уровне")
-        fields["accent"] = data["accent"]
+    if "theme" in data:
+        if data["theme"] not in THEME_IDS:
+            raise QuestError("Такого стиля нет")
+        fields["theme"] = data["theme"]
     if "onboarded" in data:
         fields["onboarded"] = 1 if data["onboarded"] else 0
     if "morning_plans" in data:
