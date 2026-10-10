@@ -294,6 +294,8 @@ def init_db():
     for old, new in (("cat-blue", "frog"), ("heart", "puppy"), ("cat-orange", "bear"),
                      ("cat-lav", "leopard"), ("cat-pink2", "panda"), ("cat-lime", "pig")):
         c.execute("UPDATE users SET mascot = ? WHERE mascot = ?", (new, old))
+    # Стиль «Брутализм» убран — у кого он был, возвращаем классику.
+    c.execute("UPDATE users SET theme = 'classic' WHERE theme = 'brutal'")
 
     conn.commit()
     _backfill_history(conn)

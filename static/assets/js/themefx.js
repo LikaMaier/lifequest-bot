@@ -1,6 +1,6 @@
 // Применение стиля приложения: атрибут data-theme, цвета шапки Telegram и
 // декоративные эффекты (цифровой дождь в «Матрице», фигурки тетриса в 8-bit, пузырьки в «Морском мире»,
-// летучие мыши и тыквы в «Хэллоуине»).
+// летучие мыши и тыквы в «Хэллоуине», листья в «Лесу»).
 
 import { tg } from './tg.js';
 
@@ -277,4 +277,59 @@ function halloweenSky() {
   }, 33);
 }
 
-const EFFECTS = { matrix: matrixRain, pixel: tetrisRain, ocean: oceanBubbles, halloween: halloweenSky };
+// Лес: листья падают, кружась и раскачиваясь, — в цветах палитры.
+const LEAF_COLORS = ['#365004', '#8DA432', '#8DA432', '#925E06', '#C9A227', '#5E7A12'];
+
+function forestLeaves() {
+  let leaves = [];
+  const spawn = (canvas, anywhere) => ({
+    x: Math.random() * canvas.width,
+    y: anywhere ? Math.random() * canvas.height : -20 - Math.random() * 60,
+    size: 7 + Math.random() * 9,
+    color: LEAF_COLORS[Math.floor(Math.random() * LEAF_COLORS.length)],
+    fall: 0.6 + Math.random() * 0.9,
+    sway: 20 + Math.random() * 30,
+    phase: Math.random() * Math.PI * 2,
+    spin: Math.random() * Math.PI * 2,
+    spinSpeed: (Math.random() - 0.5) * 0.08,
+    flip: Math.random() * Math.PI * 2,
+  });
+  const drawLeaf = (ctx, l) => {
+    const s = l.size;
+    ctx.save();
+    ctx.translate(l.x + Math.sin(l.phase) * l.sway, l.y);
+    ctx.rotate(l.spin);
+    ctx.scale(Math.cos(l.flip), 1); // лист переворачивается в воздухе
+    ctx.fillStyle = l.color;
+    ctx.beginPath();
+    ctx.moveTo(0, -s);
+    ctx.quadraticCurveTo(s * 0.75, -s * 0.2, 0, s);
+    ctx.quadraticCurveTo(-s * 0.75, -s * 0.2, 0, -s);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 250, 210, .55)'; // прожилка и черешок
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, -s * 0.8);
+    ctx.lineTo(0, s * 1.25);
+    ctx.stroke();
+    ctx.restore();
+  };
+  return canvasLoop('forest-leaves', canvas => {
+    const count = Math.max(14, Math.round(canvas.width * canvas.height / 22000));
+    leaves = Array.from({ length: count }, () => spawn(canvas, true));
+  }, (canvas, ctx) => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.globalAlpha = 0.8;
+    leaves.forEach((l, i) => {
+      l.y += l.fall;
+      l.phase += 0.02;
+      l.spin += l.spinSpeed;
+      l.flip += 0.04;
+      if (l.y > canvas.height + 30) { leaves[i] = spawn(canvas); return; }
+      drawLeaf(ctx, l);
+    });
+    ctx.globalAlpha = 1;
+  }, 33);
+}
+
+const EFFECTS = { matrix: matrixRain, pixel: tetrisRain, ocean: oceanBubbles, halloween: halloweenSky, forest: forestLeaves };
