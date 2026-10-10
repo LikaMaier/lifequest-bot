@@ -170,10 +170,18 @@ class ThemesAndMascotsTest(TempDBTestCase, AioHTTPTestCase):
 
     async def test_any_theme_regardless_of_level(self):
         h = headers(42)
-        for theme in ("brutal", "pixel", "halloween", "matrix", "ocean", "classic"):
+        for theme in ("forest", "pixel", "halloween", "matrix", "ocean", "classic"):
             r = await self.client.post("/api/settings", headers=h, json={"theme": theme})
             self.assertEqual((await r.json())["user"]["theme"], theme)
         self.assertEqual((await self.client.post("/api/settings", headers=h, json={"theme": "neon"})).status, 400)
+
+    async def test_removed_brutal_theme_falls_back_to_classic(self):
+        await self.client.get("/api/state", headers=headers(42))
+        storage.update_user(42, theme="brutal")
+        storage.init_db()
+        self.assertEqual(storage.get_user(42)["theme"], "classic")
+        r = await self.client.post("/api/settings", headers=headers(42), json={"theme": "brutal"})
+        self.assertEqual(r.status, 400)
 
     async def test_legacy_mascot_migrated(self):
         await self.client.get("/api/state", headers=headers(42))
