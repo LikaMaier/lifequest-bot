@@ -85,7 +85,7 @@ const TETROMINOES = [
   [[0, 0], [0, 1], [1, 1], [2, 1]],         // J
   [[2, 0], [0, 1], [1, 1], [2, 1]],         // L
 ];
-const TETRIS_COLORS = ['#6F85B9', '#72CED7', '#D3578B', '#F1980D', '#9DAEDD'];
+const TETRIS_COLORS = ['#4D6BFF', '#00E0EB', '#FF2E84', '#FF9500', '#8A5CFF', '#FFD12E'];
 
 function tetrisRain() {
   const cell = 14;
