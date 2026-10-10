@@ -17,6 +17,7 @@ from aiohttp import web
 import re
 
 import game
+import ops
 import habits
 import photos
 import plans
@@ -76,6 +77,11 @@ async def errors_middleware(request, handler):
         return _error(400, str(e))
     except (json.JSONDecodeError, UnicodeDecodeError):
         return _error(400, "Некорректный запрос")
+    except web.HTTPException:
+        raise
+    except Exception as e:
+        await ops.alert(f"API {request.method} {request.path}", e)
+        return _error(500, "Что-то сломалось — мы уже чиним")
 
 
 @web.middleware
@@ -97,6 +103,8 @@ async def auth_middleware(request, handler):
     tz = request.headers.get(TZ_HEADER, "")
     if tz and not storage.get_user(user_id).get("tz") and game.valid_tz(tz):
         storage.update_user(user_id, tz=tz)
+    if request.path == "/api/state":
+        storage.mark_seen(user_id)  # открыл приложение: время визита, снова можно писать
     request["user_id"] = user_id
     return await handler(request)
 
@@ -221,6 +229,25 @@ async def post_settings(request):
     data = await _body(request)
     game.update_settings(request["user_id"], data)
     return web.json_response(_state(request))
+
+
+async def get_shop(request):
+    return web.json_response(game.shop_view(request["user_id"]))
+
+
+async def shop_buy(request):
+    _limit(request, "write")
+    data = await _body(request)
+    shop = game.buy(request["user_id"], str(data.get("item") or ""))
+    return web.json_response({"shop": shop, "state": _state(request)})
+
+
+async def shop_equip(request):
+    _limit(request, "write")
+    data = await _body(request)
+    item = data.get("item")
+    shop = game.equip(request["user_id"], str(item) if item else None)
+    return web.json_response({"shop": shop, "state": _state(request)})
 
 
 async def post_share(request):
@@ -476,6 +503,9 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_post("/api/board", post_board)
     app.router.add_post("/api/settings", post_settings)
     app.router.add_post("/api/share", post_share)
+    app.router.add_get("/api/shop", get_shop)
+    app.router.add_post("/api/shop/buy", shop_buy)
+    app.router.add_post("/api/shop/equip", shop_equip)
     app.router.add_get("/api/habits", get_habits)
     app.router.add_post("/api/habits", habit_create)
     app.router.add_post("/api/habits/update", habit_update)

@@ -76,20 +76,20 @@ class StreakTest(unittest.TestCase):
         self.assertEqual(game.advance_streak(3, 5, self.iso(0), None, self.D)[:2], (3, 5))
 
     def test_consecutive(self):
-        cur, best, _fw, used = game.advance_streak(4, 4, self.iso(1), None, self.D)
+        cur, best, _fw, used, _t = game.advance_streak(4, 4, self.iso(1), None, self.D)
         self.assertEqual((cur, best, used), (5, 5, False))
 
     def test_gap_resets(self):
-        cur, best, _fw, _used = game.advance_streak(6, 6, self.iso(3), None, self.D)
+        cur, best, _fw, _used, _t = game.advance_streak(6, 6, self.iso(3), None, self.D)
         self.assertEqual((cur, best), (1, 6))
 
     def test_freeze_once_per_week(self):
-        cur, _best, fw, used = game.advance_streak(4, 4, self.iso(2), None, self.D)
+        cur, _best, fw, used, _t = game.advance_streak(4, 4, self.iso(2), None, self.D)
         self.assertEqual((cur, used), (5, True))
         self.assertEqual(fw, storage.week_key_for(self.D))
         # вторая заморозка на той же неделе не срабатывает
         later = self.D + timedelta(days=2)
-        cur2, _b, _fw2, used2 = game.advance_streak(5, 5, self.D.isoformat(), fw, later)
+        cur2, _b, _fw2, used2, _t2 = game.advance_streak(5, 5, self.D.isoformat(), fw, later)
         self.assertEqual((cur2, used2), (1, False))
 
     def test_view_statuses(self):
@@ -183,3 +183,26 @@ class TitleSyncTest(TempDBTestCase):
         conn.close()
         self.assertIn("Чистота снаружи — чистота в голове", text)
         self.assertEqual(title, "Чистота снаружи — чистота в голове")
+
+
+class FreezeTokensTest(unittest.TestCase):
+    D = date(2026, 3, 11)  # среда
+
+    def iso(self, days_ago):
+        return (self.D - timedelta(days=days_ago)).isoformat()
+
+    def test_tokens_cover_extra_missed_days(self):
+        # пропущено 3 дня: 1 бесплатная заморозка недели + 2 купленные
+        cur, _b, fw, used, tokens_used = game.advance_streak(10, 10, self.iso(4), None, self.D, tokens=2)
+        self.assertEqual((cur, used, tokens_used), (11, True, 2))
+        self.assertEqual(fw, game.week_key(self.D))
+
+    def test_not_enough_tokens_resets(self):
+        cur, _b, _fw, used, tokens_used = game.advance_streak(10, 10, self.iso(4), None, self.D, tokens=1)
+        self.assertEqual((cur, used, tokens_used), (1, False, 0))
+
+    def test_weekly_used_then_token(self):
+        cur, _b, _fw, used, tokens_used = game.advance_streak(5, 5, self.iso(2), game.week_key(self.D), self.D, tokens=1)
+        self.assertEqual((cur, used, tokens_used), (6, True, 1))
+        view = game.streak_view(5, 5, self.iso(2), game.week_key(self.D), self.D, tokens=1)
+        self.assertEqual(view["status"], "freeze")

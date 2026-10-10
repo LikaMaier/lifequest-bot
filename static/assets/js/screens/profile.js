@@ -39,7 +39,7 @@ export function render(el, { state, go }) {
   const lv = state.level;
 
   el.append(h('section', { class: 'card tinted c-lav center', style: { marginTop: '4px' } },
-    mascot(u.mascot, 'happy', { size: 96, label: 'Твой маскот', cls: 'jump' }),
+    mascot(u.mascot, 'happy', { size: 96, label: 'Твой маскот', cls: 'jump', acc: u.accessory }),
     h('h1', { style: { marginTop: '8px' } }, u.first_name || 'Искатель приключений'),
     h('p', { class: 'bold', style: { color: 'var(--lav-deep)', marginTop: '4px' } }, `Уровень ${lv.level} · ${lv.name}`),
     h('div', { style: { margin: '12px 10px 4px' } }, progressBar(lv.progress, 'purple')),
@@ -60,7 +60,8 @@ export function render(el, { state, go }) {
     const text = 'Я играю в LifeQuest — бот подкидывает странные и классные задания. Давай со мной?';
     openTgLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`);
   } });
-  el.append(h('div', { class: 'stack-sm', style: { marginTop: '16px' } }, shareBtn, invite));
+  const shopBtn = button(`🛍️ Магазин · ${u.balance} XP`, { cls: 'block', color: 'pink', onClick: () => go('shop') });
+  el.append(h('div', { class: 'stack-sm', style: { marginTop: '16px' } }, shopBtn, shareBtn, invite));
 
   // Маскот
   const mascots = h('div', { class: 'picker-grid', role: 'radiogroup', 'aria-label': 'Маскот' },

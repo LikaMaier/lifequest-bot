@@ -16,6 +16,7 @@ const SCREENS = {
   progress: { title: 'Прогресс', icon: ICONS.progress, load: () => import('./screens/progress.js') },
   calendar: { title: 'Календарь', icon: ICONS.calendar, load: () => import('./screens/calendar.js') },
   awards: { title: 'Награды', sub: true, load: () => import('./screens/awards.js') },
+  shop: { title: 'Магазин', sub: true, load: () => import('./screens/shop.js') },
   album: { title: 'Альбом', sub: true, load: () => import('./screens/album.js') },
   profile: { title: 'Профиль', sub: true, load: () => import('./screens/profile.js') },
   premium: { title: 'Premium', sub: true, load: () => import('./screens/profile.js'), entry: 'renderPremium' },

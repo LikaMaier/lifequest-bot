@@ -5,6 +5,7 @@ from aiohttp.test_utils import AioHTTPTestCase
 
 from tests.helpers import TempDBTestCase
 import api
+import game
 import storage
 from webapp_auth import sign_init_data
 
@@ -192,3 +193,48 @@ class ThemesAndMascotsTest(TempDBTestCase, AioHTTPTestCase):
         self.assertEqual([m["id"] for m in state["unlocks"]["mascots"]],
                          ["cat-purple", "star", "frog", "puppy", "bear", "leopard", "panda", "pig"])
         self.assertEqual(len(state["unlocks"]["themes"]), 6)
+
+
+class ShopApiTest(TempDBTestCase, AioHTTPTestCase):
+    def setUp(self):
+        TempDBTestCase.setUp(self)
+        AioHTTPTestCase.setUp(self)
+
+    def tearDown(self):
+        AioHTTPTestCase.tearDown(self)
+        TempDBTestCase.tearDown(self)
+
+    async def get_application(self):
+        return api.create_app(TOKEN)
+
+    async def test_buy_equip_and_balance(self):
+        h = headers(42)
+        await self.client.get("/api/state", headers=h)
+        storage.update_user(42, xp=300)
+        shop = await (await self.client.get("/api/shop", headers=h)).json()
+        self.assertEqual(shop["balance"], 300)
+        r = await self.client.post("/api/shop/buy", headers=h, json={"item": "crown"})
+        data = await r.json()
+        self.assertEqual(data["shop"]["balance"], 100)
+        self.assertEqual(data["state"]["user"]["accessory"], "crown")  # надевается сразу
+        self.assertEqual(data["state"]["level"]["xp"], 300)  # уровень не падает
+        # повторно купить нельзя, на дорогое не хватает
+        self.assertEqual((await self.client.post("/api/shop/buy", headers=h, json={"item": "crown"})).status, 400)
+        r = await self.client.post("/api/shop/buy", headers=h, json={"item": "halo"})
+        self.assertEqual(r.status, 400)
+        self.assertIn("Не хватает XP", (await r.json())["error"])
+        # снять и надеть только купленное
+        r = await self.client.post("/api/shop/equip", headers=h, json={"item": None})
+        self.assertIsNone((await r.json())["state"]["user"]["accessory"])
+        self.assertEqual((await self.client.post("/api/shop/equip", headers=h, json={"item": "bow"})).status, 400)
+
+    async def test_freeze_tokens_limit(self):
+        h = headers(42)
+        await self.client.get("/api/state", headers=h)
+        storage.update_user(42, xp=1000)
+        for _ in range(3):
+            r = await self.client.post("/api/shop/buy", headers=h, json={"item": "freeze"})
+            self.assertEqual(r.status, 200)
+        self.assertEqual((await self.client.post("/api/shop/buy", headers=h, json={"item": "freeze"})).status, 400)
+        self.assertEqual(storage.get_user(42)["freeze_tokens"], 3)
+        self.assertEqual(game.balance(storage.get_user(42)), 1000 - 3 * game.FREEZE_PRICE)

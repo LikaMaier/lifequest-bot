@@ -18,6 +18,7 @@ from aiogram.types import (
     InlineKeyboardButton, BotCommand, KeyboardButton, ReplyKeyboardMarkup,
     WebAppInfo, MenuButtonWebApp
 )
+from apscheduler.events import EVENT_JOB_ERROR
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
 
@@ -27,6 +28,7 @@ import api
 import game
 import habits
 import nudges
+import ops
 import photos
 import plans
 import storage
@@ -48,6 +50,28 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
 scheduler = AsyncIOScheduler()
+ops.setup(bot, ADMIN_ID)
+
+
+# Любое действие человека в боте: запоминаем, что он здесь, и снимаем пометку
+# «заблокировал бота» — значит, снова можно присылать напоминания.
+async def _seen_middleware(handler, event, data):
+    user = getattr(event, "from_user", None)
+    if user:
+        try:
+            storage.mark_seen(user.id)
+        except Exception as e:
+            print(f"mark_seen failed: {e}")
+    return await handler(event, data)
+
+dp.message.outer_middleware(_seen_middleware)
+dp.callback_query.outer_middleware(_seen_middleware)
+
+
+@dp.errors()
+async def on_error(event):
+    await ops.alert("обработчик бота", event.exception)
+    return True
 
 # ==================== KEYBOARD BUILDER ====================
 # ==================== WELCOME ====================
@@ -468,7 +492,8 @@ async def handle_miniapp_data(message: Message):
 def users_at_local_hour(column: str, default_hour: int) -> list:
     """user_id тех, у кого сейчас по их часовому поясу наступил нужный час."""
     conn = connect(rows=True)
-    rows = conn.execute(f"SELECT user_id, tz, COALESCE({column}, ?) AS hour FROM users", (default_hour,)).fetchall()
+    rows = conn.execute(f"SELECT user_id, tz, COALESCE({column}, ?) AS hour FROM users WHERE COALESCE(blocked, 0) = 0",
+                        (default_hour,)).fetchall()
     conn.close()
     return [r["user_id"] for r in rows if game.local_now(dict(r)).hour == r["hour"]]
 
@@ -510,10 +535,10 @@ async def send_daily_reminders():
     for user_id in users_at_local_hour("reminder_hour", 9):
         try:
             text, kb = build_morning_message(user_id)
-            await bot.send_message(user_id, text, parse_mode="HTML", reply_markup=kb)
+            await ops.safe_send(user_id, text, parse_mode="HTML", reply_markup=kb)
             await send_morning_plans(user_id)
         except Exception as e:
-            print(f"Failed to send reminder to {user_id}: {e}")
+            await ops.alert("reminder", e, f"user {user_id}")
 
 
 @dp.callback_query(F.data.startswith("daily_accept_"))
@@ -561,7 +586,7 @@ async def send_morning_plans(user_id: int):
     ctx = nudges.context(user_id)
     head = nudges.pick("plans_today", user_id, ctx["today"], m=ctx["m"])
     markup = InlineKeyboardMarkup(inline_keyboard=app_row("calendar")) if MINIAPP_URL else None
-    await bot.send_message(user_id, f"🗓️ <b>Сегодня у тебя в планах</b>\n{head}\n\n" + plans_lines(items),
+    await ops.safe_send(user_id, f"🗓️ <b>Сегодня у тебя в планах</b>\n{head}\n\n" + plans_lines(items),
                            parse_mode="HTML", reply_markup=markup)
 
 
@@ -580,9 +605,9 @@ async def send_plan_reminders():
             if o.get("note"):
                 text += f"\n<i>{html.escape(o['note'][:200])}</i>"
             markup = InlineKeyboardMarkup(inline_keyboard=app_row("calendar")) if MINIAPP_URL else None
-            await bot.send_message(user_id, text, parse_mode="HTML", reply_markup=markup)
+            await ops.safe_send(user_id, text, parse_mode="HTML", reply_markup=markup)
         except Exception as e:
-            print(f"Failed to send plan reminder to {user_id}: {e}")
+            await ops.alert("plan reminder", e, f"user {user_id}")
 
 
 async def cleanup_photos():
@@ -601,9 +626,50 @@ async def send_evening_reminders():
     for user_id in users_at_local_hour("evening_reminder_hour", 20):
         try:
             text, markup = build_evening_message(user_id)
-            await bot.send_message(user_id, text, parse_mode="HTML", reply_markup=markup)
+            await ops.safe_send(user_id, text, parse_mode="HTML", reply_markup=markup)
+            if game.local_today(storage.get_user(user_id)).weekday() == 6:  # воскресенье — итоги недели
+                weekly, weekly_kb = build_weekly_message(user_id)
+                if weekly:
+                    await ops.safe_send(user_id, weekly, parse_mode="HTML", reply_markup=weekly_kb)
         except Exception as e:
-            print(f"Failed to send evening reminder to {user_id}: {e}")
+            await ops.alert("evening reminder", e, f"user {user_id}")
+
+
+def plural_ru(n: int, one: str, few: str, many: str) -> str:
+    if n % 10 == 1 and n % 100 != 11:
+        return one
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return few
+    return many
+
+
+def build_weekly_message(user_id: int):
+    """Итоги недели (воскресенье, час вечернего напоминания). None — если
+    и эта, и прошлая неделя пустые: не тревожим тех, кто давно не заходит."""
+    ctx = nudges.context(user_id)
+    w = game.week_summary(user_id, ctx["today"])
+    if not w["done"] and not w["prev_done"] and not w["habits_pct"]:
+        return None, None
+    kind = "week_zero" if not w["done"] else "week_up" if w["done"] > w["prev_done"] else "week_ok"
+    joke = nudges.pick(kind, user_id, ctx["today"], m=ctx["m"])
+    lines = [f"📊 <b>Итоги недели</b>\n{joke}\n"]
+    trend = ""
+    if w["prev_done"]:
+        diff = w["done"] - w["prev_done"]
+        trend = f" ({'+' if diff > 0 else ''}{diff} к прошлой)" if diff else " (как на прошлой)"
+    lines.append(f"✅ Квестов: <b>{w['done']}</b>{trend}")
+    if w["xp"]:
+        lines.append(f"⭐ Заработано: <b>{w['xp']} XP</b>")
+    if w["best_day"]:
+        lines.append(f"🏆 Лучший день: {w['best_day']} — {w['best_count']} {plural_ru(w['best_count'], 'квест', 'квеста', 'квестов')}")
+    if w["active_days"]:
+        lines.append(f"📅 Активных дней: {w['active_days']} из 7")
+    if w["streak"]:
+        lines.append(f"🔥 Серия: {w['streak']} {plural_ru(w['streak'], 'день', 'дня', 'дней')}")
+    if w["habits_pct"] is not None:
+        lines.append(f"🌱 Привычки выполнены на {w['habits_pct']}%")
+    markup = InlineKeyboardMarkup(inline_keyboard=app_row("progress")) if MINIAPP_URL else None
+    return "\n".join(lines), markup
 
 
 def build_evening_message(user_id: int):
@@ -665,7 +731,7 @@ async def send_monthly_recap():
             else:
                 word = "квестов"
 
-            await bot.send_message(
+            await ops.safe_send(
                 user_id,
                 f"🎉 <b>Итоги месяца: {month_name}</b>\n\n"
                 f"За {month_name} ты закрыл(а) {count} {word}. Это {count} раз, когда ты выбрал(а) сделать шаг, "
@@ -675,7 +741,7 @@ async def send_monthly_recap():
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=app_row("progress")) if MINIAPP_URL else None,
             )
         except Exception as e:
-            print(f"Failed to send monthly recap to {user_id}: {e}")
+            await ops.alert("monthly recap", e, f"user {user_id}")
 
 @dp.message(Command("remind"))
 async def set_reminder_time(message: Message):
@@ -720,16 +786,29 @@ async def admin_stats(message: Message):
     avg_week = c.fetchone()[0] or 1
     c.execute("SELECT AVG(streak_days) FROM users")
     avg_streak = c.fetchone()[0] or 0
+    c.execute("SELECT COUNT(*) FROM users WHERE COALESCE(blocked, 0) = 1")
+    blocked_count = c.fetchone()[0]
     conn.close()
 
     await message.answer(
         f"📊 <b>Статистика</b>\n\n"
-        f"Пользователей: {users_count}\n"
+        f"Пользователей: {users_count} (заблокировали бота: {blocked_count})\n"
         f"Выполнено заданий: {tasks_count}\n"
         f"Средняя неделя: {avg_week:.1f}\n"
         f"Средний стрик: {avg_streak:.1f} дней",
         parse_mode="HTML"
     )
+
+@dp.message(Command("backup"), F.from_user.id == ADMIN_ID)
+async def admin_backup(message: Message):
+    await message.answer("💾 Делаю копию базы…")
+    if not await ops.send_backup(message.chat.id):
+        await message.answer("Не получилось — подробности придут отдельным сообщением или есть в логах.")
+
+
+def _on_job_error(event):
+    if event.exception:
+        asyncio.get_event_loop().create_task(ops.alert(f"задача по расписанию {event.job_id}", event.exception))
 
 # ==================== MAIN ====================
 async def main():
@@ -769,7 +848,11 @@ async def main():
     scheduler.add_job(send_monthly_recap, "cron", day=1, hour=10, minute=0)
     scheduler.add_job(send_plan_reminders, "interval", minutes=1)
     scheduler.add_job(cleanup_photos, "cron", hour=4, minute=17)
+    scheduler.add_job(ops.send_backup, "cron", hour=3, minute=33, id="backup")  # ночная копия базы админу
+    scheduler.add_listener(_on_job_error, EVENT_JOB_ERROR)
     photos.enabled()  # предупредит в логах, если Volume для фото не подключён
+    print("Admin alerts and nightly backups: " + ("on" if ADMIN_ID else
+          "OFF — задайте ADMIN_ID (ваш Telegram id), чтобы получать копии базы и ошибки"))
     scheduler.start()
 
     await dp.start_polling(bot)
