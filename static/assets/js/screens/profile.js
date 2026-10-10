@@ -79,7 +79,7 @@ export function render(el, { state, go }) {
   const PREVIEW = {
     classic: { bg: '#FDF7DE', cells: ['#F3619C', '#93ABD8', '#DBFA40'], mark: '🐱', radius: '8px' },
     brutal: { bg: '#F1EFE7', cells: ['#FFE14D', '#FF5FA2', '#5B8CFF'], mark: '■', radius: '0', border: '2px solid #0A0A0A' },
-    pixel: { bg: '#544957', cells: ['#D3578B', '#F1980D', '#72CED7'], mark: '👾', radius: '0' },
+    pixel: { bg: '#FFF8EC', cells: ['#FF2E84', '#FFA21F', '#3DEBF2'], mark: '👾', radius: '0' },
     halloween: { bg: '#160D1E', cells: ['#FF8A2A', '#B98CFF', '#9BFF4F'], mark: '🎃', radius: '8px' },
     matrix: { bg: '#020A04', cells: ['#00FF66', '#2CF2C8', '#D6FF3D'], mark: '⌨️', radius: '3px' },
     ocean: { bg: '#062A43', cells: ['#2FE6D0', '#5CC8FF', '#FF8FD0'], mark: '🐠', radius: '12px' },

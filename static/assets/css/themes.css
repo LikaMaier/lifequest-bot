@@ -53,21 +53,21 @@
 [data-theme="brutal"] .sheet { border-bottom: 0 !important; }
 [data-theme="brutal"] body { background-image: linear-gradient(#0000000d 1px, transparent 1px), linear-gradient(90deg, #0000000d 1px, transparent 1px); background-size: 24px 24px; }
 
-/* ---------- 8-bit: ретро-пиксели. Палитра: Wild Yonder #6F85B9, Spray #72CED7,
-   Mulberry #D3578B, Gamboge #F1980D, Bossanova #544957 ---------- */
+/* ---------- 8-bit: светлый, очень яркий. Оттенки палитры Wild Yonder / Spray /
+   Mulberry / Gamboge / Bossanova, выкрученные на максимум насыщенности ---------- */
 :root[data-theme="pixel"] {
-  --cream: #3B3240; --cream-2: #544957; --white: #2B2430;
-  --ink: #FFF4EA; --ink-soft: #E2D8E4; --muted: #B4A8B8; --line: #120E14;
-  --blue: #3B4566; --blue-deep: #8FA3D6; --pink: #5E2C45; --pink-deep: #E97CA8; --yellow: #5E4314; --yellow-deep: #F7B347;
-  --lav: #44405F; --lav-deep: #A9B7E0; --red: #5E2C45; --red-deep: #E06A97; --orange: #5E3D12; --orange-deep: #F1980D;
-  --purple: #433A5C; --purple-deep: #9DAEDD; --lime: #24474D; --lime-deep: #72CED7; --paleyellow: #4D4234;
-  --accent: #D3578B; --accent-deep: #6F85B9; --accent-ink: #FFFFFF;
+  --cream: #FFF8EC; --cream-2: #FFEBC7; --white: #FFFFFF;
+  --ink: #2A1F33; --ink-soft: #4F4459; --muted: #6E6378; --line: #2A1F33;
+  --blue: #8FA4FF; --blue-deep: #2440D6; --pink: #FF7AB6; --pink-deep: #B5005A; --yellow: #FFD12E; --yellow-deep: #855A00;
+  --lav: #C8B6FF; --lav-deep: #5228C7; --red: #FF6F8E; --red-deep: #B0002E; --orange: #FFA21F; --orange-deep: #9A4600;
+  --purple: #A98BFF; --purple-deep: #4A1FC2; --lime: #3DEBF2; --lime-deep: #006E75; --paleyellow: #FFF0A8;
+  --accent: #FF2E84; --accent-deep: #2440D6; --accent-ink: #FFFFFF;
   --r-sm: 0; --r-md: 0; --r-lg: 0; --r-xl: 0;
   --font-display: 'Pixelify Sans', monospace; --font-body: 'Pixelify Sans', monospace;
-  color-scheme: dark;
+  color-scheme: light;
 }
-[data-theme="pixel"] body { font-size: 15.5px; background-color: transparent; /* фигурки тетриса видны между карточками */ background-image: linear-gradient(#ffffff08 2px, transparent 2px), linear-gradient(90deg, #ffffff08 2px, transparent 2px); background-size: 16px 16px; }
-.tetris-rain { position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: .7; image-rendering: pixelated; }
+[data-theme="pixel"] body { font-size: 15.5px; background-color: transparent; /* фигурки тетриса видны между карточками */ background-image: linear-gradient(#2A1F3310 2px, transparent 2px), linear-gradient(90deg, #2A1F3310 2px, transparent 2px); background-size: 16px 16px; }
+.tetris-rain { position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: .85; image-rendering: pixelated; }
 .mascot-pixel { height: 100%; aspect-ratio: 1; image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
 [data-theme="pixel"] h1 { font-family: 'Press Start 2P', monospace; font-size: 16px; line-height: 1.5; letter-spacing: 0; }
 [data-theme="pixel"] .onb-title { font-size: 15px; }
@@ -75,12 +75,14 @@
   .board-grid, .picker, .photo-add, .onb-feature, .onb-hero, .level-badge, .avatar-btn, .icon-btn, .chip, .habit-check,
   .habit-step, .plan-check, .accent-pick, .theme-card, .badge-big, .toast, .modal, .btn, .input, .segmented) {
   border-radius: 0 !important; image-rendering: pixelated;
-  box-shadow: 0 -4px 0 0 #120E14, 0 4px 0 0 #120E14, -4px 0 0 0 #120E14, 4px 0 0 0 #120E14, 4px 8px 0 0 #00000088 !important;
+  box-shadow: 0 -4px 0 0 #2A1F33, 0 4px 0 0 #2A1F33, -4px 0 0 0 #2A1F33, 4px 0 0 0 #2A1F33, 4px 8px 0 0 #2A1F3333 !important;
 }
-[data-theme="pixel"] .btn:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 -4px 0 0 #120E14, 0 4px 0 0 #120E14, -4px 0 0 0 #120E14, 4px 0 0 0 #120E14 !important; }
+[data-theme="pixel"] .btn:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 -4px 0 0 #2A1F33, 0 4px 0 0 #2A1F33, -4px 0 0 0 #2A1F33, 4px 0 0 0 #2A1F33 !important; }
 [data-theme="pixel"] :is(.cal-day, .board-cell, .heat-cell, .photo-thumb, .album-cell, .emoji-pick, .tab, .bar, .bar > span, .hbar-track, .hbar-track span, .habit-bar, .habit-bar span) { border-radius: 0 !important; }
 [data-theme="pixel"] .ring-bar { stroke-linecap: butt; }
-[data-theme="pixel"] .tabbar { border-top: 4px solid #120E14; background: #2B2430; }
+[data-theme="pixel"] .tabbar { border-top: 4px solid #2A1F33; background: #FFFFFF; }
+[data-theme="pixel"] .tab[aria-current="page"] { background: #FFD12E; color: #2A1F33; }
+[data-theme="pixel"] .ring-track { stroke: #FFE3B0; }
 
 /* ---------- Хэллоуин: фиолетовая ночь, тыквенный оранжевый ---------- */
 :root[data-theme="halloween"] {
@@ -155,6 +157,6 @@
 .theme-card .theme-desc { padding: 0 10px 10px; font-weight: 600; font-size: 11px; color: var(--muted); line-height: 1.3; }
 
 /* Тёмные стили: активная вкладка и ссылки — яркий акцент, а не тёмный «deep» */
-:root:is([data-theme="pixel"], [data-theme="halloween"], [data-theme="matrix"], [data-theme="ocean"]) .tab[aria-current="page"] svg { color: var(--accent); }
-:root:is([data-theme="pixel"], [data-theme="halloween"], [data-theme="matrix"], [data-theme="ocean"]) :is(.section-title .link, .avatar-btn) { color: var(--accent); }
-:root:is([data-theme="pixel"], [data-theme="halloween"], [data-theme="matrix"], [data-theme="ocean"]) .tab[aria-current="page"] { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+:root:is([data-theme="halloween"], [data-theme="matrix"], [data-theme="ocean"]) .tab[aria-current="page"] svg { color: var(--accent); }
+:root:is([data-theme="halloween"], [data-theme="matrix"], [data-theme="ocean"]) :is(.section-title .link, .avatar-btn) { color: var(--accent); }
+:root:is([data-theme="halloween"], [data-theme="matrix"], [data-theme="ocean"]) .tab[aria-current="page"] { background: color-mix(in srgb, var(--accent) 18%, transparent); }
