@@ -851,6 +851,8 @@ async def main():
     scheduler.add_job(ops.send_backup, "cron", hour=3, minute=33, id="backup")  # ночная копия базы админу
     scheduler.add_listener(_on_job_error, EVENT_JOB_ERROR)
     photos.enabled()  # предупредит в логах, если Volume для фото не подключён
+    print("Admin alerts and nightly backups: " + ("on" if ADMIN_ID else
+          "OFF — задайте ADMIN_ID (ваш Telegram id), чтобы получать копии базы и ошибки"))
     scheduler.start()
 
     await dp.start_polling(bot)
