@@ -1,5 +1,6 @@
 // Применение стиля приложения: атрибут data-theme, цвета шапки Telegram и
-// декоративные эффекты (цифровой дождь в «Матрице», фигурки тетриса в 8-bit, пузырьки в «Морском мире»).
+// декоративные эффекты (цифровой дождь в «Матрице», фигурки тетриса в 8-bit, пузырьки в «Морском мире»,
+// летучие мыши и тыквы в «Хэллоуине»).
 
 import { tg } from './tg.js';
 
@@ -173,4 +174,107 @@ function oceanBubbles() {
   }, 33);
 }
 
-const EFFECTS = { matrix: matrixRain, pixel: tetrisRain, ocean: oceanBubbles };
+// Хэллоуин: летучие мыши машут крыльями и пролетают по волнистой траектории,
+// тыквы-фонарики медленно всплывают и покачиваются.
+function pumpkinSprite(size) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size * 2;
+  const g = c.getContext('2d');
+  const r = size * 0.62, cx = size, cy = size * 1.08;
+  g.fillStyle = '#4C8A2A'; // хвостик
+  g.fillRect(cx - size * 0.07, cy - r * 0.95 - size * 0.22, size * 0.14, size * 0.28);
+  [[-0.42, 0.62, '#D9600F'], [0.42, 0.62, '#D9600F'], [0, 0.7, '#FF7A1A']].forEach(([dx, rx, color]) => {
+    g.fillStyle = color;
+    g.beginPath();
+    g.ellipse(cx + dx * r, cy, rx * r, r * 0.78, 0, 0, Math.PI * 2);
+    g.fill();
+  });
+  g.fillStyle = '#FFD23F'; // светящееся лицо
+  const tri = (x, y, w) => { g.beginPath(); g.moveTo(x - w, y + w * 0.7); g.lineTo(x + w, y + w * 0.7); g.lineTo(x, y - w * 0.7); g.fill(); };
+  tri(cx - r * 0.33, cy - r * 0.2, r * 0.16);
+  tri(cx + r * 0.33, cy - r * 0.2, r * 0.16);
+  g.beginPath();
+  g.moveTo(cx - r * 0.45, cy + r * 0.18);
+  for (let i = 0; i <= 6; i++) g.lineTo(cx - r * 0.45 + i * r * 0.15, cy + r * (i % 2 ? 0.3 : 0.18));
+  g.quadraticCurveTo(cx, cy + r * 0.62, cx - r * 0.45, cy + r * 0.18);
+  g.fill();
+  return c;
+}
+
+function halloweenSky() {
+  let bats = [], pumpkins = [];
+  const sprites = [22, 30, 40].map(pumpkinSprite);
+  const newBat = (canvas, anywhere) => {
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    return {
+      x: anywhere ? Math.random() * canvas.width : (dir > 0 ? -40 : canvas.width + 40),
+      y0: 30 + Math.random() * canvas.height * 0.75,
+      dir, size: 9 + Math.random() * 10, speed: 1.2 + Math.random() * 1.6,
+      phase: Math.random() * Math.PI * 2, flap: Math.random() * Math.PI * 2,
+    };
+  };
+  const newPumpkin = (canvas, anywhere) => ({
+    x: 20 + Math.random() * (canvas.width - 40),
+    y: anywhere ? Math.random() * canvas.height : canvas.height + 50,
+    sprite: sprites[Math.floor(Math.random() * sprites.length)],
+    speed: 0.25 + Math.random() * 0.35, phase: Math.random() * Math.PI * 2,
+  });
+  const drawBat = (ctx, b) => {
+    const x = b.x, y = b.y0 + Math.sin(b.phase) * 18, s = b.size;
+    const w = Math.sin(b.flap) * 0.9; // взмах: кончики крыльев вверх-вниз
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(b.dir, 1);
+    ctx.fillStyle = '#6B4A8C';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(-s * 0.9, -s * (0.2 + w), -s * 2, -s * w * 1.2);
+    ctx.quadraticCurveTo(-s * 1.4, s * 0.1, -s * 1.1, s * 0.35);
+    ctx.quadraticCurveTo(-s * 0.7, s * 0.05, -s * 0.35, s * 0.35);
+    ctx.quadraticCurveTo(-s * 0.2, s * 0.1, 0, s * 0.3);
+    ctx.quadraticCurveTo(s * 0.2, s * 0.1, s * 0.35, s * 0.35);
+    ctx.quadraticCurveTo(s * 0.7, s * 0.05, s * 1.1, s * 0.35);
+    ctx.quadraticCurveTo(s * 1.4, s * 0.1, s * 2, -s * w * 1.2);
+    ctx.quadraticCurveTo(s * 0.9, -s * (0.2 + w), 0, 0);
+    ctx.fill();
+    ctx.beginPath(); // тельце с ушками
+    ctx.ellipse(0, s * 0.1, s * 0.28, s * 0.42, 0, 0, Math.PI * 2);
+    ctx.moveTo(-s * 0.22, -s * 0.2); ctx.lineTo(-s * 0.15, -s * 0.5); ctx.lineTo(-s * 0.02, -s * 0.25);
+    ctx.moveTo(s * 0.22, -s * 0.2); ctx.lineTo(s * 0.15, -s * 0.5); ctx.lineTo(s * 0.02, -s * 0.25);
+    ctx.fill();
+    ctx.fillStyle = '#FF8A2A'; // глазки
+    ctx.fillRect(-s * 0.14, -s * 0.02, s * 0.1, s * 0.1);
+    ctx.fillRect(s * 0.04, -s * 0.02, s * 0.1, s * 0.1);
+    ctx.restore();
+  };
+  return canvasLoop('halloween-sky', canvas => {
+    const area = canvas.width * canvas.height;
+    bats = Array.from({ length: Math.max(6, Math.round(area / 50000)) }, () => newBat(canvas, true));
+    pumpkins = Array.from({ length: Math.max(4, Math.round(area / 90000)) }, () => newPumpkin(canvas, true));
+  }, (canvas, ctx) => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.globalAlpha = 0.65;
+    pumpkins.forEach((p, i) => {
+      p.y -= p.speed;
+      p.phase += 0.03;
+      if (p.y < -60) { pumpkins[i] = newPumpkin(canvas); return; }
+      const half = p.sprite.width / 2;
+      ctx.save();
+      ctx.translate(p.x + Math.sin(p.phase) * 10, p.y);
+      ctx.rotate(Math.sin(p.phase * 0.8) * 0.25);
+      ctx.drawImage(p.sprite, -half, -half);
+      ctx.restore();
+    });
+    ctx.globalAlpha = 0.85;
+    bats.forEach((b, i) => {
+      b.x += b.speed * b.dir;
+      b.phase += 0.04;
+      b.flap += 0.45;
+      if (b.x < -60 || b.x > canvas.width + 60) { bats[i] = newBat(canvas); return; }
+      drawBat(ctx, b);
+    });
+    ctx.globalAlpha = 1;
+  }, 33);
+}
+
+const EFFECTS = { matrix: matrixRain, pixel: tetrisRain, ocean: oceanBubbles, halloween: halloweenSky };
