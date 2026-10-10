@@ -1,5 +1,5 @@
 // Применение стиля приложения: атрибут data-theme, цвета шапки Telegram и
-// декоративные эффекты (цифровой дождь в «Матрице», падающие фигурки в 8-bit).
+// декоративные эффекты (цифровой дождь в «Матрице», фигурки тетриса в 8-bit, пузырьки в «Морском мире»).
 
 import { tg } from './tg.js';
 
@@ -133,4 +133,44 @@ function tetrisRain() {
   });
 }
 
-const EFFECTS = { matrix: matrixRain, pixel: tetrisRain };
+// Морской мир: пузырьки поднимаются со дна, покачиваясь, и лопаются у поверхности.
+function oceanBubbles() {
+  let bubbles = [];
+  const spawn = (canvas, y) => ({
+    x: Math.random() * canvas.width,
+    y: y ?? canvas.height + 10 + Math.random() * 60,
+    r: 2 + Math.random() * Math.random() * 11,
+    speed: 0.5 + Math.random() * 1.3,
+    phase: Math.random() * Math.PI * 2,
+    sway: 0.4 + Math.random() * 1.2,
+  });
+  return canvasLoop('ocean-bubbles', canvas => {
+    const count = Math.max(18, Math.round(canvas.width * canvas.height / 16000));
+    bubbles = Array.from({ length: count }, () => spawn(canvas, Math.random() * canvas.height));
+  }, (canvas, ctx) => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    bubbles.forEach((b, i) => {
+      b.y -= b.speed * (1 + b.r / 12);
+      b.phase += 0.05;
+      const x = b.x + Math.sin(b.phase) * b.sway * 3;
+      if (b.y < -20) { bubbles[i] = spawn(canvas); return; }
+      // к поверхности пузырёк чуть тает
+      const alpha = Math.min(1, b.y / (canvas.height * 0.25));
+      ctx.globalAlpha = 0.85 * alpha;
+      ctx.beginPath();
+      ctx.arc(x, b.y, b.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,.12)';
+      ctx.fill();
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = 'rgba(255,255,255,.75)';
+      ctx.stroke();
+      ctx.beginPath(); // блик
+      ctx.arc(x - b.r * 0.35, b.y - b.r * 0.35, Math.max(0.8, b.r * 0.25), 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,.9)';
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+  }, 33);
+}
+
+const EFFECTS = { matrix: matrixRain, pixel: tetrisRain, ocean: oceanBubbles };
