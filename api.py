@@ -231,6 +231,25 @@ async def post_settings(request):
     return web.json_response(_state(request))
 
 
+async def get_shop(request):
+    return web.json_response(game.shop_view(request["user_id"]))
+
+
+async def shop_buy(request):
+    _limit(request, "write")
+    data = await _body(request)
+    shop = game.buy(request["user_id"], str(data.get("item") or ""))
+    return web.json_response({"shop": shop, "state": _state(request)})
+
+
+async def shop_equip(request):
+    _limit(request, "write")
+    data = await _body(request)
+    item = data.get("item")
+    shop = game.equip(request["user_id"], str(item) if item else None)
+    return web.json_response({"shop": shop, "state": _state(request)})
+
+
 async def post_share(request):
     """Картинка-карточка из canvas → бот присылает её в чат, откуда её
     удобно переслать друзьям или выложить в сторис."""
@@ -484,6 +503,9 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_post("/api/board", post_board)
     app.router.add_post("/api/settings", post_settings)
     app.router.add_post("/api/share", post_share)
+    app.router.add_get("/api/shop", get_shop)
+    app.router.add_post("/api/shop/buy", shop_buy)
+    app.router.add_post("/api/shop/equip", shop_equip)
     app.router.add_get("/api/habits", get_habits)
     app.router.add_post("/api/habits", habit_create)
     app.router.add_post("/api/habits/update", habit_update)

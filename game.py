@@ -124,46 +124,56 @@ def week_key(day: date) -> str:
     return storage.week_key_for(day)
 
 
-def advance_streak(current: int, best: int, last: str, freeze_week: str, today: date):
+def _missed_days(last: str, today: date) -> int:
+    try:
+        return (today - date.fromisoformat(last)).days - 1
+    except (TypeError, ValueError):
+        return -1
+
+
+def advance_streak(current: int, best: int, last: str, freeze_week: str, today: date, tokens: int = 0):
     """Новое состояние серии после выполнения задания сегодня.
-    Возвращает (current, best, freeze_week, used_freeze).
-    Заморозка: один пропущенный день в неделю не обнуляет серию."""
-    current, best = current or 0, best or 0
+    Возвращает (current, best, freeze_week, used_freeze, tokens_used).
+    Заморозка: один пропущенный день в неделю бесплатно; каждый следующий
+    пропущенный день закрывает купленная в магазине заморозка (tokens)."""
+    current, best, tokens = current or 0, best or 0, max(0, tokens or 0)
     t = today.isoformat()
-    used_freeze = False
     if last == t:
-        return current, max(best, current), freeze_week, False
-    if last == (today - timedelta(days=1)).isoformat():
+        return current, max(best, current), freeze_week, False, 0
+    missed = _missed_days(last, today)
+    weekly = 1 if freeze_week != week_key(today) else 0
+    if missed == 0:
         current += 1
-    elif last == (today - timedelta(days=2)).isoformat() and freeze_week != week_key(today) and current > 0:
+        return current, max(best, current), freeze_week, False, 0
+    if current > 0 and 1 <= missed <= weekly + tokens:
+        tokens_used = missed - weekly
+        if weekly:
+            freeze_week = week_key(today)
         current += 1
-        freeze_week = week_key(today)
-        used_freeze = True
-    else:
-        current = 1
-    return current, max(best, current), freeze_week, used_freeze
+        return current, max(best, current), freeze_week, True, tokens_used
+    return 1, max(best, 1), freeze_week, False, 0
 
 
-def streak_view(current: int, best: int, last: str, freeze_week: str, today: date) -> dict:
+def streak_view(current: int, best: int, last: str, freeze_week: str, today: date, tokens: int = 0) -> dict:
     """Серия для показа: done — сегодня уже засчитано; at_risk — вчера было,
-    сегодня ещё нет; freeze — пропущен 1 день, но заморозка спасёт;
+    сегодня ещё нет; freeze — пропущены дни, но заморозки спасут;
     lost — серия прервалась; none — серии нет."""
-    current, best = current or 0, best or 0
+    current, best, tokens = current or 0, best or 0, max(0, tokens or 0)
     freeze_available = freeze_week != week_key(today)
-    y1 = (today - timedelta(days=1)).isoformat()
-    y2 = (today - timedelta(days=2)).isoformat()
+    missed = _missed_days(last, today)
     if last == today.isoformat():
         status, value = "done", current
-    elif last == y1:
+    elif missed == 0:
         status, value = "at_risk", current
-    elif last == y2 and freeze_available and current > 0:
+    elif current > 0 and 1 <= missed <= (1 if freeze_available else 0) + tokens:
         status, value = "freeze", current
     elif current >= 2:
         status, value = "lost", 0
     else:
         status, value = "none", 0
     return {"current": value, "best": max(best, value), "status": status,
-            "freeze_available": freeze_available, "lost_value": current if status == "lost" else 0}
+            "freeze_available": freeze_available, "freeze_tokens": tokens,
+            "lost_value": current if status == "lost" else 0}
 
 
 # ==================== XP ====================
@@ -386,11 +396,13 @@ def complete_quest(user_id: int, active_id: int):
     conn.commit()
     conn.close()
 
-    streak, best, freeze_week, used_freeze = advance_streak(
+    tokens = user.get("freeze_tokens") or 0
+    streak, best, freeze_week, used_freeze, tokens_used = advance_streak(
         user.get("streak_current"), user.get("streak_best"), user.get("streak_last_date"),
-        user.get("freeze_week"), today)
+        user.get("freeze_week"), today, tokens)
     storage.update_user(user_id, streak_current=streak, streak_best=best,
-                        streak_last_date=today.isoformat(), freeze_week=freeze_week)
+                        streak_last_date=today.isoformat(), freeze_week=freeze_week,
+                        freeze_tokens=tokens - tokens_used)
 
     accepted_local = hist.get("local_date")
     same_day = accepted_local == today.isoformat()
@@ -768,6 +780,8 @@ def get_state(user_id: int) -> dict:
             "id": user_id, "first_name": user.get("first_name") or user.get("username") or "",
             "mascot": LEGACY_MASCOTS.get(user.get("mascot"), user.get("mascot")) or "cat-purple",
             "theme": user.get("theme") if user.get("theme") in THEME_IDS else "classic",
+            "accessory": user.get("accessory") if user.get("accessory") in ACCESSORY_IDS else None,
+            "balance": balance(user),
             "daily_goal": user.get("daily_goal") or 1, "tz": user.get("tz"),
             "reminder_hour": user.get("reminder_hour") if user.get("reminder_hour") is not None else 9,
             "evening_reminder_hour": user.get("evening_reminder_hour") if user.get("evening_reminder_hour") is not None else 20,
@@ -777,7 +791,8 @@ def get_state(user_id: int) -> dict:
         "level": lv,
         "unlocks": unlocks(lv["level"]),
         "streak": streak_view(user.get("streak_current"), user.get("streak_best"),
-                              user.get("streak_last_date"), user.get("freeze_week"), today),
+                              user.get("streak_last_date"), user.get("freeze_week"), today,
+                              user.get("freeze_tokens")),
         "today": {"date": today.isoformat(), "hour": now.hour, "done": week.get(today.isoformat(), 0),
                   "goal": user.get("daily_goal") or 1},
         "month_done": month,
@@ -854,6 +869,86 @@ def get_stats(user_id: int, days) -> dict:
 
 
 SETTINGS_ALLOWED = {"daily_goal", "tz", "mascot", "theme", "reminder_hour", "evening_reminder_hour"}
+
+
+# ==================== МАГАЗИН ====================
+# XP копится и тратится: уровень считается по всему заработанному XP,
+# а в магазине тратится баланс = xp - xp_spent.
+FREEZE_PRICE = 60
+FREEZE_MAX = 3
+ACCESSORIES = [  # id, название, цена
+    ("flower", "Цветочек", 60),
+    ("bow", "Бантик", 80),
+    ("cap", "Кепка", 100),
+    ("glasses", "Очки", 100),
+    ("party", "Колпак", 120),
+    ("headphones", "Наушники", 140),
+    ("crown", "Корона", 200),
+    ("halo", "Нимб", 250),
+]
+ACCESSORY_IDS = {a[0] for a in ACCESSORIES}
+
+
+def balance(user: dict) -> int:
+    return max(0, (user.get("xp") or 0) - (user.get("xp_spent") or 0))
+
+
+def owned_items(user_id: int) -> set:
+    conn = storage.connect()
+    rows = conn.execute("SELECT DISTINCT item FROM purchases WHERE user_id = ?", (user_id,)).fetchall()
+    conn.close()
+    return {r[0] for r in rows}
+
+
+def shop_view(user_id: int) -> dict:
+    user = storage.get_user(user_id)
+    owned = owned_items(user_id)
+    tokens = user.get("freeze_tokens") or 0
+    items = [{"id": "freeze", "kind": "freeze", "name": "Заморозка серии", "price": FREEZE_PRICE,
+              "count": tokens, "max": FREEZE_MAX,
+              "about": "Спасает серию за пропущенный день. Действует сама, хранится до 3 штук."}]
+    for aid, name, price in ACCESSORIES:
+        items.append({"id": aid, "kind": "accessory", "name": name, "price": price,
+                      "owned": aid in owned, "equipped": user.get("accessory") == aid})
+    return {"balance": balance(user), "xp": user.get("xp") or 0, "freeze_tokens": tokens,
+            "accessory": user.get("accessory"), "items": items}
+
+
+def buy(user_id: int, item: str) -> dict:
+    """Покупка списывает баланс одним UPDATE с проверкой — без гонок при двойном нажатии."""
+    user = storage.get_user(user_id)
+    if item == "freeze":
+        price = FREEZE_PRICE
+        if (user.get("freeze_tokens") or 0) >= FREEZE_MAX:
+            raise QuestError(f"Больше {FREEZE_MAX} заморозок не помещается в морозилку 🧊")
+        extra = ", freeze_tokens = COALESCE(freeze_tokens, 0) + 1"
+        cond = f" AND COALESCE(freeze_tokens, 0) < {FREEZE_MAX}"
+    elif item in ACCESSORY_IDS:
+        price = next(p for a, _n, p in ACCESSORIES if a == item)
+        if item in owned_items(user_id):
+            raise QuestError("Это уже твоё 🙂")
+        extra, cond = ", accessory = ?", ""
+    else:
+        raise QuestError("Такого товара нет")
+    conn = storage.connect()
+    params = [price] + ([item] if item in ACCESSORY_IDS else []) + [user_id, price]
+    cur = conn.execute(f"""UPDATE users SET xp_spent = COALESCE(xp_spent, 0) + ?{extra}
+                           WHERE user_id = ? AND COALESCE(xp, 0) - COALESCE(xp_spent, 0) >= ?{cond}""", params)
+    if cur.rowcount != 1:
+        conn.close()
+        raise QuestError(f"Не хватает XP: нужно {price}, есть {balance(user)}")
+    conn.execute("INSERT INTO purchases (user_id, item, price, created_at) VALUES (?, ?, ?, ?)",
+                 (user_id, item, price, storage.utc_now_str()))
+    conn.commit()
+    conn.close()
+    return shop_view(user_id)
+
+
+def equip(user_id: int, item) -> dict:
+    if item is not None and item not in owned_items(user_id):
+        raise QuestError("Сначала купи этот аксессуар")
+    storage.update_user(user_id, accessory=item)
+    return shop_view(user_id)
 
 
 def update_settings(user_id: int, data: dict) -> dict:

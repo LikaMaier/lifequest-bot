@@ -26,7 +26,7 @@ export function render(el, { state, go }) {
       h('div', { class: 'small muted bold' }, capitalize(DATE_FMT.format(new Date())))), avatar));
 
   // Приветствие + маскот с репликой
-  const pet = mascot(u.mascot, mood.expr, { size: 76, label: 'Твой маскот' });
+  const pet = mascot(u.mascot, mood.expr, { size: 76, label: 'Твой маскот', acc: u.accessory });
   pet.addEventListener('click', () => { haptic.tap('soft'); jump(pet); });
   el.append(h('section', { class: 'row', style: { alignItems: 'flex-start', marginBottom: '16px' } }, pet,
     h('div', { class: 'grow' }, h('h1', { style: { fontSize: '23px', marginBottom: '8px' } }, name ? `Привет, ${name}!` : 'Привет!'),
@@ -50,7 +50,8 @@ export function render(el, { state, go }) {
         h('div', { class: 'row', style: { gap: '6px' } }, h('span', { class: 'num', style: { fontSize: '34px' } }, String(streak.current)),
           h('span', { style: { fontSize: '26px' }, 'aria-hidden': 'true' }, streak.current ? '🔥' : '🌱')),
         h('div', { class: 'small bold' }, `${plural(streak.current, 'день', 'дня', 'дней')} подряд — ${streakText}`),
-        h('div', { class: 'tiny muted bold' }, streak.freeze_available ? '❄️ Заморозка на неделю доступна' : '❄️ Заморозка уже использована')))));
+        h('div', { class: 'tiny muted bold' }, (streak.freeze_available ? '❄️ Заморозка на неделю доступна' : '❄️ Недельная заморозка использована')
+          + (streak.freeze_tokens ? ` · ещё ${streak.freeze_tokens} в запасе` : ''))))));
 
   // Метрики
   const lv = state.level;
@@ -64,10 +65,14 @@ export function render(el, { state, go }) {
     h('span', { class: 'label' }, 'Баджи'), h('span', { class: 'value' }, `${state.badges.unlocked}`),
     h('span', { class: 'hint' }, `из ${state.badges.total}`), h('span', { class: 'deco', 'aria-hidden': 'true' }, '🏅'));
   badges.addEventListener('click', () => { haptic.tap(); go('awards'); });
+  const shopCard = h('button', { type: 'button', class: 'metric c-pink', style: { gridColumn: 'span 2', minHeight: '0' }, 'aria-label': 'Магазин' },
+    h('div', { class: 'spread' }, h('span', { class: 'label' }, '🛍️ Магазин'), h('span', { class: 'hint' }, `${state.user.balance} XP можно потратить`)),
+    h('div', { class: 'hint', style: { marginTop: '2px' } }, 'Заморозки серии и обновки для маскота'));
+  shopCard.addEventListener('click', () => { haptic.tap(); go('shop'); });
   el.append(h('section', { class: 'metrics', style: { marginTop: '14px' }, 'aria-label': 'Показатели' },
     h('div', { class: 'metric c-lime' }, h('span', { class: 'label' }, 'За месяц'), h('span', { class: 'value' }, String(state.month_done)),
       h('span', { class: 'hint' }, plural(state.month_done, 'задание', 'задания', 'заданий')), h('span', { class: 'deco', 'aria-hidden': 'true' }, '✅')),
-    badges, levelCard));
+    badges, levelCard, shopCard));
 
   // Три кнопки случайных заданий
   el.append(sectionTitle('Получить задание'), modeButtons());

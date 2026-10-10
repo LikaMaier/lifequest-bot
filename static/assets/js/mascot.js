@@ -108,8 +108,40 @@ function animalSVG(kind, expr) {
   return `<svg viewBox="0 0 100 100" aria-hidden="true">${body}${eyes}${mouth}${cheeks}${z}</svg>`;
 }
 
-/** SVG-строка маскота: kind — вид, expr — выражение. */
-export function mascotSVG(kind, expr = 'happy') {
+// ---------- Аксессуары из магазина ----------
+// Рисуются поверх маскота в той же сетке 100×100 (голова сверху, глаза y≈44).
+export const ACCESSORIES = {
+  flower: '<g transform="translate(24 22)"><circle cx="0" cy="-7" r="5.5" fill="#FF8FC2"/><circle cx="7" cy="-2" r="5.5" fill="#FF8FC2"/>'
+    + '<circle cx="4.5" cy="6" r="5.5" fill="#FF8FC2"/><circle cx="-4.5" cy="6" r="5.5" fill="#FF8FC2"/><circle cx="-7" cy="-2" r="5.5" fill="#FF8FC2"/>'
+    + '<circle r="4.5" fill="#FFD23F"/></g>',
+  bow: '<g transform="translate(74 22) rotate(18)"><path d="M0 0 L-14 -9 Q-17 0 -14 9 Z" fill="#FB4645"/><path d="M0 0 L14 -9 Q17 0 14 9 Z" fill="#FB4645"/>'
+    + '<circle r="4.5" fill="#C92E3A"/></g>',
+  cap: '<path d="M28 27 Q30 7 50 7 Q70 7 72 27 Z" fill="#4E7BFF"/><path d="M60 25 Q80 22 90 28 Q78 31 62 30 Z" fill="#2D4FC4"/>'
+    + '<circle cx="50" cy="8" r="3" fill="#2D4FC4"/><path d="M50 9 L50 26" stroke="#2D4FC4" stroke-width="1.5"/>',
+  glasses: '<g fill="none" stroke="#241F1A" stroke-width="3"><circle cx="35" cy="44" r="10" fill="#9FD8F0" fill-opacity=".35"/>'
+    + '<circle cx="65" cy="44" r="10" fill="#9FD8F0" fill-opacity=".35"/><path d="M45 43 Q50 39 55 43"/>'
+    + '<path d="M25 42 L14 38"/><path d="M75 42 L86 38"/></g>',
+  party: '<path d="M38 25 L54 -10 L64 25 Z" fill="#B494F8"/><path d="M42 16 L60 14 M45 8 L58 6 M48 0 L56 -1" stroke="#FFD23F" stroke-width="3"/>'
+    + '<circle cx="54" cy="-11" r="5" fill="#F3619C"/>',
+  headphones: '<path d="M16 52 Q14 6 50 6 Q86 6 84 52" fill="none" stroke="#3A3550" stroke-width="6" stroke-linecap="round"/>'
+    + '<rect x="6" y="40" width="14" height="24" rx="6" fill="#F3619C"/><rect x="80" y="40" width="14" height="24" rx="6" fill="#F3619C"/>',
+  crown: '<path d="M33 22 L33 6 L42 14 L50 2 L58 14 L67 6 L67 22 Z" fill="#FFC83D" stroke="#C98A00" stroke-width="2" stroke-linejoin="round"/>'
+    + '<circle cx="50" cy="16" r="3" fill="#FB4645"/><circle cx="40" cy="18" r="2" fill="#4E7BFF"/><circle cx="60" cy="18" r="2" fill="#4E7BFF"/>',
+  halo: '<ellipse cx="50" cy="-3" rx="24" ry="6.5" fill="none" stroke="#FFE46B" stroke-width="7" opacity=".45"/>'
+    + '<ellipse cx="50" cy="-3" rx="24" ry="6.5" fill="none" stroke="#FFC83D" stroke-width="3.5"/>',
+};
+
+function withAccessory(svg, acc) {
+  const art = acc && ACCESSORIES[acc];
+  return art ? svg.replace(/<\/svg>$/, `${art}</svg>`) : svg;
+}
+
+/** SVG-строка маскота: kind — вид, expr — выражение, acc — аксессуар из магазина. */
+export function mascotSVG(kind, expr = 'happy', acc = null) {
+  return withAccessory(baseSVG(kind, expr), acc);
+}
+
+function baseSVG(kind, expr) {
   kind = LEGACY[kind] || kind;
   if (['frog', 'puppy', 'bear', 'leopard', 'panda', 'pig'].includes(kind)) return animalSVG(kind, expr);
   const eyes = eyesSVG(expr);
@@ -142,13 +174,13 @@ export function mascotSVG(kind, expr = 'happy') {
 }
 
 /** DOM-элемент маскота. */
-export function mascot(kind, expr = 'happy', { size = 64, label, cls = '' } = {}) {
-  const el = svgEl(mascotSVG(kind, expr), `mascot ${cls}`);
+export function mascot(kind, expr = 'happy', { size = 64, label, cls = '', acc = null } = {}) {
+  const el = svgEl(mascotSVG(kind, expr, acc), `mascot ${cls}`);
   el.style.width = `${size}px`;
   el.style.height = `${Math.round(size * 0.92)}px`;
   if (label) { el.setAttribute('role', 'img'); el.setAttribute('aria-label', label); }
   else el.setAttribute('aria-hidden', 'true');
-  if (document.documentElement.dataset.theme === 'pixel') pixelate(el, mascotSVG(kind, expr));
+  if (document.documentElement.dataset.theme === 'pixel') pixelate(el, mascotSVG(kind, expr, acc));
   return el;
 }
 
@@ -171,11 +203,10 @@ function pixelate(el, markup) {
   const img = new Image();
   img.onload = () => {
     try {
-      const pad = 3; // небольшой запас по краям: ушки и «z» выходят за 100×100
       const src = document.createElement('canvas');
       src.width = src.height = PIXELS;
       const ctx = src.getContext('2d');
-      ctx.drawImage(img, pad, pad, PIXELS - pad * 2, PIXELS - pad * 2);
+      ctx.drawImage(img, 0, 0, PIXELS, PIXELS);
       const data = ctx.getImageData(0, 0, PIXELS, PIXELS);
       const px = data.data;
       for (let i = 3; i < px.length; i += 4) px[i] = px[i] > 110 ? 255 : 0;
@@ -185,7 +216,9 @@ function pixelate(el, markup) {
       draw(src);
     } catch (e) { /* холст недоступен — остаётся обычный SVG */ }
   };
-  const svg = markup.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" ');
+  // Запас по краям: ушки, «z», корона и нимб выходят за сетку 100×100.
+  const svg = markup.replace('<svg viewBox="0 0 100 100"', '<svg viewBox="-10 -16 120 120"')
+    .replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" ');
   img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 

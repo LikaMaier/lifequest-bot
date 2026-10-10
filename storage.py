@@ -291,6 +291,13 @@ def init_db():
     _ensure_column(c, "users", "onboarded", "INTEGER DEFAULT 0")
     _ensure_column(c, "users", "theme", "TEXT DEFAULT 'classic'")
     _ensure_column(c, "users", "blocked", "INTEGER DEFAULT 0")
+    _ensure_column(c, "users", "xp_spent", "INTEGER DEFAULT 0")
+    _ensure_column(c, "users", "freeze_tokens", "INTEGER DEFAULT 0")
+    _ensure_column(c, "users", "accessory", "TEXT")
+    c.execute("""CREATE TABLE IF NOT EXISTS purchases (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, item TEXT NOT NULL,
+        price INTEGER NOT NULL, created_at TEXT NOT NULL)""")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_purchases_user ON purchases(user_id)")
     # Старые маскоты заменены зверями того же уровня.
     for old, new in (("cat-blue", "frog"), ("heart", "puppy"), ("cat-orange", "bear"),
                      ("cat-lav", "leopard"), ("cat-pink2", "panda"), ("cat-lime", "pig")):
