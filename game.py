@@ -867,5 +867,7 @@ def update_settings(user_id: int, data: dict) -> dict:
         if data["accent"] not in allowed:
             raise QuestError("Этот цвет откроется на более высоком уровне")
         fields["accent"] = data["accent"]
+    if "morning_plans" in data:
+        fields["morning_plans"] = 1 if data["morning_plans"] else 0
     storage.update_user(user_id, **fields)
     return fields
