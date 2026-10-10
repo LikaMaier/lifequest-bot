@@ -132,3 +132,25 @@ class HabitsApiTest(TempDBTestCase, AioHTTPTestCase):
         resp = await self.client.post("/api/habits/delete", headers=h, json={"id": hid})
         self.assertEqual(resp.status, 200)
         self.assertEqual((await (await self.client.get("/api/habits", headers=h)).json())["habits"], [])
+
+
+class OnboardingApiTest(TempDBTestCase, AioHTTPTestCase):
+    def setUp(self):
+        TempDBTestCase.setUp(self)
+        AioHTTPTestCase.setUp(self)
+
+    def tearDown(self):
+        AioHTTPTestCase.tearDown(self)
+        TempDBTestCase.tearDown(self)
+
+    async def get_application(self):
+        return api.create_app(TOKEN)
+
+    async def test_onboarded_flag(self):
+        h = headers(42)
+        state = await (await self.client.get("/api/state", headers=h)).json()
+        self.assertFalse(state["user"]["onboarded"])
+        state = await (await self.client.post("/api/settings", headers=h, json={"onboarded": True})).json()
+        self.assertTrue(state["user"]["onboarded"])
+        state = await (await self.client.get("/api/state", headers=h)).json()
+        self.assertTrue(state["user"]["onboarded"])

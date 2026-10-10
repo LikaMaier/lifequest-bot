@@ -288,6 +288,7 @@ def init_db():
     _ensure_column(c, "active_quests", "tier", "TEXT")
     _ensure_column(c, "active_quests", "daily", "INTEGER DEFAULT 0")
     _ensure_column(c, "users", "morning_plans", "INTEGER DEFAULT 1")
+    _ensure_column(c, "users", "onboarded", "INTEGER DEFAULT 0")
 
     conn.commit()
     _backfill_history(conn)
