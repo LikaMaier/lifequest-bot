@@ -117,3 +117,65 @@ class DailyQuestPushTest(TempDBTestCase, unittest.IsolatedAsyncioTestCase):
         cb.data = "daily_accept_not_today"
         await lifequest_bot.daily_accept(cb)
         self.assertTrue(cb.answer.await_args.kwargs.get("show_alert"))
+
+
+class FunnyNudgesTest(TempDBTestCase, unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        TempDBTestCase.setUp(self)
+        storage.ensure_user(9)
+        storage.update_user(9, tz="Europe/Moscow", mascot="panda")
+        self.sent = []
+
+        async def fake_send(chat_id, text, **kw):
+            self.sent.append((chat_id, text, kw.get("reply_markup")))
+        self.patch = mock.patch.object(lifequest_bot.bot, "send_message", side_effect=fake_send)
+        self.patch.start()
+
+    def tearDown(self):
+        self.patch.stop()
+        TempDBTestCase.tearDown(self)
+
+    @staticmethod
+    def last_button_is_app(kb):
+        last = kb.inline_keyboard[-1][0]
+        return last.web_app is not None and "Открыть LifeQuest" in last.text
+
+    def test_all_lines_format(self):
+        import nudges
+        from datetime import date
+        for kind, pool in nudges.LINES.items():
+            for i in range(len(pool)):
+                text = nudges.pick(kind, i, date(2026, 1, 1) - __import__("datetime").timedelta(days=0),
+                                   m="Панда", days=4, hours=3, streak=5, xp=20, plan="<Йога>")
+                self.assertNotIn("{", text)
+                self.assertNotIn("<Йога>", text)  # план экранирован
+
+    def test_no_repeat_on_consecutive_days(self):
+        import nudges
+        from datetime import date, timedelta
+        d = date(2026, 3, 1)
+        for kind in nudges.LINES:
+            a = nudges.pick(kind, 9, d, m="Панда", days=4, hours=3, streak=5, xp=20, plan="x")
+            b = nudges.pick(kind, 9, d + timedelta(days=1), m="Панда", days=4, hours=3, streak=5, xp=20, plan="x")
+            self.assertNotEqual(a, b, kind)
+
+    async def test_every_reminder_has_app_button(self):
+        today = game.local_today(storage.get_user(9))
+        plans.create_plan(9, {"title": "Йога", "date": today.isoformat(), "time": "08:00"})
+        with mock.patch.object(lifequest_bot, "users_at_local_hour", return_value=[9]):
+            await lifequest_bot.send_daily_reminders()
+            await lifequest_bot.send_evening_reminders()
+        self.assertEqual(len(self.sent), 3)  # утро, планы, вечер
+        for _, _, kb in self.sent:
+            self.assertTrue(self.last_button_is_app(kb))
+
+    async def test_evening_streak_drama_and_absent_morning(self):
+        import nudges
+        today = game.local_today(storage.get_user(9))
+        yesterday = (today - timedelta(days=1)).isoformat()
+        storage.update_user(9, streak_current=6, streak_last_date=yesterday)
+        text, _ = lifequest_bot.build_evening_message(9)
+        self.assertTrue(any(line.split("{")[0][:12] in text for line in nudges.LINES["evening_streak"]))
+        storage.update_user(9, streak_last_date=(today - timedelta(days=5)).isoformat(), last_seen_at=None)
+        text, _ = lifequest_bot.build_morning_message(9)
+        self.assertTrue(any(line.split("{")[0][:12] in text for line in nudges.LINES["absent"] if line.split("{")[0]))

@@ -26,6 +26,7 @@ load_dotenv()  # до импорта storage: он читает DB_PATH при �
 import api
 import game
 import habits
+import nudges
 import photos
 import plans
 import storage
@@ -307,10 +308,11 @@ async def complete_my_quest(callback: CallbackQuery):
         await show_my_quests(callback.message, user_id, as_edit=True)
         return
 
-    note = f"🎉 Засчитано! +{result['xp']} XP"
+    ctx = nudges.context(user_id)
+    note = f"🎉 +{result['xp']} XP. " + html.unescape(nudges.pick("done", user_id, ctx["today"], m=ctx["m"], xp=result["xp"]))
     if result["level_up"]:
         note += f" · новый уровень: {result['level_up']['name']}"
-    await callback.answer(note)
+    await callback.answer(note[:200])
     await show_my_quests(callback.message, user_id, as_edit=True)
 
 async def show_completed_quests(target, user_id: int, as_edit: bool):
@@ -364,6 +366,10 @@ MINIAPP_URL = resolve_miniapp_url()
 def build_miniapp_button(text: str = "✨ Открыть LifeQuest", section: str = "") -> InlineKeyboardButton:
     url = MINIAPP_URL + (f"#{section}" if section else "")
     return InlineKeyboardButton(text=text, web_app=WebAppInfo(url=url))
+
+def app_row(section: str = "") -> list:
+    """Нижняя строка кнопок любого напоминания: зайти в приложение."""
+    return [[build_miniapp_button("✨ Открыть LifeQuest", section)]] if MINIAPP_URL else []
 
 def build_board_keyboard(user_id: int) -> ReplyKeyboardMarkup:
     """Старая карта (запасной вариант). Текущая карта передаётся в ссылке
@@ -474,8 +480,13 @@ def build_morning_message(user_id: int):
     q = game.public_quest(game.CATALOG[daily_id])
     status = game.daily_status(user_id, today)
     quests = get_active_quests(user_id)
+    ctx = nudges.context(user_id)
+    if ctx["away"] >= 3:
+        joke = nudges.pick("absent", user_id, today, m=ctx["m"], days=ctx["away"])
+    else:
+        joke = nudges.pick("morning", user_id, today, m=ctx["m"])
 
-    text = (f"🌅 <b>Доброе утро!</b>\n\n"
+    text = (f"🌅 <b>Доброе утро!</b>\n{joke}\n\n"
             f"⭐ <b>Задание дня</b> — одно на всех сегодня:\n"
             f"{html.escape(q['emoji'])} <b>{html.escape(q['title'])}</b>\n"
             f"{html.escape(q['text'])}\n"
@@ -488,8 +499,7 @@ def build_morning_message(user_id: int):
         rows.append([InlineKeyboardButton(text="✅ Принять задание дня", callback_data=f"daily_accept_{daily_id}")])
     rows.append([InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")] if quests
                 else [InlineKeyboardButton(text="🎯 На одного", callback_data="menu_solo")])
-    if MINIAPP_URL:
-        rows.append([build_miniapp_button("✨ Открыть LifeQuest")])
+    rows += app_row()
     return text, InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -548,8 +558,10 @@ async def send_morning_plans(user_id: int):
     items = plans.today_plans(user_id)
     if not items:
         return
-    markup = InlineKeyboardMarkup(inline_keyboard=[[build_miniapp_button("🗓️ Открыть календарь", "calendar")]]) if MINIAPP_URL else None
-    await bot.send_message(user_id, "🗓️ <b>Сегодня у тебя в планах:</b>\n\n" + plans_lines(items),
+    ctx = nudges.context(user_id)
+    head = nudges.pick("plans_today", user_id, ctx["today"], m=ctx["m"])
+    markup = InlineKeyboardMarkup(inline_keyboard=app_row("calendar")) if MINIAPP_URL else None
+    await bot.send_message(user_id, f"🗓️ <b>Сегодня у тебя в планах</b>\n{head}\n\n" + plans_lines(items),
                            parse_mode="HTML", reply_markup=markup)
 
 
@@ -561,10 +573,13 @@ async def send_plan_reminders():
         try:
             emoji = o["quest"]["emoji"] if o.get("quest") else "📝"
             head = "⏰ <b>Через час по плану</b>" if o["remind"] == "hour_before" else "⏰ <b>Сейчас по плану</b>"
-            text = f"{head}\n\n{html.escape(emoji)} {html.escape(o['title'])} — в {o['time']}"
+            ctx = nudges.context(user_id)
+            joke = nudges.pick("plan_hour" if o["remind"] == "hour_before" else "plan_now", user_id, ctx["today"],
+                               m=ctx["m"], plan=o["title"][:60])
+            text = f"{head}\n{joke}\n\n{html.escape(emoji)} {html.escape(o['title'])} — в {o['time']}"
             if o.get("note"):
                 text += f"\n<i>{html.escape(o['note'][:200])}</i>"
-            markup = InlineKeyboardMarkup(inline_keyboard=[[build_miniapp_button("Открыть", "calendar")]]) if MINIAPP_URL else None
+            markup = InlineKeyboardMarkup(inline_keyboard=app_row("calendar")) if MINIAPP_URL else None
             await bot.send_message(user_id, text, parse_mode="HTML", reply_markup=markup)
         except Exception as e:
             print(f"Failed to send plan reminder to {user_id}: {e}")
@@ -585,28 +600,38 @@ async def send_evening_reminders():
     without judgment if nothing did."""
     for user_id in users_at_local_hour("evening_reminder_hour", 20):
         try:
-            today_texts = get_completed_today(user_id)
-
-            if today_texts:
-                lines = ["🌙 <b>Как прошёл день?</b>\n\nСегодня отмечено:"]
-                lines.extend(f"✅ {t}" for t in today_texts)
-                text = "\n".join(lines)
-            else:
-                text = (
-                    "🌙 <b>Как прошёл день?</b>\n\n"
-                    "Сегодня пока ничего не отмечено — вечер ещё не кончился, если что-то откликается, самое время."
-                )
-
-            habits_block = habits.evening_text(user_id)
-            markup = None
-            if habits_block:
-                text += "\n\n" + habits_block
-                if MINIAPP_URL and "▫️" in habits_block:
-                    markup = InlineKeyboardMarkup(inline_keyboard=[[build_miniapp_button("🌱 Отметить привычки", "habits")]])
-
+            text, markup = build_evening_message(user_id)
             await bot.send_message(user_id, text, parse_mode="HTML", reply_markup=markup)
         except Exception as e:
             print(f"Failed to send evening reminder to {user_id}: {e}")
+
+
+def build_evening_message(user_id: int):
+    """Вечер: что сделано за день + шутка маскота (с драмой, если серия под угрозой)."""
+    today_texts = get_completed_today(user_id)
+    ctx = nudges.context(user_id)
+    if today_texts:
+        joke = nudges.pick("evening_done", user_id, ctx["today"], m=ctx["m"])
+        lines = [f"🌙 <b>Как прошёл день?</b>\n{joke}\n\nСегодня отмечено:"]
+        lines.extend(f"✅ {t}" for t in today_texts)
+        text = "\n".join(lines)
+    else:
+        streak = ctx["streak"]
+        if streak["status"] in ("at_risk", "freeze") and streak["current"] > 0:
+            joke = nudges.pick("evening_streak", user_id, ctx["today"], m=ctx["m"],
+                               streak=streak["current"], hours=ctx["hours"])
+        else:
+            joke = nudges.pick("evening_none", user_id, ctx["today"], m=ctx["m"], hours=ctx["hours"])
+        text = f"🌙 <b>Как прошёл день?</b>\n\n{joke}"
+
+    rows = []
+    habits_block = habits.evening_text(user_id)
+    if habits_block:
+        text += "\n\n" + habits_block
+        if MINIAPP_URL and "▫️" in habits_block:
+            rows.append([build_miniapp_button("🌱 Отметить привычки", "habits")])
+    rows += app_row()
+    return text, (InlineKeyboardMarkup(inline_keyboard=rows) if rows else None)
 
 RU_MONTHS = {
     1: "январь", 2: "февраль", 3: "март", 4: "апрель",
@@ -646,7 +671,8 @@ async def send_monthly_recap():
                 f"За {month_name} ты закрыл(а) {count} {word}. Это {count} раз, когда ты выбрал(а) сделать шаг, "
                 "а не отложить — и это реально считается, даже если дни были обычными.\n\n"
                 "Новый месяц — новый счёт. Погнали дальше?",
-                parse_mode="HTML"
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=app_row("progress")) if MINIAPP_URL else None,
             )
         except Exception as e:
             print(f"Failed to send monthly recap to {user_id}: {e}")
