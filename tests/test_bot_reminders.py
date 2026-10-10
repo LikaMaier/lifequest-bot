@@ -179,3 +179,13 @@ class FunnyNudgesTest(TempDBTestCase, unittest.IsolatedAsyncioTestCase):
         storage.update_user(9, streak_last_date=(today - timedelta(days=5)).isoformat(), last_seen_at=None)
         text, _ = lifequest_bot.build_morning_message(9)
         self.assertTrue(any(line.split("{")[0][:12] in text for line in nudges.LINES["absent"] if line.split("{")[0]))
+
+
+class BlockedUsersTest(TempDBTestCase):
+    def test_blocked_users_skipped_in_reminders(self):
+        storage.ensure_user(11)
+        hour = game.local_now(storage.get_user(11)).hour
+        storage.update_user(11, reminder_hour=hour)
+        self.assertIn(11, lifequest_bot.users_at_local_hour("reminder_hour", 9))
+        storage.set_blocked(11)
+        self.assertNotIn(11, lifequest_bot.users_at_local_hour("reminder_hour", 9))

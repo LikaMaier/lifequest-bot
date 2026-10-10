@@ -17,6 +17,7 @@ from aiohttp import web
 import re
 
 import game
+import ops
 import habits
 import photos
 import plans
@@ -76,6 +77,11 @@ async def errors_middleware(request, handler):
         return _error(400, str(e))
     except (json.JSONDecodeError, UnicodeDecodeError):
         return _error(400, "Некорректный запрос")
+    except web.HTTPException:
+        raise
+    except Exception as e:
+        await ops.alert(f"API {request.method} {request.path}", e)
+        return _error(500, "Что-то сломалось — мы уже чиним")
 
 
 @web.middleware
@@ -97,6 +103,8 @@ async def auth_middleware(request, handler):
     tz = request.headers.get(TZ_HEADER, "")
     if tz and not storage.get_user(user_id).get("tz") and game.valid_tz(tz):
         storage.update_user(user_id, tz=tz)
+    if request.path == "/api/state":
+        storage.mark_seen(user_id)  # открыл приложение: время визита, снова можно писать
     request["user_id"] = user_id
     return await handler(request)
 

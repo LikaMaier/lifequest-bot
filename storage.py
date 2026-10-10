@@ -290,6 +290,7 @@ def init_db():
     _ensure_column(c, "users", "morning_plans", "INTEGER DEFAULT 1")
     _ensure_column(c, "users", "onboarded", "INTEGER DEFAULT 0")
     _ensure_column(c, "users", "theme", "TEXT DEFAULT 'classic'")
+    _ensure_column(c, "users", "blocked", "INTEGER DEFAULT 0")
     # Старые маскоты заменены зверями того же уровня.
     for old, new in (("cat-blue", "frog"), ("heart", "puppy"), ("cat-orange", "bear"),
                      ("cat-lav", "leopard"), ("cat-pink2", "panda"), ("cat-lime", "pig")):
@@ -434,6 +435,29 @@ def get_user_week(user_id: int) -> int:
     row = c.fetchone()
     conn.close()
     return row[0] if row and row[0] else 1
+
+
+def mark_seen(user_id: int):
+    """Человек что-то сделал в боте или приложении: запоминаем время и снимаем
+    пометку «заблокировал бота» (раз пишет — значит, разблокировал)."""
+    conn = connect()
+    conn.execute("UPDATE users SET last_seen_at = ?, blocked = 0 WHERE user_id = ?", (utc_now_str(), user_id))
+    conn.commit()
+    conn.close()
+
+
+def set_blocked(user_id: int, blocked: bool = True):
+    conn = connect()
+    conn.execute("UPDATE users SET blocked = ? WHERE user_id = ?", (1 if blocked else 0, user_id))
+    conn.commit()
+    conn.close()
+
+
+def is_blocked(user_id: int) -> bool:
+    conn = connect()
+    row = conn.execute("SELECT blocked FROM users WHERE user_id = ?", (user_id,)).fetchone()
+    conn.close()
+    return bool(row and row[0])
 
 
 def touch_activity(user_id: int):
