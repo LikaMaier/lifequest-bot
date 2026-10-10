@@ -5,7 +5,9 @@ import { h, clear } from '../dom.js';
 import { haptic } from '../tg.js';
 import { api } from '../api.js';
 import { mascot, jump, stickerEl } from '../mascot.js';
-import { skeleton, toast, toastError, confetti, sectionTitle } from '../ui.js';
+import { skeleton, toast, toastError, confetti, sectionTitle, sheet } from '../ui.js';
+import { openPlanEditor, todayIso } from '../planui.js';
+import { photoStrip, photosEnabled } from '../photoui.js';
 import { celebrate } from '../celebrate.js';
 import { refreshState } from '../store.js';
 
@@ -123,8 +125,32 @@ function draw(el) {
     h('div', { class: 'bold small', style: { color: 'var(--purple-deep)' } }, board.rating ? `${board.rating}/10 — ${RATING_WORDS[board.rating]}` : 'Оцени неделю от 1 до 10'),
     notes));
 
+  // Клетки карты на даты календаря и фото клеток
+  const filled = CELL_THEMES.map((t, i) => ({ t, i, text: board.cells[i].trim() })).filter(x => x.text);
+  if (filled.length) {
+    el.append(sectionTitle('📅 Клетки в календарь и фото'),
+      h('p', { class: 'tiny muted bold', style: { margin: '-4px 2px 8px' } }, 'Поставь задачу из клетки на конкретный день — выполнив план, закроешь и клетку.'),
+      h('div', { class: 'chips' }, filled.map(x => {
+        const b = h('button', { type: 'button', class: `chip c-${x.t.color}` }, `${x.t.label}: ${x.text.slice(0, 18)}${x.text.length > 18 ? '…' : ''}`);
+        b.addEventListener('click', () => { haptic.tap(); openCellSheet(x); });
+        return b;
+      })));
+  }
   statusEl = h('p', { class: 'center tiny muted bold', style: { marginTop: '14px' }, role: 'status', 'aria-live': 'polite' }, 'Карта сохраняется автоматически');
   el.append(statusEl, h('p', { class: 'center tiny muted', style: { marginTop: '4px' } }, 'Отмечай клетку кнопкой в углу. В понедельник начнётся новая карта.'));
+}
+
+function openCellSheet(x) {
+  const planBtn = h('button', { type: 'button', class: 'btn block' }, '📅 Поставить на дату');
+  const s = sheet(h('div', { class: 'stack' },
+    h('h2', null, `${x.t.label}: ${x.text}`),
+    planBtn,
+    photosEnabled() ? h('div', null, h('h3', { style: { marginBottom: '8px' } }, '📷 Фото клетки'),
+      photoStrip({ target: 'board', board_cell: x.i }, { title: 'Фото клетки' })) : null), { label: x.t.label });
+  planBtn.addEventListener('click', () => {
+    s.close();
+    openPlanEditor({ date: todayIso(), boardCell: x.i, preset: { title: x.text, color: x.t.color === 'paleyellow' ? 'yellow' : x.t.color } });
+  });
 }
 
 function scheduleSave(el, delay, redraw = false) {

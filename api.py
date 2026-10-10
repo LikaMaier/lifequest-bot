@@ -232,17 +232,18 @@ async def post_share(request):
         return _error(503, "Поделиться сейчас нельзя")
     data = await _body(request)
     image = str(data.get("image", ""))
-    prefix = "data:image/png;base64,"
-    if not image.startswith(prefix):
-        raise game.QuestError("Нужна картинка PNG")
+    prefixes = {"data:image/png;base64,": b"\x89PNG", "data:image/jpeg;base64,": b"\xff\xd8\xff"}
+    prefix = next((p for p in prefixes if image.startswith(p)), None)
+    if not prefix:
+        raise game.QuestError("Нужна картинка PNG или JPEG")
     try:
         raw = base64.b64decode(image[len(prefix):], validate=True)
     except (binascii.Error, ValueError):
         raise game.QuestError("Картинка повреждена")
-    if len(raw) > 2_500_000 or not raw.startswith(b"\x89PNG"):
+    if len(raw) > 4_000_000 or not raw.startswith(prefixes[prefix]):
         raise game.QuestError("Картинка слишком большая")
     from aiogram.types import BufferedInputFile
-    await bot.send_photo(request["user_id"], BufferedInputFile(raw, filename="lifequest.png"),
+    await bot.send_photo(request["user_id"], BufferedInputFile(raw, filename="lifequest.png" if prefix.endswith("png;base64,") else "lifequest.jpg"),
                          caption="✨ Мой прогресс в LifeQuest. Перешли друзьям — пусть тоже выберутся из привычного сценария!")
     return web.json_response({"ok": True})
 

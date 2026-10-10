@@ -393,6 +393,7 @@ def complete_quest(user_id: int, active_id: int):
     xp_total = (user.get("xp") or 0) + xp
     level_after = level_for_xp(xp_total)
     return {
+        "history_id": hist["id"], "title": hist.get("title") or "",
         "xp": xp, "breakdown": [{"label": label, "xp": v} for label, v in parts],
         "streak": streak, "used_freeze": used_freeze,
         "level_up": level_info(xp_total) if level_after > level_before else None,
@@ -775,7 +776,7 @@ def get_stats(user_id: int, days) -> dict:
     user = storage.get_user(user_id)
     today = local_today(user)
     conn = storage.connect(rows=True)
-    done = conn.execute("""SELECT quest_key, mode, sphere, title, local_date, xp, completed_at FROM quest_history
+    done = conn.execute("""SELECT id, quest_key, mode, sphere, title, local_date, xp, completed_at FROM quest_history
                            WHERE user_id = ? AND status = 'done' AND local_date IS NOT NULL
                            ORDER BY completed_at DESC, id DESC""", (user_id,)).fetchall()
     xp_rows = conn.execute("SELECT local_date, SUM(amount) FROM xp_log WHERE user_id = ? GROUP BY local_date",
@@ -810,7 +811,7 @@ def get_stats(user_id: int, days) -> dict:
 
     def lookup(r):
         q = CATALOG.get(r["quest_key"]) or {}
-        return {"id": r["quest_key"], "title": r["title"] or q.get("title") or "Задание",
+        return {"id": r["quest_key"], "hid": r["id"], "title": r["title"] or q.get("title") or "Задание",
                 "emoji": q.get("emoji") or "📌", "mode": r["mode"], "sphere": r["sphere"],
                 "date": r["local_date"], "xp": r["xp"] or 0}
 

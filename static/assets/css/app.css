@@ -541,3 +541,70 @@ p { margin: 0; }
 .emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
 .emoji-pick { border: 0; border-radius: 12px; min-height: 40px; background: var(--white); font-size: 20px; box-shadow: inset 0 0 0 2px var(--line); }
 .emoji-pick.on { box-shadow: inset 0 0 0 3px var(--accent-deep); background: color-mix(in srgb, var(--accent) 22%, var(--white)); }
+
+/* ---------- Планы ---------- */
+.plan-row { display: flex; align-items: center; gap: 8px; background: var(--white); border-radius: var(--r-md); padding: 8px 10px 8px 8px;
+  box-shadow: 0 3px 0 var(--line), inset 5px 0 0 var(--c); }
+.plan-row.done { background: color-mix(in srgb, var(--c) 22%, var(--white)); }
+.plan-row.done .plan-title { text-decoration: line-through; text-decoration-color: rgba(44,42,34,.4); }
+.plan-row.skipped { opacity: .55; }
+.plan-info { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; border: 0; background: transparent; padding: 0 0 0 6px; text-align: left; color: var(--ink); min-height: 48px; }
+.plan-emoji { width: 40px; height: 40px; border-radius: 13px; display: grid; place-items: center; font-size: 20px; flex-shrink: 0; background: color-mix(in srgb, var(--c) 40%, var(--white)); }
+.plan-title { display: block; font-weight: 800; font-size: 14px; line-height: 1.25; overflow-wrap: anywhere; }
+.plan-meta { display: block; font-weight: 700; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.plan-check { width: 44px; height: 44px; border-radius: 14px; border: 0; flex-shrink: 0; background: var(--c); box-shadow: 0 4px 0 var(--c-deep); font-weight: 900; font-size: 18px; color: var(--ink); }
+.plan-check:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--c-deep); }
+.plan-done-mark { width: 32px; text-align: center; font-weight: 900; color: var(--lime-deep); font-size: 18px; }
+.segmented.wrap { flex-wrap: wrap; border-radius: 18px; }
+.segmented.wrap button { flex: 1 1 40%; }
+.segmented button:disabled { opacity: .45; }
+
+/* ---------- Календарь ---------- */
+.cal-card { padding: 12px 10px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; touch-action: pan-y; }
+.cal-head { text-align: center; font-weight: 800; font-size: 11px; color: var(--muted); padding-bottom: 4px; }
+.cal-day {
+  position: relative; border: 0; background: var(--cream); border-radius: 13px; min-height: 52px; padding: 5px 2px 4px;
+  display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--ink);
+}
+.cal-day.past { background: color-mix(in srgb, var(--cream-2) 60%, var(--cream)); }
+.cal-day.today { box-shadow: inset 0 0 0 2.5px var(--accent-deep); background: color-mix(in srgb, var(--accent) 16%, var(--white)); }
+.cal-day.complete { box-shadow: inset 0 0 0 2.5px var(--lime-deep); background: color-mix(in srgb, var(--lime) 30%, var(--white)); }
+.cal-day.today.complete { box-shadow: inset 0 0 0 2.5px var(--accent-deep), inset 0 0 0 5px var(--lime); }
+.cal-num { font-family: var(--font-display); font-weight: 700; font-size: 13px; }
+.cal-dots { display: flex; gap: 3px; min-height: 7px; }
+.cal-dots i, .cal-legend i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--c-deep); }
+.cal-photo { position: absolute; top: 1px; right: 2px; font-size: 10px; }
+.cal-day.overdue .cal-num::after { content: '•'; color: var(--orange); margin-left: 1px; }
+.cal-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 10px; font-weight: 700; font-size: 11px; color: var(--muted); }
+.cal-legend span { display: inline-flex; align-items: center; gap: 4px; }
+
+/* ---------- Фото ---------- */
+.photo-strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: none; }
+.photo-strip::-webkit-scrollbar { display: none; }
+.photo-thumb, .photo-add {
+  flex-shrink: 0; width: 84px; height: 84px; border-radius: 16px; border: 0; padding: 0; overflow: hidden; position: relative;
+  background: var(--cream-2) center / cover no-repeat;
+}
+.photo-add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 22px;
+  background: var(--white); box-shadow: inset 0 0 0 2px var(--line); color: var(--ink); }
+.photo-add span { font-weight: 800; font-size: 11px; color: var(--ink-soft); }
+.thumb-img { width: 100%; height: 100%; object-fit: cover; display: block; background: var(--cream-2); }
+.photo-thumb.uploading::after { content: ''; position: absolute; inset: 0; background: rgba(253,247,222,.5); }
+.photo-progress { position: absolute; left: 8px; bottom: 8px; height: 6px; width: 0; max-width: calc(100% - 16px); border-radius: 99px; background: var(--accent-deep); z-index: 1; transition: width .2s; }
+.album-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.album-cell { border: 0; padding: 0; aspect-ratio: 1; border-radius: 14px; overflow: hidden; background: var(--cream-2); }
+.viewer { position: fixed; inset: 0; z-index: 70; background: #1d1b16; display: flex; flex-direction: column; animation: fade-in .2s ease; }
+.viewer-top { display: flex; align-items: center; justify-content: space-between; padding: calc(10px + var(--safe-top)) 12px 8px; color: var(--cream); }
+.viewer-btn { width: 44px; height: 44px; border-radius: 14px; border: 0; background: rgba(253,247,222,.14); color: var(--cream); font-size: 18px; }
+.viewer-stage { flex: 1; display: grid; place-items: center; overflow: hidden; touch-action: none; }
+.viewer-img { max-width: 100%; max-height: 100%; object-fit: contain; transform-origin: center; user-select: none; -webkit-user-drag: none; }
+.viewer-caption { padding: 10px 16px calc(14px + var(--safe-bottom)); color: var(--cream); font-weight: 700; font-size: 14px; text-align: center; }
+.viewer-counter { color: rgba(253,247,222,.7); }
+
+/* ---------- Переключатель ---------- */
+.toggle { width: 56px; height: 34px; border-radius: 99px; border: 0; background: var(--cream-2); position: relative; flex-shrink: 0; box-shadow: inset 0 0 0 2px var(--line); }
+.toggle .knob { position: absolute; top: 4px; left: 4px; width: 26px; height: 26px; border-radius: 50%; background: var(--white); box-shadow: 0 2px 0 var(--line); transition: transform .2s; }
+.toggle.on { background: var(--lime); box-shadow: inset 0 0 0 2px var(--lime-deep); }
+.toggle.on .knob { transform: translateX(22px); }
+.toggle::before { content: ''; position: absolute; inset: -6px; }
