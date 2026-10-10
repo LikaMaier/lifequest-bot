@@ -1,7 +1,7 @@
 import os
 import tempfile
 import unittest
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from unittest import mock
 
 from tests.helpers import TempDBTestCase
@@ -189,3 +189,59 @@ class BlockedUsersTest(TempDBTestCase):
         self.assertIn(11, lifequest_bot.users_at_local_hour("reminder_hour", 9))
         storage.set_blocked(11)
         self.assertNotIn(11, lifequest_bot.users_at_local_hour("reminder_hour", 9))
+
+
+class WeeklySummaryTest(TempDBTestCase, unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        TempDBTestCase.setUp(self)
+        storage.ensure_user(21)
+        storage.update_user(21, tz="Europe/Moscow")
+        self.sent = []
+
+        async def fake_send(chat_id, text, **kw):
+            self.sent.append((chat_id, text, kw.get("reply_markup")))
+        self.patch = mock.patch.object(lifequest_bot.bot, "send_message", side_effect=fake_send)
+        self.patch.start()
+
+    def tearDown(self):
+        self.patch.stop()
+        TempDBTestCase.tearDown(self)
+
+    def add_done(self, day, n=1):
+        conn = storage.connect()
+        for _ in range(n):
+            conn.execute("""INSERT INTO quest_history (user_id, quest_key, mode, title, status, local_date)
+                            VALUES (21, 'x', 'solo', 'x', 'done', ?)""", (day.isoformat(),))
+            conn.execute("INSERT INTO xp_log (user_id, amount, reason, local_date, created_at) VALUES (21, 20, 'q', ?, '')",
+                         (day.isoformat(),))
+        conn.commit()
+        conn.close()
+
+    def test_summary_numbers(self):
+        today = game.local_today(storage.get_user(21))
+        self.add_done(today, 2)
+        self.add_done(today - timedelta(days=2), 1)
+        self.add_done(today - timedelta(days=9), 1)  # прошлая неделя
+        text, kb = lifequest_bot.build_weekly_message(21)
+        self.assertIn("Итоги недели", text)
+        self.assertIn("Квестов: <b>3</b> (+2 к прошлой)", text)
+        self.assertIn("60 XP", text)
+        self.assertIn("Активных дней: 2 из 7", text)
+        self.assertIn(game.WEEKDAYS_RU[today.weekday()], text)
+        self.assertTrue(kb.inline_keyboard[-1][0].web_app)
+
+    def test_quiet_users_not_disturbed(self):
+        self.assertEqual(lifequest_bot.build_weekly_message(21), (None, None))
+
+    async def test_sent_on_sunday_only(self):
+        self.add_done(game.local_today(storage.get_user(21)))
+        sunday = date(2026, 10, 11)
+        with mock.patch.object(lifequest_bot, "users_at_local_hour", return_value=[21]), \
+             mock.patch.object(game, "local_today", return_value=sunday):
+            await lifequest_bot.send_evening_reminders()
+        self.assertTrue(any("Итоги недели" in t for _, t, _ in self.sent))
+        self.sent.clear()
+        with mock.patch.object(lifequest_bot, "users_at_local_hour", return_value=[21]), \
+             mock.patch.object(game, "local_today", return_value=sunday - timedelta(days=1)):
+            await lifequest_bot.send_evening_reminders()
+        self.assertFalse(any("Итоги недели" in t for _, t, _ in self.sent))

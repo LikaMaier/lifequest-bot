@@ -627,8 +627,49 @@ async def send_evening_reminders():
         try:
             text, markup = build_evening_message(user_id)
             await ops.safe_send(user_id, text, parse_mode="HTML", reply_markup=markup)
+            if game.local_today(storage.get_user(user_id)).weekday() == 6:  # воскресенье — итоги недели
+                weekly, weekly_kb = build_weekly_message(user_id)
+                if weekly:
+                    await ops.safe_send(user_id, weekly, parse_mode="HTML", reply_markup=weekly_kb)
         except Exception as e:
             await ops.alert("evening reminder", e, f"user {user_id}")
+
+
+def plural_ru(n: int, one: str, few: str, many: str) -> str:
+    if n % 10 == 1 and n % 100 != 11:
+        return one
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return few
+    return many
+
+
+def build_weekly_message(user_id: int):
+    """Итоги недели (воскресенье, час вечернего напоминания). None — если
+    и эта, и прошлая неделя пустые: не тревожим тех, кто давно не заходит."""
+    ctx = nudges.context(user_id)
+    w = game.week_summary(user_id, ctx["today"])
+    if not w["done"] and not w["prev_done"] and not w["habits_pct"]:
+        return None, None
+    kind = "week_zero" if not w["done"] else "week_up" if w["done"] > w["prev_done"] else "week_ok"
+    joke = nudges.pick(kind, user_id, ctx["today"], m=ctx["m"])
+    lines = [f"📊 <b>Итоги недели</b>\n{joke}\n"]
+    trend = ""
+    if w["prev_done"]:
+        diff = w["done"] - w["prev_done"]
+        trend = f" ({'+' if diff > 0 else ''}{diff} к прошлой)" if diff else " (как на прошлой)"
+    lines.append(f"✅ Квестов: <b>{w['done']}</b>{trend}")
+    if w["xp"]:
+        lines.append(f"⭐ Заработано: <b>{w['xp']} XP</b>")
+    if w["best_day"]:
+        lines.append(f"🏆 Лучший день: {w['best_day']} — {w['best_count']} {plural_ru(w['best_count'], 'квест', 'квеста', 'квестов')}")
+    if w["active_days"]:
+        lines.append(f"📅 Активных дней: {w['active_days']} из 7")
+    if w["streak"]:
+        lines.append(f"🔥 Серия: {w['streak']} {plural_ru(w['streak'], 'день', 'дня', 'дней')}")
+    if w["habits_pct"] is not None:
+        lines.append(f"🌱 Привычки выполнены на {w['habits_pct']}%")
+    markup = InlineKeyboardMarkup(inline_keyboard=app_row("progress")) if MINIAPP_URL else None
+    return "\n".join(lines), markup
 
 
 def build_evening_message(user_id: int):

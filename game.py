@@ -757,6 +757,40 @@ def done_by_day(user_id: int, start: date, end: date) -> dict:
     return dict(rows)
 
 
+WEEKDAYS_RU = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
+
+
+def week_summary(user_id: int, today: date) -> dict:
+    """Итоги последних 7 дней (по воскресеньям это ровно неделя пн–вс)
+    и сравнение с предыдущими семью."""
+    start = today - timedelta(days=6)
+    days = done_by_day(user_id, start, today)
+    prev = done_by_day(user_id, start - timedelta(days=7), start - timedelta(days=1))
+    conn = storage.connect()
+    xp = conn.execute("SELECT COALESCE(SUM(amount), 0) FROM xp_log WHERE user_id = ? AND local_date BETWEEN ? AND ?",
+                      (user_id, start.isoformat(), today.isoformat())).fetchone()[0]
+    habits_n = conn.execute("SELECT COUNT(*) FROM habits WHERE user_id = ? AND COALESCE(archived, 0) = 0",
+                            (user_id,)).fetchone()[0]
+    habit_done = conn.execute("""SELECT COUNT(*) FROM habit_logs l JOIN habits h ON h.id = l.habit_id
+                                 WHERE l.user_id = ? AND l.done = 1 AND COALESCE(h.archived, 0) = 0
+                                 AND l.local_date BETWEEN ? AND ?""",
+                              (user_id, start.isoformat(), today.isoformat())).fetchone()[0]
+    conn.close()
+    best_day, best_count = None, 0
+    for iso, n in sorted(days.items()):
+        if n > best_count:
+            best_day, best_count = date.fromisoformat(iso), n
+    user = storage.get_user(user_id)
+    streak = streak_view(user.get("streak_current"), user.get("streak_best"), user.get("streak_last_date"),
+                         user.get("freeze_week"), today, user.get("freeze_tokens"))
+    return {
+        "done": sum(days.values()), "prev_done": sum(prev.values()), "active_days": len(days),
+        "xp": xp, "best_day": WEEKDAYS_RU[best_day.weekday()] if best_day else None, "best_count": best_count,
+        "streak": streak["current"],
+        "habits_pct": round(100 * habit_done / (habits_n * 7)) if habits_n else None,
+    }
+
+
 def get_state(user_id: int) -> dict:
     user = storage.get_user(user_id)
     now = local_now(user)
