@@ -26,6 +26,9 @@ load_dotenv()  # до импорта storage: он читает DB_PATH при �
 import api
 import game
 import habits
+import photos
+import plans
+import storage
 from quests_database import KEY_TO_TASK, ALL_TASKS_FLAT, COMPANY_QUESTS, PAIR_QUESTS
 from storage import (
     connect, init_db, ensure_user, get_active_quests, get_active_quest,
@@ -469,6 +472,7 @@ async def send_daily_reminders():
     сервера, как раньше). See /remind."""
     for user_id in users_at_local_hour("reminder_hour", 9):
         try:
+            await send_morning_plans(user_id)
             quests = get_active_quests(user_id)
             if quests:
                 await bot.send_message(
@@ -492,6 +496,56 @@ async def send_daily_reminders():
                 )
         except Exception as e:
             print(f"Failed to send reminder to {user_id}: {e}")
+
+def plans_lines(items: list) -> str:
+    lines = []
+    for o in items[:8]:
+        emoji = o["quest"]["emoji"] if o.get("quest") else "📝"
+        time = f"{o['time']} — " if o.get("time") else ""
+        lines.append(f"• {time}{html.escape(emoji)} {html.escape(o['title'])}")
+    if len(items) > 8:
+        lines.append(f"…и ещё {len(items) - 8}")
+    return "\n".join(lines)
+
+
+async def send_morning_plans(user_id: int):
+    """Утренняя сводка планов (если включена в профиле и планы есть)."""
+    user = storage.get_user(user_id)
+    if not user.get("morning_plans", 1):
+        return
+    items = plans.today_plans(user_id)
+    if not items:
+        return
+    markup = InlineKeyboardMarkup(inline_keyboard=[[build_miniapp_button("🗓️ Открыть календарь", "calendar")]]) if MINIAPP_URL else None
+    await bot.send_message(user_id, "🗓️ <b>Сегодня у тебя в планах:</b>\n\n" + plans_lines(items),
+                           parse_mode="HTML", reply_markup=markup)
+
+
+async def send_plan_reminders():
+    """Каждую минуту: напоминания по планам — в назначенное время или за час
+    (по часовому поясу пользователя). Каждое — один раз."""
+    for user_id, o in plans.due_reminders():
+        plans.mark_reminded(o["id"], o["date"])
+        try:
+            emoji = o["quest"]["emoji"] if o.get("quest") else "📝"
+            head = "⏰ <b>Через час по плану</b>" if o["remind"] == "hour_before" else "⏰ <b>Сейчас по плану</b>"
+            text = f"{head}\n\n{html.escape(emoji)} {html.escape(o['title'])} — в {o['time']}"
+            if o.get("note"):
+                text += f"\n<i>{html.escape(o['note'][:200])}</i>"
+            markup = InlineKeyboardMarkup(inline_keyboard=[[build_miniapp_button("Открыть", "calendar")]]) if MINIAPP_URL else None
+            await bot.send_message(user_id, text, parse_mode="HTML", reply_markup=markup)
+        except Exception as e:
+            print(f"Failed to send plan reminder to {user_id}: {e}")
+
+
+async def cleanup_photos():
+    try:
+        result = photos.cleanup_orphans()
+        if result["files"] or result["rows"]:
+            print(f"Photo cleanup: {result}")
+    except Exception as e:
+        print(f"Photo cleanup failed: {e}")
+
 
 async def send_evening_reminders():
     """Runs every hour; only messages users whose chosen evening_reminder_hour
@@ -655,6 +709,9 @@ async def main():
     scheduler.add_job(send_daily_reminders, "cron", minute=0)
     scheduler.add_job(send_evening_reminders, "cron", minute=0)
     scheduler.add_job(send_monthly_recap, "cron", day=1, hour=10, minute=0)
+    scheduler.add_job(send_plan_reminders, "interval", minutes=1)
+    scheduler.add_job(cleanup_photos, "cron", hour=4, minute=17)
+    photos.enabled()  # предупредит в логах, если Volume для фото не подключён
     scheduler.start()
 
     await dp.start_polling(bot)
