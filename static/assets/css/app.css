@@ -394,10 +394,10 @@ p { margin: 0; }
   aspect-ratio: 1; border-radius: 10px; display: grid; place-items: center; font-weight: 800; font-size: 11.5px; color: var(--ink-soft);
   background: var(--cream-2);
 }
-.heat-cell.l1 { background: #E3D7FC; }
-.heat-cell.l2 { background: #C9B3F9; color: var(--ink); }
-.heat-cell.l3 { background: #9C7BE6; color: #fff; }
-.heat-cell.l4 { background: #6B4B9E; color: #fff; }
+.heat-cell.l1 { background: color-mix(in srgb, var(--purple-deep) 22%, var(--cream-2)); }
+.heat-cell.l2 { background: color-mix(in srgb, var(--purple-deep) 45%, var(--cream-2)); color: var(--ink); }
+.heat-cell.l3 { background: color-mix(in srgb, var(--purple-deep) 72%, var(--cream-2)); color: #fff; }
+.heat-cell.l4 { background: var(--purple-deep); color: #fff; }
 .heat-cell.today { box-shadow: inset 0 0 0 2.5px var(--ink); }
 .heat-legend { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 10px; font-weight: 700; font-size: 11px; color: var(--muted); }
 .heat-legend .heat-cell { width: 14px; height: 14px; border-radius: 4px; aspect-ratio: auto; }

@@ -7,7 +7,10 @@ export const MASCOT_COLORS = {
   'cat-purple': '#B494F8', 'cat-blue': '#93ABD8', 'cat-lav': '#E7BEF8',
   'cat-orange': '#ED7C30', 'cat-pink2': '#F3619C', 'cat-lime': '#DBFA40',
 };
-export const MASCOT_KINDS = ['star', 'heart', 'cat-purple', 'cat-blue', 'cat-lav', 'cat-orange', 'cat-pink2', 'cat-lime'];
+// Выбираемые маскоты: котик и звёздочка — с самого начала, звери открываются уровнями.
+export const MASCOT_KINDS = ['cat-purple', 'star', 'frog', 'puppy', 'bear', 'leopard', 'panda', 'pig'];
+// Старые маскоты (до обновления) — рисуем так же, как их замену.
+const LEGACY = { 'cat-blue': 'frog', heart: 'puppy', 'cat-orange': 'bear', 'cat-lav': 'leopard', 'cat-pink2': 'panda', 'cat-lime': 'pig' };
 export const EXPRESSIONS = ['happy', 'wink', 'surprised', 'sleepy', 'silly', 'sad', 'love'];
 
 const INK = '#241F1A';
@@ -51,8 +54,64 @@ function mouthSVG(expr) {
 const blush = '<ellipse cx="24" cy="56" rx="6" ry="3.5" fill="#F3619C" opacity=".35"/><ellipse cx="76" cy="56" rx="6" ry="3.5" fill="#F3619C" opacity=".35"/>';
 const zzz = '<text x="80" y="14" font-family="Unbounded, sans-serif" font-weight="800" font-size="16" fill="#6B4B9E">z</text><text x="92" y="2" font-family="Unbounded, sans-serif" font-weight="800" font-size="11" fill="#6B4B9E">z</text>';
 
+// ---------- Звери ----------
+// Лицо у всех на одной сетке (глаза y≈44, нос y≈53, рот y≈58–64), поэтому
+// все выражения работают без отдельной отрисовки.
+function animalSVG(kind, expr) {
+  let eyes = eyesSVG(expr);
+  let mouth = mouthSVG(expr);
+  const cheeks = expr === 'love' || expr === 'happy' || expr === 'silly' ? blush : '';
+  const z = expr === 'sleepy' ? zzz : '';
+  const nose = (fill = INK) => `<ellipse cx="50" cy="54" rx="5" ry="3.8" fill="${fill}"/>`;
+  let body = '';
+  if (kind === 'frog') {
+    body = '<circle cx="31" cy="33" r="15" fill="#7CC95A"/><circle cx="69" cy="33" r="15" fill="#7CC95A"/>'
+      + '<ellipse cx="50" cy="62" rx="44" ry="31" fill="#7CC95A"/>'
+      + '<circle cx="31" cy="33" r="10" fill="#FFFDF5"/><circle cx="69" cy="33" r="10" fill="#FFFDF5"/>'
+      + '<ellipse cx="50" cy="78" rx="24" ry="10" fill="#B9E58F"/>';
+    eyes = `<g transform="translate(0,-11) translate(50,0) scale(1.27,1) translate(-50,0)">${eyes}</g>`;
+    mouth = `<g transform="translate(50,60) scale(1.35,1) translate(-50,-60)">${mouth}</g>`;
+    return `<svg viewBox="0 0 100 100" aria-hidden="true">${body}${eyes}${mouth}${cheeks}${z}</svg>`;
+  }
+  if (kind === 'puppy') {
+    body = '<ellipse cx="50" cy="56" rx="37" ry="36" fill="#EBC48F"/>'
+      + '<ellipse cx="65" cy="42" rx="12" ry="11" fill="#D9A066"/>'
+      + '<path d="M17 26 C3 38 5 66 16 74 C26 68 28 44 27 30 Z" fill="#A86B3C"/>'
+      + '<path d="M83 26 C97 38 95 66 84 74 C74 68 72 44 73 30 Z" fill="#A86B3C"/>'
+      + '<ellipse cx="50" cy="63" rx="16" ry="12" fill="#F7E3C4"/>' + nose();
+  } else if (kind === 'bear') {
+    body = '<circle cx="22" cy="24" r="12" fill="#9C6B43"/><circle cx="78" cy="24" r="12" fill="#9C6B43"/>'
+      + '<circle cx="22" cy="24" r="6" fill="#D8A97E"/><circle cx="78" cy="24" r="6" fill="#D8A97E"/>'
+      + '<ellipse cx="50" cy="57" rx="40" ry="36" fill="#B07A4E"/>'
+      + '<ellipse cx="50" cy="63" rx="16" ry="12" fill="#E2BC94"/>' + nose();
+  } else if (kind === 'leopard') {
+    const spot = (x, y) => `<circle cx="${x}" cy="${y}" r="4" fill="none" stroke="#7A4E1A" stroke-width="2.4"/><circle cx="${x}" cy="${y}" r="1.4" fill="#C98A2E"/>`;
+    body = '<circle cx="23" cy="27" r="10" fill="#E8A53A"/><circle cx="77" cy="27" r="10" fill="#E8A53A"/>'
+      + '<circle cx="23" cy="27" r="5" fill="#F6D08A"/><circle cx="77" cy="27" r="5" fill="#F6D08A"/>'
+      + '<ellipse cx="50" cy="57" rx="41" ry="36" fill="#F2B84B"/>'
+      + spot(20, 52) + spot(27, 72) + spot(80, 52) + spot(73, 72) + spot(40, 27) + spot(60, 27) + spot(50, 34)
+      + '<ellipse cx="50" cy="64" rx="15" ry="11" fill="#FBE7C2"/>'
+      + '<path d="M45 52 h10 l-5 5.5 z" fill="#C9656B" stroke="#C9656B" stroke-linejoin="round" stroke-width="1.5"/>';
+  } else if (kind === 'panda') {
+    body = '<circle cx="22" cy="25" r="12" fill="#2C2A22"/><circle cx="78" cy="25" r="12" fill="#2C2A22"/>'
+      + '<ellipse cx="50" cy="57" rx="41" ry="36" fill="#FFFDF5" stroke="#E3DCC8" stroke-width="2"/>'
+      + '<ellipse cx="35" cy="45" rx="10" ry="12.5" fill="#2C2A22" transform="rotate(-24 35 45)"/>'
+      + '<ellipse cx="65" cy="45" rx="10" ry="12.5" fill="#2C2A22" transform="rotate(24 65 45)"/>' + nose();
+    eyes = eyes.replace(new RegExp(INK, 'g'), '#FFFDF5');
+  } else if (kind === 'pig') {
+    body = '<path d="M20 32 L25 9 L42 24 Z" fill="#E77FA6"/><path d="M80 32 L75 9 L58 24 Z" fill="#E77FA6"/>'
+      + '<ellipse cx="50" cy="56" rx="40" ry="36" fill="#F7A8C4"/>'
+      + '<ellipse cx="50" cy="60" rx="14" ry="9.5" fill="#F27BA8"/>'
+      + '<ellipse cx="45" cy="60" rx="2.4" ry="3.4" fill="#B23C6C"/><ellipse cx="55" cy="60" rx="2.4" ry="3.4" fill="#B23C6C"/>';
+    mouth = `<g transform="translate(0,13)">${mouth}</g>`;
+  }
+  return `<svg viewBox="0 0 100 100" aria-hidden="true">${body}${eyes}${mouth}${cheeks}${z}</svg>`;
+}
+
 /** SVG-строка маскота: kind — вид, expr — выражение. */
 export function mascotSVG(kind, expr = 'happy') {
+  kind = LEGACY[kind] || kind;
+  if (['frog', 'puppy', 'bear', 'leopard', 'panda', 'pig'].includes(kind)) return animalSVG(kind, expr);
   const eyes = eyesSVG(expr);
   const mouth = mouthSVG(expr);
   const extra = (expr === 'sleepy' ? zzz : '') + (expr === 'love' || expr === 'happy' || expr === 'silly' ? blush : '');

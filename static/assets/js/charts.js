@@ -5,9 +5,9 @@
 import { h, svgEl, esc, fmtDay, weekday, parseDate } from './dom.js';
 import { haptic } from './tg.js';
 
-const INK = '#2C2A22';
-const MUTED = '#8A8365';
-const GRID = '#E9DFB8';
+const INK = 'var(--ink)';
+const MUTED = 'var(--muted)';
+const GRID = 'var(--line)';
 
 function srTable(caption, headers, rows) {
   return h('table', { class: 'sr-only' }, h('caption', null, caption),
@@ -93,7 +93,7 @@ export function lineChart(data, { height = 150, color = 'var(--accent-deep)', la
   const slot = (W - padX * 2) / Math.max(1, n - 1);
   pts.forEach((v, i) => {
     hits += `<g data-i="${i}" class="hit"><rect x="${x(i) - slot / 2}" y="0" width="${slot}" height="${H - padB}" fill="transparent"/>`
-      + `<circle class="dot" cx="${x(i)}" cy="${y(v)}" r="5" fill="${color}" stroke="#FFFDF5" stroke-width="2"/></g>`;
+      + `<circle class="dot" cx="${x(i)}" cy="${y(v)}" r="5" fill="${color}" stroke="var(--white)" stroke-width="2"/></g>`;
   });
   const step = n <= 7 ? 1 : n <= 14 ? 2 : n <= 31 ? 5 : Math.ceil(n / 6);
   let labels = '';

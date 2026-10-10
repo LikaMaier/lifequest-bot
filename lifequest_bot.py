@@ -466,36 +466,68 @@ def users_at_local_hour(column: str, default_hour: int) -> list:
     conn.close()
     return [r["user_id"] for r in rows if game.local_now(dict(r)).hour == r["hour"]]
 
+def build_morning_message(user_id: int):
+    """Утреннее сообщение: задание дня (общее для всех) + сколько квестов ждёт."""
+    user = storage.get_user(user_id)
+    today = game.local_today(user)
+    daily_id = game.daily_quest_id(today)
+    q = game.public_quest(game.CATALOG[daily_id])
+    status = game.daily_status(user_id, today)
+    quests = get_active_quests(user_id)
+
+    text = (f"🌅 <b>Доброе утро!</b>\n\n"
+            f"⭐ <b>Задание дня</b> — одно на всех сегодня:\n"
+            f"{html.escape(q['emoji'])} <b>{html.escape(q['title'])}</b>\n"
+            f"{html.escape(q['text'])}\n"
+            f"<i>Бонус +{game.DAILY_BONUS} XP за выполнение сегодня.</i>")
+    if quests:
+        text += f"\n\nВ «Моих квестах» ждут {len(quests)} — самое время закрыть хотя бы один."
+
+    rows = []
+    if status is None:
+        rows.append([InlineKeyboardButton(text="✅ Принять задание дня", callback_data=f"daily_accept_{daily_id}")])
+    rows.append([InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")] if quests
+                else [InlineKeyboardButton(text="🎯 На одного", callback_data="menu_solo")])
+    if MINIAPP_URL:
+        rows.append([build_miniapp_button("✨ Открыть LifeQuest")])
+    return text, InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 async def send_daily_reminders():
     """Runs every hour; only messages users whose chosen reminder_hour matches
     their current local hour (часовой пояс из мини-аппа; без него — время
-    сервера, как раньше). See /remind."""
+    сервера, как раньше). See /remind. Утром приходит задание дня."""
     for user_id in users_at_local_hour("reminder_hour", 9):
         try:
+            text, kb = build_morning_message(user_id)
+            await bot.send_message(user_id, text, parse_mode="HTML", reply_markup=kb)
             await send_morning_plans(user_id)
-            quests = get_active_quests(user_id)
-            if quests:
-                await bot.send_message(
-                    user_id,
-                    f"🌅 <b>Доброе утро!</b>\n\n"
-                    f"В «Моих квестах» ждут {len(quests)} — самое время закрыть хотя бы один.",
-                    parse_mode="HTML",
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")]
-                    ])
-                )
-            else:
-                await bot.send_message(
-                    user_id,
-                    "🌅 <b>Доброе утро!</b>\n\n"
-                    "В «Моих квестах» пусто — новый день отлично подходит, чтобы взять квест.",
-                    parse_mode="HTML",
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="🎯 На одного", callback_data="menu_solo")]
-                    ])
-                )
         except Exception as e:
             print(f"Failed to send reminder to {user_id}: {e}")
+
+
+@dp.callback_query(F.data.startswith("daily_accept_"))
+async def daily_accept(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    key = callback.data[len("daily_accept_"):]
+    ensure_user(user_id, callback.from_user.username, callback.from_user.first_name)
+    today = game.local_today(storage.get_user(user_id))
+    if key != game.daily_quest_id(today):
+        await callback.answer("Это задание дня уже прошло — загляни в сегодняшнее 🙂", show_alert=True)
+        return
+    try:
+        result = game.accept_quest(user_id, key, None, daily=True)
+    except game.QuestError as e:
+        await callback.answer(str(e), show_alert=True)
+        return
+    q = game.public_quest(game.CATALOG[key])
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")]])
+    head = "Задание дня уже у тебя в квестах" if result.get("already") else "Задание дня принято!"
+    await callback.message.edit_text(
+        f"✅ <b>{head}</b>\n\n{html.escape(q['emoji'])} <b>{html.escape(q['title'])}</b>\n{html.escape(q['text'])}\n\n"
+        f"Выполни сегодня — получишь +{game.DAILY_BONUS} XP бонусом.",
+        parse_mode="HTML", reply_markup=kb)
+    await callback.answer()
 
 def plans_lines(items: list) -> str:
     lines = []

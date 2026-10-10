@@ -69,7 +69,7 @@ class ApiTest(TempDBTestCase, AioHTTPTestCase):
         h = headers(42)
         self.assertEqual((await self.client.post("/api/quest/random", headers=h, json={"mode": "x"})).status, 400)
         self.assertEqual((await self.client.post("/api/settings", headers=h, json={"daily_goal": "abc"})).status, 400)
-        self.assertEqual((await self.client.post("/api/settings", headers=h, json={"mascot": "cat-lime"})).status, 400)
+        self.assertEqual((await self.client.post("/api/settings", headers=h, json={"mascot": "pig"})).status, 400)
         self.assertEqual((await self.client.post("/api/quest/complete", headers=h, json={"active_id": "1; DROP"})).status, 400)
         resp = await self.client.post("/api/settings", headers=h, json={"daily_goal": 9})
         self.assertEqual((await resp.json())["user"]["daily_goal"], 3)
@@ -154,3 +154,33 @@ class OnboardingApiTest(TempDBTestCase, AioHTTPTestCase):
         self.assertTrue(state["user"]["onboarded"])
         state = await (await self.client.get("/api/state", headers=h)).json()
         self.assertTrue(state["user"]["onboarded"])
+
+
+class ThemesAndMascotsTest(TempDBTestCase, AioHTTPTestCase):
+    def setUp(self):
+        TempDBTestCase.setUp(self)
+        AioHTTPTestCase.setUp(self)
+
+    def tearDown(self):
+        AioHTTPTestCase.tearDown(self)
+        TempDBTestCase.tearDown(self)
+
+    async def get_application(self):
+        return api.create_app(TOKEN)
+
+    async def test_any_theme_regardless_of_level(self):
+        h = headers(42)
+        for theme in ("brutal", "pixel", "halloween", "matrix", "ocean", "classic"):
+            r = await self.client.post("/api/settings", headers=h, json={"theme": theme})
+            self.assertEqual((await r.json())["user"]["theme"], theme)
+        self.assertEqual((await self.client.post("/api/settings", headers=h, json={"theme": "neon"})).status, 400)
+
+    async def test_legacy_mascot_migrated(self):
+        await self.client.get("/api/state", headers=headers(42))
+        storage.update_user(42, mascot="cat-blue")
+        storage.init_db()
+        self.assertEqual(storage.get_user(42)["mascot"], "frog")
+        state = await (await self.client.get("/api/state", headers=headers(42))).json()
+        self.assertEqual([m["id"] for m in state["unlocks"]["mascots"]],
+                         ["cat-purple", "star", "frog", "puppy", "bear", "leopard", "panda", "pig"])
+        self.assertEqual(len(state["unlocks"]["themes"]), 6)

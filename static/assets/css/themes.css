@@ -1,0 +1,157 @@
+/* ============================================================
+   LifeQuest — стили приложения (выбираются в Профиле, все доступны сразу)
+   Каждый стиль переопределяет токены дизайн-системы из app.css: фон,
+   поверхности, текст, палитру, скругления и шрифты; брутализм и 8-bit
+   дополнительно меняют форму компонентов.
+   В тёмных стилях у цветов роли меняются: --c — глубокий тон плашки
+   (на нём светлый текст), --c-deep — яркий неоновый акцент (тени, полосы,
+   подписи). Так контраст сохраняется во всех компонентах без исключений.
+   ============================================================ */
+
+@font-face { font-family: 'Rubik Mono One'; font-display: swap; src: url(../fonts/rubik-mono-one-cyrillic-400-normal.woff2) format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'Rubik Mono One'; font-display: swap; src: url(../fonts/rubik-mono-one-latin-400-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+2000-206F, U+20AC, U+2122; }
+@font-face { font-family: 'Press Start 2P'; font-display: swap; src: url(../fonts/press-start-2p-cyrillic-400-normal.woff2) format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'Press Start 2P'; font-display: swap; src: url(../fonts/press-start-2p-latin-400-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+2000-206F, U+20AC, U+2122; }
+@font-face { font-family: 'Pixelify Sans'; font-weight: 400; font-display: swap; src: url(../fonts/pixelify-sans-cyrillic-400-normal.woff2) format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'Pixelify Sans'; font-weight: 400; font-display: swap; src: url(../fonts/pixelify-sans-latin-400-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+2000-206F, U+20AC, U+2122; }
+@font-face { font-family: 'Pixelify Sans'; font-weight: 600 900; font-display: swap; src: url(../fonts/pixelify-sans-cyrillic-700-normal.woff2) format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'Pixelify Sans'; font-weight: 600 900; font-display: swap; src: url(../fonts/pixelify-sans-latin-700-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+2000-206F, U+20AC, U+2122; }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 400 500; font-display: swap; src: url(../fonts/jetbrains-mono-cyrillic-400-normal.woff2) format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 400 500; font-display: swap; src: url(../fonts/jetbrains-mono-latin-400-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+2000-206F, U+20AC, U+2122; }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 600 900; font-display: swap; src: url(../fonts/jetbrains-mono-cyrillic-700-normal.woff2) format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 600 900; font-display: swap; src: url(../fonts/jetbrains-mono-latin-700-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+2000-206F, U+20AC, U+2122; }
+@font-face { font-family: 'Rubik Wet Paint'; font-display: swap; src: url(../fonts/rubik-wet-paint-cyrillic-400-normal.woff2) format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'Rubik Wet Paint'; font-display: swap; src: url(../fonts/rubik-wet-paint-latin-400-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+2000-206F, U+20AC, U+2122; }
+
+/* ---------- Брутализм: светлый, чёрные рамки, жёсткие тени, без скруглений ---------- */
+:root[data-theme="brutal"] {
+  --cream: #F1EFE7; --cream-2: #E2DFD3; --white: #FFFFFF;
+  --ink: #0A0A0A; --ink-soft: #262626; --muted: #5A574E; --line: #0A0A0A;
+  --blue: #5B8CFF; --pink: #FF5FA2; --yellow: #FFE14D; --lav: #C9A7FF; --red: #FF4B3E;
+  --orange: #FF8A3D; --purple: #9B7BFF; --lime: #B6F23C; --paleyellow: #FFF3A8;
+  --blue-deep: #0A0A0A; --pink-deep: #0A0A0A; --yellow-deep: #0A0A0A; --lav-deep: #0A0A0A; --red-deep: #0A0A0A;
+  --orange-deep: #0A0A0A; --purple-deep: #0A0A0A; --lime-deep: #0A0A0A;
+  --accent: #FFE14D; --accent-deep: #0A0A0A; --accent-ink: #0A0A0A;
+  --r-sm: 0; --r-md: 0; --r-lg: 0; --r-xl: 0;
+  --font-display: 'Rubik Mono One', 'Unbounded', sans-serif;
+}
+[data-theme="brutal"] h1 { font-size: 22px; text-transform: uppercase; letter-spacing: -0.02em; }
+[data-theme="brutal"] h2 { text-transform: uppercase; font-size: 15px; }
+[data-theme="brutal"] :is(.card, .metric, .mode-btn, .quest-item, .plan-row, .habit-card, .feed-item, .badge, .speech,
+  .quest-card, .board-grid, .picker, .photo-add, .onb-feature, .onb-hero, .level-badge, .avatar-btn, .icon-btn, .chip,
+  .habit-check, .habit-step, .plan-check, .accent-pick, .theme-card, .badge-big, .toast, .modal, .sheet) {
+  border: 3px solid #0A0A0A !important; border-radius: 0 !important; box-shadow: 5px 5px 0 #0A0A0A !important;
+}
+[data-theme="brutal"] .btn { border: 3px solid #0A0A0A; border-radius: 0; box-shadow: 5px 5px 0 #0A0A0A; text-transform: uppercase; font-size: 12.5px; }
+[data-theme="brutal"] .btn:active:not(:disabled), [data-theme="brutal"] .mode-btn:active { transform: translate(5px, 5px); box-shadow: none !important; }
+[data-theme="brutal"] :is(.input, .segmented, .tabbar, .cal-day, .board-cell, .heat-cell, .photo-thumb, .album-cell, .emoji-pick) { border-radius: 0 !important; }
+[data-theme="brutal"] .input { box-shadow: inset 0 0 0 3px #0A0A0A; }
+[data-theme="brutal"] .tabbar { border-top: 3px solid #0A0A0A; background: #FFFFFF; }
+[data-theme="brutal"] .tab[aria-current="page"] { background: #FFE14D; outline: 3px solid #0A0A0A; border-radius: 0; }
+[data-theme="brutal"] .ring-track { stroke: #E2DFD3; }
+[data-theme="brutal"] .ring-bar { stroke-linecap: butt; }
+[data-theme="brutal"] .sheet { border-bottom: 0 !important; }
+[data-theme="brutal"] body { background-image: linear-gradient(#0000000d 1px, transparent 1px), linear-gradient(90deg, #0000000d 1px, transparent 1px); background-size: 24px 24px; }
+
+/* ---------- 8-bit: ретро-пиксели, палитра PICO-8 ---------- */
+:root[data-theme="pixel"] {
+  --cream: #1D2B53; --cream-2: #29366F; --white: #11193A;
+  --ink: #FFF1E8; --ink-soft: #C2C3C7; --muted: #9C93B8; --line: #000000;
+  --blue: #1E3F8A; --blue-deep: #29ADFF; --pink: #5A1E3E; --pink-deep: #FF77A8; --yellow: #574A10; --yellow-deep: #FFEC27;
+  --lav: #3D3561; --lav-deep: #C9B6FF; --red: #5A0F1F; --red-deep: #FF004D; --orange: #5A3410; --orange-deep: #FFA300;
+  --purple: #3A1F5E; --purple-deep: #B08CFF; --lime: #0F4A28; --lime-deep: #00E436; --paleyellow: #4A3F2A;
+  --accent: #FF004D; --accent-deep: #7E2553; --accent-ink: #FFF1E8;
+  --r-sm: 0; --r-md: 0; --r-lg: 0; --r-xl: 0;
+  --font-display: 'Pixelify Sans', monospace; --font-body: 'Pixelify Sans', monospace;
+  color-scheme: dark;
+}
+[data-theme="pixel"] body { font-size: 15.5px; background-image: linear-gradient(#ffffff08 2px, transparent 2px), linear-gradient(90deg, #ffffff08 2px, transparent 2px); background-size: 16px 16px; }
+[data-theme="pixel"] h1 { font-family: 'Press Start 2P', monospace; font-size: 16px; line-height: 1.5; letter-spacing: 0; }
+[data-theme="pixel"] .onb-title { font-size: 15px; }
+[data-theme="pixel"] :is(.card, .metric, .mode-btn, .quest-item, .plan-row, .habit-card, .feed-item, .badge, .speech, .quest-card,
+  .board-grid, .picker, .photo-add, .onb-feature, .onb-hero, .level-badge, .avatar-btn, .icon-btn, .chip, .habit-check,
+  .habit-step, .plan-check, .accent-pick, .theme-card, .badge-big, .toast, .modal, .btn, .input, .segmented) {
+  border-radius: 0 !important; image-rendering: pixelated;
+  box-shadow: 0 -4px 0 0 #000, 0 4px 0 0 #000, -4px 0 0 0 #000, 4px 0 0 0 #000, 4px 8px 0 0 #00000088 !important;
+}
+[data-theme="pixel"] .btn:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 -4px 0 0 #000, 0 4px 0 0 #000, -4px 0 0 0 #000, 4px 0 0 0 #000 !important; }
+[data-theme="pixel"] :is(.cal-day, .board-cell, .heat-cell, .photo-thumb, .album-cell, .emoji-pick, .tab, .bar, .bar > span, .hbar-track, .hbar-track span, .habit-bar, .habit-bar span) { border-radius: 0 !important; }
+[data-theme="pixel"] .ring-bar { stroke-linecap: butt; }
+[data-theme="pixel"] .tabbar { border-top: 4px solid #000; background: #11193A; }
+
+/* ---------- Хэллоуин: фиолетовая ночь, тыквенный оранжевый ---------- */
+:root[data-theme="halloween"] {
+  --cream: #160D1E; --cream-2: #261633; --white: #22142D;
+  --ink: #F6E9FF; --ink-soft: #D6C2E4; --muted: #A891B9; --line: #3A2549;
+  --blue: #22304F; --blue-deep: #7FA7FF; --pink: #4A1F3A; --pink-deep: #FF6FB5; --yellow: #4A3A12; --yellow-deep: #FFD23F;
+  --lav: #3A2550; --lav-deep: #D7A6FF; --red: #4F1A1A; --red-deep: #FF5A4F; --orange: #5A2A0E; --orange-deep: #FF8A2A;
+  --purple: #34204F; --purple-deep: #B98CFF; --lime: #24401A; --lime-deep: #9BFF4F; --paleyellow: #3D2E1C;
+  --accent: #FF7A1A; --accent-deep: #9E3F00; --accent-ink: #160D1E;
+  color-scheme: dark;
+}
+[data-theme="halloween"] body {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cg opacity='.13'%3E%3Cpath d='M20 30 q6-8 12 0 q4-6 8 0 q4-6 8 0 q6-8 12 0 q-10 2-14 10 q-3-5-6 0 q-4-8-20-10z' fill='%23B98CFF'/%3E%3Ccircle cx='130' cy='120' r='14' fill='%23FF8A2A'/%3E%3Cpath d='M130 104 v-6' stroke='%239BFF4F' stroke-width='3'/%3E%3Cpath d='M124 118 l3 3 l3-3 M132 118 l3 3 l3-3 M124 126 q6 4 12 0' stroke='%23160D1E' stroke-width='2' fill='none'/%3E%3Ccircle cx='150' cy='30' r='2' fill='%23F6E9FF'/%3E%3Ccircle cx='60' cy='140' r='1.5' fill='%23F6E9FF'/%3E%3C/g%3E%3C/svg%3E"),
+    radial-gradient(ellipse at 80% -10%, #4A2A6A 0%, transparent 55%);
+}
+[data-theme="halloween"] :is(h1, .section-title h2, .onb-title) { font-family: 'Rubik Wet Paint', 'Unbounded', sans-serif; font-weight: 400; letter-spacing: .01em; color: #FF8A2A; }
+[data-theme="halloween"] .tabbar { background: #160D1Eee; }
+[data-theme="halloween"] .brand, [data-theme="halloween"] .onb-brand { color: #FF8A2A; }
+
+/* ---------- Матрица: зелёный код на чёрном ---------- */
+:root[data-theme="matrix"] {
+  --cream: #020A04; --cream-2: #06180C; --white: #05140A;
+  --ink: #B8FFC9; --ink-soft: #7EE79A; --muted: #4FA866; --line: #0F3D1E;
+  --blue: #0A2B26; --blue-deep: #2CF2C8; --pink: #2A1027; --pink-deep: #FF66D9; --yellow: #26300A; --yellow-deep: #D6FF3D;
+  --lav: #13291F; --lav-deep: #7DFFB0; --red: #301010; --red-deep: #FF5C5C; --orange: #2E230A; --orange-deep: #FFC23D;
+  --purple: #102A2A; --purple-deep: #45E6FF; --lime: #0D3318; --lime-deep: #39FF6A; --paleyellow: #16260F;
+  --accent: #00FF66; --accent-deep: #00A040; --accent-ink: #001A08;
+  --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-xl: 10px;
+  --font-display: 'JetBrains Mono', ui-monospace, monospace; --font-body: 'JetBrains Mono', ui-monospace, monospace;
+  color-scheme: dark;
+}
+[data-theme="matrix"] body { font-size: 14px; background-image: repeating-linear-gradient(0deg, #00ff6608 0 1px, transparent 1px 3px); }
+[data-theme="matrix"] :is(h1, h2) { text-shadow: 0 0 10px #00ff6688; letter-spacing: -0.02em; }
+[data-theme="matrix"] :is(.card, .quest-item, .plan-row, .habit-card, .feed-item, .speech) { box-shadow: 0 0 0 1px #0F3D1E, 0 0 18px #00ff6614 !important; }
+[data-theme="matrix"] .btn { box-shadow: 0 0 0 1px var(--b-deep), 0 0 14px color-mix(in srgb, var(--b) 45%, transparent); margin-bottom: 0; }
+[data-theme="matrix"] .btn:active:not(:disabled) { transform: scale(.97); box-shadow: 0 0 0 1px var(--b-deep); }
+[data-theme="matrix"] .tabbar { background: #020A04ee; border-top-color: #0F3D1E; }
+.matrix-rain { position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: .22; }
+
+/* ---------- Морской мир: глубина, бирюза, пузырьки ---------- */
+:root[data-theme="ocean"] {
+  --cream: #062A43; --cream-2: #0B3A57; --white: #0D3B5C;
+  --ink: #E8FBFF; --ink-soft: #B6E6F2; --muted: #86C1D3; --line: #165A7D;
+  --blue: #12406A; --blue-deep: #5CC8FF; --pink: #4A2448; --pink-deep: #FF8FD0; --yellow: #4A4320; --yellow-deep: #FFE46B;
+  --lav: #2E3270; --lav-deep: #B8B2FF; --red: #5A2230; --red-deep: #FF7A7A; --orange: #5A3418; --orange-deep: #FFAA5C;
+  --purple: #322A6A; --purple-deep: #A68CFF; --lime: #154A3A; --lime-deep: #5CFFB7; --paleyellow: #2E4A4A;
+  --accent: #2FE6D0; --accent-deep: #0F8F84; --accent-ink: #04263A;
+  --r-sm: 18px; --r-md: 24px; --r-lg: 28px; --r-xl: 34px;
+  color-scheme: dark;
+}
+[data-theme="ocean"] body {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='240' viewBox='0 0 160 240'%3E%3Cg fill='none' stroke='%23B6E6F2' opacity='.16'%3E%3Ccircle cx='20' cy='200' r='6'/%3E%3Ccircle cx='32' cy='170' r='3.5'/%3E%3Ccircle cx='26' cy='150' r='2'/%3E%3Ccircle cx='120' cy='90' r='8'/%3E%3Ccircle cx='132' cy='60' r='4'/%3E%3Ccircle cx='126' cy='40' r='2.5'/%3E%3C/g%3E%3C/svg%3E"),
+    linear-gradient(180deg, #0B4F73 0%, #062A43 45%, #031827 100%);
+  background-attachment: fixed;
+}
+[data-theme="ocean"] .tabbar { background: #031827e6; border-top-color: #165A7D; }
+[data-theme="ocean"] .card, [data-theme="ocean"] .quest-item { backdrop-filter: blur(4px); }
+
+/* ---------- Карточки выбора стиля в Профиле ---------- */
+.theme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.theme-card {
+  border: 0; border-radius: 18px; padding: 0; overflow: hidden; text-align: left; background: var(--white);
+  box-shadow: 0 3px 0 var(--line); color: var(--ink); min-height: 120px; display: flex; flex-direction: column;
+}
+.theme-card.on { outline: 3px solid var(--accent-deep); outline-offset: 2px; }
+.theme-preview { height: 64px; position: relative; display: flex; align-items: flex-end; gap: 5px; padding: 8px; }
+.theme-preview i { display: block; width: 26px; height: 18px; }
+.theme-preview b { position: absolute; top: 8px; left: 10px; font-size: 15px; }
+.theme-card .theme-name { padding: 8px 10px 2px; font-weight: 800; font-size: 13.5px; }
+.theme-card .theme-desc { padding: 0 10px 10px; font-weight: 600; font-size: 11px; color: var(--muted); line-height: 1.3; }
+
+/* Тёмные стили: активная вкладка и ссылки — яркий акцент, а не тёмный «deep» */
+:root:is([data-theme="pixel"], [data-theme="halloween"], [data-theme="matrix"], [data-theme="ocean"]) .tab[aria-current="page"] svg { color: var(--accent); }
+:root:is([data-theme="pixel"], [data-theme="halloween"], [data-theme="matrix"], [data-theme="ocean"]) :is(.section-title .link, .avatar-btn) { color: var(--accent); }
+:root:is([data-theme="pixel"], [data-theme="halloween"], [data-theme="matrix"], [data-theme="ocean"]) .tab[aria-current="page"] { background: color-mix(in srgb, var(--accent) 18%, transparent); }

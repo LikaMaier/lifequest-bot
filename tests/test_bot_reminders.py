@@ -62,3 +62,58 @@ class BotRemindersTest(TempDBTestCase, unittest.IsolatedAsyncioTestCase):
         storage.update_user(5, morning_plans=0)
         await lifequest_bot.send_morning_plans(5)
         self.assertEqual(len(self.sent), 1)
+
+
+class DailyQuestPushTest(TempDBTestCase, unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        TempDBTestCase.setUp(self)
+        storage.ensure_user(7)
+        storage.update_user(7, tz="Europe/Moscow")
+        self.sent = []
+
+        async def fake_send(chat_id, text, **kw):
+            self.sent.append((chat_id, text, kw.get("reply_markup")))
+        self.patch = mock.patch.object(lifequest_bot.bot, "send_message", side_effect=fake_send)
+        self.patch.start()
+
+    def tearDown(self):
+        self.patch.stop()
+        TempDBTestCase.tearDown(self)
+
+    def _daily(self):
+        today = game.local_today(storage.get_user(7))
+        return game.daily_quest_id(today), game.CATALOG[game.daily_quest_id(today)]
+
+    async def test_morning_push_has_daily_quest(self):
+        key, q = self._daily()
+        with mock.patch.object(lifequest_bot, "users_at_local_hour", return_value=[7]):
+            await lifequest_bot.send_daily_reminders()
+        self.assertEqual(len(self.sent), 1)  # планов нет — только одно сообщение
+        _, text, kb = self.sent[0]
+        self.assertIn("Задание дня", text)
+        self.assertIn(q["title"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"), text)
+        datas = [b.callback_data for row in kb.inline_keyboard for b in row]
+        self.assertIn(f"daily_accept_{key}", datas)
+
+    async def test_accept_button_hidden_after_accepting(self):
+        key, _ = self._daily()
+        game.accept_quest(7, key, None, daily=True)
+        text, kb = lifequest_bot.build_morning_message(7)
+        datas = [b.callback_data for row in kb.inline_keyboard for b in row]
+        self.assertNotIn(f"daily_accept_{key}", datas)
+        self.assertIn("menu_myquests", datas)
+
+    async def test_daily_accept_callback(self):
+        key, _ = self._daily()
+        cb = mock.MagicMock()
+        cb.from_user.id, cb.from_user.username, cb.from_user.first_name = 7, "u", "U"
+        cb.data = f"daily_accept_{key}"
+        cb.answer = mock.AsyncMock()
+        cb.message.edit_text = mock.AsyncMock()
+        await lifequest_bot.daily_accept(cb)
+        cb.message.edit_text.assert_awaited_once()
+        self.assertEqual(game.daily_status(7, game.local_today(storage.get_user(7))), "active")
+        # Вчерашнее (не сегодняшнее) задание дня не принимается.
+        cb.data = "daily_accept_not_today"
+        await lifequest_bot.daily_accept(cb)
+        self.assertTrue(cb.answer.await_args.kwargs.get("show_alert"))
