@@ -235,6 +235,16 @@ def daily_quest_id(day: date) -> str:
     return pool[idx]
 
 
+def daily_status(user_id: int, day: date) -> str:
+    """Статус задания дня у пользователя за этот день: None, 'active' или 'done'."""
+    conn = storage.connect()
+    row = conn.execute("""SELECT status FROM quest_history WHERE user_id = ? AND quest_key = ? AND daily = 1
+                          AND local_date = ? ORDER BY id DESC LIMIT 1""",
+                       (user_id, daily_quest_id(day), day.isoformat())).fetchone()
+    conn.close()
+    return row[0] if row else None
+
+
 def _keys_with_status(user_id: int, status: str) -> set:
     conn = storage.connect()
     rows = conn.execute("SELECT DISTINCT quest_key FROM quest_history WHERE user_id = ? AND status = ?",
