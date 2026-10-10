@@ -53,31 +53,34 @@
 [data-theme="brutal"] .sheet { border-bottom: 0 !important; }
 [data-theme="brutal"] body { background-image: linear-gradient(#0000000d 1px, transparent 1px), linear-gradient(90deg, #0000000d 1px, transparent 1px); background-size: 24px 24px; }
 
-/* ---------- 8-bit: ретро-пиксели, палитра PICO-8 ---------- */
+/* ---------- 8-bit: ретро-пиксели. Палитра: Wild Yonder #6F85B9, Spray #72CED7,
+   Mulberry #D3578B, Gamboge #F1980D, Bossanova #544957 ---------- */
 :root[data-theme="pixel"] {
-  --cream: #1D2B53; --cream-2: #29366F; --white: #11193A;
-  --ink: #FFF1E8; --ink-soft: #C2C3C7; --muted: #9C93B8; --line: #000000;
-  --blue: #1E3F8A; --blue-deep: #29ADFF; --pink: #5A1E3E; --pink-deep: #FF77A8; --yellow: #574A10; --yellow-deep: #FFEC27;
-  --lav: #3D3561; --lav-deep: #C9B6FF; --red: #5A0F1F; --red-deep: #FF004D; --orange: #5A3410; --orange-deep: #FFA300;
-  --purple: #3A1F5E; --purple-deep: #B08CFF; --lime: #0F4A28; --lime-deep: #00E436; --paleyellow: #4A3F2A;
-  --accent: #FF004D; --accent-deep: #7E2553; --accent-ink: #FFF1E8;
+  --cream: #3B3240; --cream-2: #544957; --white: #2B2430;
+  --ink: #FFF4EA; --ink-soft: #E2D8E4; --muted: #B4A8B8; --line: #120E14;
+  --blue: #3B4566; --blue-deep: #8FA3D6; --pink: #5E2C45; --pink-deep: #E97CA8; --yellow: #5E4314; --yellow-deep: #F7B347;
+  --lav: #44405F; --lav-deep: #A9B7E0; --red: #5E2C45; --red-deep: #E06A97; --orange: #5E3D12; --orange-deep: #F1980D;
+  --purple: #433A5C; --purple-deep: #9DAEDD; --lime: #24474D; --lime-deep: #72CED7; --paleyellow: #4D4234;
+  --accent: #D3578B; --accent-deep: #6F85B9; --accent-ink: #FFFFFF;
   --r-sm: 0; --r-md: 0; --r-lg: 0; --r-xl: 0;
   --font-display: 'Pixelify Sans', monospace; --font-body: 'Pixelify Sans', monospace;
   color-scheme: dark;
 }
-[data-theme="pixel"] body { font-size: 15.5px; background-image: linear-gradient(#ffffff08 2px, transparent 2px), linear-gradient(90deg, #ffffff08 2px, transparent 2px); background-size: 16px 16px; }
+[data-theme="pixel"] body { font-size: 15.5px; background-color: transparent; /* фигурки тетриса видны между карточками */ background-image: linear-gradient(#ffffff08 2px, transparent 2px), linear-gradient(90deg, #ffffff08 2px, transparent 2px); background-size: 16px 16px; }
+.tetris-rain { position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: .7; image-rendering: pixelated; }
+.mascot-pixel { height: 100%; aspect-ratio: 1; image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
 [data-theme="pixel"] h1 { font-family: 'Press Start 2P', monospace; font-size: 16px; line-height: 1.5; letter-spacing: 0; }
 [data-theme="pixel"] .onb-title { font-size: 15px; }
 [data-theme="pixel"] :is(.card, .metric, .mode-btn, .quest-item, .plan-row, .habit-card, .feed-item, .badge, .speech, .quest-card,
   .board-grid, .picker, .photo-add, .onb-feature, .onb-hero, .level-badge, .avatar-btn, .icon-btn, .chip, .habit-check,
   .habit-step, .plan-check, .accent-pick, .theme-card, .badge-big, .toast, .modal, .btn, .input, .segmented) {
   border-radius: 0 !important; image-rendering: pixelated;
-  box-shadow: 0 -4px 0 0 #000, 0 4px 0 0 #000, -4px 0 0 0 #000, 4px 0 0 0 #000, 4px 8px 0 0 #00000088 !important;
+  box-shadow: 0 -4px 0 0 #120E14, 0 4px 0 0 #120E14, -4px 0 0 0 #120E14, 4px 0 0 0 #120E14, 4px 8px 0 0 #00000088 !important;
 }
-[data-theme="pixel"] .btn:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 -4px 0 0 #000, 0 4px 0 0 #000, -4px 0 0 0 #000, 4px 0 0 0 #000 !important; }
+[data-theme="pixel"] .btn:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 -4px 0 0 #120E14, 0 4px 0 0 #120E14, -4px 0 0 0 #120E14, 4px 0 0 0 #120E14 !important; }
 [data-theme="pixel"] :is(.cal-day, .board-cell, .heat-cell, .photo-thumb, .album-cell, .emoji-pick, .tab, .bar, .bar > span, .hbar-track, .hbar-track span, .habit-bar, .habit-bar span) { border-radius: 0 !important; }
 [data-theme="pixel"] .ring-bar { stroke-linecap: butt; }
-[data-theme="pixel"] .tabbar { border-top: 4px solid #000; background: #11193A; }
+[data-theme="pixel"] .tabbar { border-top: 4px solid #120E14; background: #2B2430; }
 
 /* ---------- Хэллоуин: фиолетовая ночь, тыквенный оранжевый ---------- */
 :root[data-theme="halloween"] {

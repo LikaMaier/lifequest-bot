@@ -1,14 +1,14 @@
 // Применение стиля приложения: атрибут data-theme, цвета шапки Telegram и
-// декоративные эффекты (цифровой дождь в «Матрице»).
+// декоративные эффекты (цифровой дождь в «Матрице», падающие фигурки в 8-bit).
 
 import { tg } from './tg.js';
 
-let rain = null;
+let fx = null; // { theme, stop() } — текущий фоновый эффект
 const reduceMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export function applyTheme(theme) {
   const root = document.documentElement;
-  if (root.dataset.theme === theme && (theme !== 'matrix' || rain)) return;
+  if (root.dataset.theme === theme && (!EFFECTS[theme] || (fx && fx.theme === theme))) return;
   root.dataset.theme = theme;
   // Шапку и фон Telegram красим в фон стиля.
   const bg = getComputedStyle(root).getPropertyValue('--cream').trim() || '#FDF7DE';
@@ -19,29 +19,51 @@ export function applyTheme(theme) {
   } catch (e) { /* старые клиенты */ }
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute('content', bg);
-  if (theme === 'matrix' && !reduceMotion()) startRain(); else stopRain();
+  if (fx && fx.theme !== theme) { fx.stop(); fx = null; }
+  if (!fx && EFFECTS[theme] && !reduceMotion()) fx = { theme, ...EFFECTS[theme]() };
 }
 
-function startRain() {
-  if (rain) return;
+/** Общая обвязка: холст на весь экран под контентом, ~14 кадров в секунду, пауза в фоне. */
+function canvasLoop(className, onResize, onFrame, interval = 70) {
   const canvas = document.createElement('canvas');
-  canvas.className = 'matrix-rain';
+  canvas.className = className;
   canvas.setAttribute('aria-hidden', 'true');
   document.body.prepend(canvas);
   const ctx = canvas.getContext('2d');
-  const chars = 'アカサタナハマヤラワ0123456789ЛАЙФКВЕСТ+*<>';
-  let cols = [], size = 16, raf = 0, last = 0;
+  let raf = 0, last = 0;
   const resize = () => {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    cols = Array.from({ length: Math.ceil(canvas.width / size) }, () => Math.random() * -50);
+    onResize(canvas, ctx);
   };
   resize();
   window.addEventListener('resize', resize);
   const frame = t => {
     raf = requestAnimationFrame(frame);
-    if (t - last < 70) return; // ~14 кадров в секунду — экономим батарею
+    if (t - last < interval) return;
     last = t;
+    onFrame(canvas, ctx);
+  };
+  raf = requestAnimationFrame(frame);
+  const onVis = () => { cancelAnimationFrame(raf); if (!document.hidden) raf = requestAnimationFrame(frame); };
+  document.addEventListener('visibilitychange', onVis);
+  return {
+    stop() {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', resize);
+      document.removeEventListener('visibilitychange', onVis);
+      canvas.remove();
+    },
+  };
+}
+
+function matrixRain() {
+  const chars = 'アカサタナハマヤラワ0123456789ЛАЙФКВЕСТ+*<>';
+  const size = 16;
+  let cols = [];
+  return canvasLoop('matrix-rain', canvas => {
+    cols = Array.from({ length: Math.ceil(canvas.width / size) }, () => Math.random() * -50);
+  }, (canvas, ctx) => {
     ctx.fillStyle = 'rgba(2, 10, 4, 0.18)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = '#00FF66';
@@ -50,13 +72,65 @@ function startRain() {
       ctx.fillText(chars[Math.floor(Math.random() * chars.length)], i * size, y * size);
       cols[i] = y * size > canvas.height && Math.random() > 0.975 ? 0 : y + 1;
     });
-  };
-  raf = requestAnimationFrame(frame);
-  const onVis = () => { if (document.hidden) cancelAnimationFrame(raf); else raf = requestAnimationFrame(frame); };
-  document.addEventListener('visibilitychange', onVis);
-  rain = { stop() { cancelAnimationFrame(raf); window.removeEventListener('resize', resize); document.removeEventListener('visibilitychange', onVis); canvas.remove(); } };
+  });
 }
 
-function stopRain() {
-  if (rain) { rain.stop(); rain = null; }
+// Тетрис: разноцветные фигурки падают по клеткам и иногда поворачиваются.
+const TETROMINOES = [
+  [[0, 0], [1, 0], [2, 0], [3, 0]],         // I
+  [[0, 0], [1, 0], [0, 1], [1, 1]],         // O
+  [[0, 0], [1, 0], [2, 0], [1, 1]],         // T
+  [[1, 0], [2, 0], [0, 1], [1, 1]],         // S
+  [[0, 0], [1, 0], [1, 1], [2, 1]],         // Z
+  [[0, 0], [0, 1], [1, 1], [2, 1]],         // J
+  [[2, 0], [0, 1], [1, 1], [2, 1]],         // L
+];
+const TETRIS_COLORS = ['#6F85B9', '#72CED7', '#D3578B', '#F1980D', '#9DAEDD'];
+
+function tetrisRain() {
+  const cell = 14;
+  let pieces = [], cols = 0, rows = 0;
+  const spawn = (y = -4 - Math.floor(Math.random() * 20)) => ({
+    shape: TETROMINOES[Math.floor(Math.random() * TETROMINOES.length)].map(p => [...p]),
+    color: TETRIS_COLORS[Math.floor(Math.random() * TETRIS_COLORS.length)],
+    x: Math.floor(Math.random() * Math.max(1, cols - 3)),
+    y,
+    every: 2 + Math.floor(Math.random() * 3), // скорость: шаг раз в 2–4 кадра
+    tick: 0,
+  });
+  const rotate = shape => {
+    const r = shape.map(([x, y]) => [-y, x]);
+    const minX = Math.min(...r.map(p => p[0])), minY = Math.min(...r.map(p => p[1]));
+    return r.map(([x, y]) => [x - minX, y - minY]);
+  };
+  const block = (ctx, x, y, color) => {
+    const px = x * cell, py = y * cell;
+    ctx.fillStyle = color;
+    ctx.fillRect(px, py, cell, cell);
+    ctx.fillStyle = 'rgba(255,255,255,.35)'; // блик сверху-слева, как в 8-bit
+    ctx.fillRect(px, py, cell, 3);
+    ctx.fillRect(px, py, 3, cell);
+    ctx.fillStyle = 'rgba(0,0,0,.35)';
+    ctx.fillRect(px, py + cell - 3, cell, 3);
+    ctx.fillRect(px + cell - 3, py, 3, cell);
+  };
+  return canvasLoop('tetris-rain', canvas => {
+    cols = Math.ceil(canvas.width / cell);
+    rows = Math.ceil(canvas.height / cell);
+    const count = Math.max(8, Math.round(cols / 2.5));
+    pieces = Array.from({ length: count }, () => spawn(Math.floor(Math.random() * rows) - 4));
+  }, (canvas, ctx) => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    pieces.forEach((p, i) => {
+      if (++p.tick >= p.every) {
+        p.tick = 0;
+        p.y += 1;
+        if (Math.random() < 0.08) p.shape = rotate(p.shape);
+      }
+      if (p.y > rows) { pieces[i] = spawn(); return; }
+      for (const [dx, dy] of p.shape) block(ctx, p.x + dx, p.y + dy, p.color);
+    });
+  });
 }
+
+const EFFECTS = { matrix: matrixRain, pixel: tetrisRain };

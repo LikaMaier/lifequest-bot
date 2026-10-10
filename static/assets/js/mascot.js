@@ -148,7 +148,45 @@ export function mascot(kind, expr = 'happy', { size = 64, label, cls = '' } = {}
   el.style.height = `${Math.round(size * 0.92)}px`;
   if (label) { el.setAttribute('role', 'img'); el.setAttribute('aria-label', label); }
   else el.setAttribute('aria-hidden', 'true');
+  if (document.documentElement.dataset.theme === 'pixel') pixelate(el, mascotSVG(kind, expr));
   return el;
+}
+
+// Стиль 8-bit: рисуем маскота в крошечный холст (сетка 28×28) и растягиваем
+// без сглаживания — получается пиксель-арт. Полупрозрачные края убираем,
+// чтобы контур был ступенчатым. SVG остаётся, пока холст не готов.
+const PIXELS = 28;
+const pixelCache = new Map();
+
+function pixelate(el, markup) {
+  const draw = canvasFrom => {
+    const c = document.createElement('canvas');
+    c.width = c.height = PIXELS;
+    c.className = 'mascot-pixel';
+    c.getContext('2d').drawImage(canvasFrom, 0, 0);
+    el.replaceChildren(c);
+  };
+  const cached = pixelCache.get(markup);
+  if (cached) { draw(cached); return; }
+  const img = new Image();
+  img.onload = () => {
+    try {
+      const pad = 3; // небольшой запас по краям: ушки и «z» выходят за 100×100
+      const src = document.createElement('canvas');
+      src.width = src.height = PIXELS;
+      const ctx = src.getContext('2d');
+      ctx.drawImage(img, pad, pad, PIXELS - pad * 2, PIXELS - pad * 2);
+      const data = ctx.getImageData(0, 0, PIXELS, PIXELS);
+      const px = data.data;
+      for (let i = 3; i < px.length; i += 4) px[i] = px[i] > 110 ? 255 : 0;
+      ctx.putImageData(data, 0, 0);
+      if (pixelCache.size > 60) pixelCache.clear();
+      pixelCache.set(markup, src);
+      draw(src);
+    } catch (e) { /* холст недоступен — остаётся обычный SVG */ }
+  };
+  const svg = markup.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" ');
+  img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
 export function jump(el) {
