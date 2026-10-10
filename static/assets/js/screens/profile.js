@@ -82,7 +82,7 @@ export function render(el, { state, go }) {
     pixel: { bg: '#FFF8EC', cells: ['#FF2E84', '#FFA21F', '#3DEBF2'], mark: '👾', radius: '0' },
     halloween: { bg: '#160D1E', cells: ['#FF8A2A', '#B98CFF', '#9BFF4F'], mark: '🎃', radius: '8px' },
     matrix: { bg: '#020A04', cells: ['#00FF66', '#2CF2C8', '#D6FF3D'], mark: '⌨️', radius: '3px' },
-    ocean: { bg: '#062A43', cells: ['#2FE6D0', '#5CC8FF', '#FF8FD0'], mark: '🐠', radius: '12px' },
+    ocean: { bg: 'linear-gradient(180deg, #DFD0B1, #3BEAEF 70%, #3D7282)', cells: ['rgba(255,255,255,.55)', 'rgba(255,255,255,.55)', 'rgba(255,255,255,.55)'], mark: '🫧', radius: '10px' },
   };
   const themes = h('div', { class: 'theme-grid', role: 'radiogroup', 'aria-label': 'Стиль приложения' },
     state.unlocks.themes.map(t => {
