@@ -7,6 +7,7 @@ import { api } from '../api.js';
 import { mascot } from '../mascot.js';
 import { skeleton, sectionTitle, emptyState, SPHERE_INFO, MODE_INFO, colorOf } from '../ui.js';
 import { barChart, lineChart, hbars, heatmap } from '../charts.js';
+import { openPhotoReport } from '../photoui.js';
 
 const view = { range: '7', kind: 'bar', stats: {} };
 const RANGES = [['7', '7 дн.'], ['14', '14 дн.'], ['30', '30 дн.'], ['all', 'Всё время']];
@@ -15,6 +16,15 @@ export async function render(el, ctx) {
   clear(el);
   el.append(h('header', { class: 'page-head' }, mascot('cat-blue', 'happy', { size: 56 }),
     h('div', null, h('h1', null, 'Прогресс'), h('p', null, 'Следи за своими приключениями и находи закономерности'))));
+  const awardsBtn = h('button', { type: 'button', class: 'quest-item c-yellow' }, h('span', { class: 'q-emoji', 'aria-hidden': 'true' }, '🏆'),
+    h('span', { class: 'grow' }, h('span', { class: 'q-title', style: { display: 'block' } }, 'Награды'),
+      h('span', { class: 'q-meta', style: { display: 'block' } }, `${ctx.state.badges.unlocked} из ${ctx.state.badges.total} ачивок · уровень ${ctx.state.level.level}`)));
+  awardsBtn.addEventListener('click', () => { haptic.tap(); ctx.go('awards'); });
+  const albumBtn = h('button', { type: 'button', class: 'quest-item c-pink' }, h('span', { class: 'q-emoji', 'aria-hidden': 'true' }, '📷'),
+    h('span', { class: 'grow' }, h('span', { class: 'q-title', style: { display: 'block' } }, 'Альбом'),
+      h('span', { class: 'q-meta', style: { display: 'block' } }, ctx.state.photos.enabled ? `${ctx.state.photos.count} фото-воспоминаний` : 'Фото пока недоступны')));
+  albumBtn.addEventListener('click', () => { haptic.tap(); ctx.go('album'); });
+  el.append(h('div', { class: 'metrics', style: { marginBottom: '14px' } }, awardsBtn, albumBtn));
 
   const seg = h('div', { class: 'segmented', role: 'group', 'aria-label': 'Период' },
     RANGES.map(([key, label]) => {
@@ -109,10 +119,17 @@ function draw(body, s, ctx) {
         h('span', { class: 'feed-dot', 'aria-hidden': 'true' }, q.emoji),
         h('div', { class: 'grow' }, h('div', { class: 'bold' }, q.title),
           h('div', { class: 'tiny muted bold' }, [MODE_INFO[q.mode] ? MODE_INFO[q.mode].label : null, q.sphere].filter(Boolean).join(' · '))),
-        q.xp ? h('span', { class: 'tiny bold' }, `+${q.xp} XP`) : null));
+        q.xp ? h('span', { class: 'tiny bold' }, `+${q.xp} XP`) : null,
+        ctx.state.photos.enabled && q.hid ? photoBtn(q) : null));
     }
     body.append(feed);
   }
+}
+
+function photoBtn(q) {
+  const b = h('button', { type: 'button', class: 'icon-btn', 'aria-label': `Фото-отчёт: ${q.title}` }, '📷');
+  b.addEventListener('click', () => { haptic.tap(); openPhotoReport(q.hid, `${q.emoji} ${q.title}`); });
+  return b;
 }
 
 function metric(color, label, value, hint, deco, small = false) {

@@ -5,6 +5,7 @@ import { api } from './api.js';
 import { haptic } from './tg.js';
 import { store, refreshState } from './store.js';
 import { celebrate } from './celebrate.js';
+import { openPhotoReport } from './photoui.js';
 import {
   MODE_INFO, SPHERE_INFO, TIER_LABEL, colorOf, sheet, toast, toastError, busy, ICONS, confetti,
 } from './ui.js';
@@ -83,6 +84,7 @@ export async function completeQuest(activeId) {
     confetti(70);
     await refreshState();
     await celebrate(res, { xpText: '🎉 Засчитано!' });
+    if (res.history_id) openPhotoReport(res.history_id, res.title || 'Задание', { intro: true });
     return res;
   } catch (e) {
     toastError(e);

@@ -14,11 +14,13 @@ const SCREENS = {
   habits: { title: 'Привычки', icon: ICONS.habits, load: () => import('./screens/habits.js') },
   board: { title: 'Карта', icon: ICONS.board, load: () => import('./screens/board.js') },
   progress: { title: 'Прогресс', icon: ICONS.progress, load: () => import('./screens/progress.js') },
-  awards: { title: 'Награды', icon: ICONS.awards, load: () => import('./screens/awards.js') },
+  calendar: { title: 'Календарь', icon: ICONS.calendar, load: () => import('./screens/calendar.js') },
+  awards: { title: 'Награды', sub: true, load: () => import('./screens/awards.js') },
+  album: { title: 'Альбом', sub: true, load: () => import('./screens/album.js') },
   profile: { title: 'Профиль', sub: true, load: () => import('./screens/profile.js') },
   premium: { title: 'Premium', sub: true, load: () => import('./screens/profile.js'), entry: 'renderPremium' },
 };
-const TABS = ['home', 'quests', 'habits', 'board', 'progress', 'awards'];
+const TABS = ['home', 'quests', 'calendar', 'habits', 'board', 'progress'];
 
 const root = document.getElementById('app');
 const mounted = {}; // name -> { el, module, dirty }
@@ -65,6 +67,7 @@ export async function go(name, { replace = false } = {}) {
   if (!SCREENS[name]) name = 'home';
   hideMainButton();
   const def = SCREENS[name];
+  const from = current;
   if (!def.sub) lastTab = name;
   if (current && mounted[current]) mounted[current].el.hidden = true;
   current = name;
@@ -73,7 +76,11 @@ export async function go(name, { replace = false } = {}) {
   if (location.hash !== target) history[replace ? 'replaceState' : 'pushState'](null, '', target);
 
   if (releaseBack) { releaseBack(); releaseBack = null; }
-  if (def.sub) releaseBack = pushBack(() => go(name === 'premium' ? 'profile' : lastTab));
+  // «Назад» с вложенного экрана — туда, откуда пришли (или на последнюю вкладку).
+  if (def.sub) {
+    const back = from && from !== name && SCREENS[from] ? from : lastTab;
+    releaseBack = pushBack(() => go(back));
+  }
 
   const entry = mounted[name];
   if (entry) entry.el.hidden = false;

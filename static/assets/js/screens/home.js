@@ -8,6 +8,7 @@ import { ring, progressBar, sectionTitle, emptyState, busy } from '../ui.js';
 import { barChart } from '../charts.js';
 import { modeButtons, openQuest, questItem, completeQuest } from '../questflow.js';
 import { habitCard } from '../habitui.js';
+import { planRow, openAddChooser } from '../planui.js';
 
 const DATE_FMT = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -85,6 +86,20 @@ export function render(el, { state, go }) {
     openQuest(active || { ...daily, daily: true }, { daily: !active && daily.status !== 'done' });
   });
   el.append(sectionTitle('Сегодня'), dailyCard);
+
+  // Сегодня в планах (до 3 пунктов)
+  const calLink = h('button', { type: 'button', class: 'link' }, 'Календарь');
+  calLink.addEventListener('click', () => { haptic.tap(); go('calendar'); });
+  el.append(sectionTitle(`Сегодня в планах${state.plans_today.length ? ` · ${state.plans_today.length}` : ''}`, calLink));
+  if (!state.plans_today.length) {
+    const plan = h('button', { type: 'button', class: 'quest-item c-blue' }, h('span', { class: 'q-emoji', 'aria-hidden': 'true' }, '🗓️'),
+      h('span', { class: 'grow' }, h('span', { class: 'q-title', style: { display: 'block' } }, 'На сегодня планов нет'),
+        h('span', { class: 'q-meta', style: { display: 'block' } }, state.plans_overdue ? `Есть ${state.plans_overdue} из прошлых дней — загляни в календарь` : 'Запланируем что-нибудь приятное?')));
+    plan.addEventListener('click', () => { haptic.tap(); openAddChooser(state.today.date); });
+    el.append(plan);
+  } else {
+    el.append(h('div', { class: 'stack-sm' }, state.plans_today.slice(0, 3).map(o => planRow(o, { compact: true }))));
+  }
 
   // Привычки на сегодня
   const habitsLink = h('button', { type: 'button', class: 'link' }, state.habits.total ? 'Все привычки' : 'Добавить');

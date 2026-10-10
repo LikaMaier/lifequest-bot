@@ -6,7 +6,7 @@ import { haptic, openTgLink, showMainButton } from '../tg.js';
 import { api } from '../api.js';
 import { mascot, mascotSVG } from '../mascot.js';
 import { sectionTitle, progressBar, toast, toastError, busy, button, ICONS } from '../ui.js';
-import { setState, store } from '../store.js';
+import { setState, store, refreshState } from '../store.js';
 import { buildShareCard } from '../share.js';
 
 const COMMON_TZ = [
@@ -124,6 +124,44 @@ export function render(el, { state, go }) {
         h('div', { class: 'small bold' }, u.is_premium ? 'Подписка активна — спасибо! 💛' : 'Скоро: больше заданий и фишек'))));
   prem.addEventListener('click', () => { haptic.tap(); go('premium'); });
   el.append(prem);
+
+  // Утренняя сводка планов
+  const morning = h('button', { type: 'button', class: `toggle ${u.morning_plans ? 'on' : ''}`, role: 'switch',
+    'aria-checked': String(u.morning_plans), 'aria-label': 'Утренняя сводка планов' }, h('span', { class: 'knob' }));
+  morning.addEventListener('click', busy(morning, () => saveSettings({ morning_plans: !u.morning_plans })));
+  el.append(sectionTitle('Календарь'), h('div', { class: 'card stack-sm' },
+    h('div', { class: 'spread' }, h('div', null, h('div', { class: 'bold' }, '🌅 Утренняя сводка планов'),
+      h('div', { class: 'tiny muted bold' }, 'В час утреннего напоминания бот пришлёт, что у тебя сегодня в планах')), morning)));
+
+  // Альбом и приватность
+  const album = h('button', { type: 'button', class: 'quest-item c-pink' }, h('span', { class: 'q-emoji', 'aria-hidden': 'true' }, '📷'),
+    h('span', { class: 'grow' }, h('span', { class: 'q-title', style: { display: 'block' } }, 'Альбом'),
+      h('span', { class: 'q-meta', style: { display: 'block' } }, state.photos.enabled ? `${state.photos.count} из ${state.photos.limit} фото` : 'Фото пока недоступны')));
+  album.addEventListener('click', () => { haptic.tap(); go('album'); });
+  const confirmBtn = (text, armedText, fn) => {
+    let armed = false;
+    const b = h('button', { type: 'button', class: 'btn ghost block small' }, text);
+    b.addEventListener('click', busy(b, async () => {
+      if (!armed) { armed = true; haptic.warning(); b.textContent = armedText; setTimeout(() => { armed = false; b.textContent = text; }, 4000); return; }
+      try { await fn(); } catch (e) { toastError(e); }
+    }));
+    return b;
+  };
+  el.append(sectionTitle('Приватность'), h('div', { class: 'stack-sm' }, album,
+    h('p', { class: 'tiny muted bold', style: { margin: '4px 2px' } }, 'Фото и записи видишь только ты. Фото хранятся на сервере LifeQuest без геометок.'),
+    confirmBtn('🗑 Удалить все мои фото', 'Точно? Нажми ещё раз — фото удалятся навсегда', async () => {
+      const r = await api.deleteMyPhotos();
+      haptic.success();
+      toast(`Удалено фото: ${r.deleted}`);
+      await refreshState();
+    }),
+    confirmBtn('⚠️ Удалить все мои данные', 'Точно? Прогресс, планы, привычки и фото удалятся навсегда', async () => {
+      await api.deleteAllData();
+      haptic.success();
+      toast('Все данные удалены. Можно начать с чистого листа 🌱', 'good', 3600);
+      await refreshState();
+      go('home');
+    })));
 }
 
 const PERKS = [

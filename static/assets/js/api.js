@@ -60,4 +60,41 @@ export const api = {
   updateHabit: (id, data) => request('POST', 'api/habits/update', { id, ...data }),
   deleteHabit: id => request('POST', 'api/habits/delete', { id }),
   logHabit: (id, { delta, count, date } = {}) => request('POST', 'api/habits/log', { id, delta, count, date }),
+  plans: (from, to) => request('GET', `api/plans?from=${from}&to=${to}`),
+  createPlan: data => request('POST', 'api/plans', data),
+  patchPlan: (id, data) => request('PATCH', `api/plans/${id}`, data),
+  deletePlan: (id, { date, scope = 'all' } = {}) => request('DELETE', `api/plans/${id}?scope=${scope}${date ? `&date=${date}` : ''}`),
+  completePlan: (id, date) => request('POST', `api/plans/${id}/complete`, { date }),
+  skipPlan: (id, date) => request('POST', `api/plans/${id}/skip`, { date }),
+  movePlan: (id, date, to) => request('POST', `api/plans/${id}/move`, { date, to }),
+  calendarSummary: month => request('GET', `api/calendar/summary?month=${month}`),
+  exportLink: (from, to) => request('POST', 'api/calendar/export-link', { from, to }),
+  searchQuests: ({ q = '', mode = '', sphere = '' } = {}) =>
+    request('GET', `api/quests/search?q=${encodeURIComponent(q)}&mode=${mode}&sphere=${encodeURIComponent(sphere)}`),
+  photos: (filters = {}) => request('GET', `api/photos?${new URLSearchParams(Object.entries(filters).filter(([, v]) => v !== null && v !== undefined && v !== ''))}`),
+  deletePhoto: id => request('DELETE', `api/photos/${id}`),
+  deleteMyPhotos: () => request('POST', 'api/me/delete-photos', {}),
+  deleteAllData: () => request('POST', 'api/me/delete-all', { confirm: 'DELETE' }),
 };
+
+/** Загрузка фото с прогрессом (fetch не умеет прогресс отправки). */
+export function uploadPhoto(blob, fields, onProgress) {
+  return new Promise((resolve, reject) => {
+    const form = new FormData();
+    for (const [k, v] of Object.entries(fields)) if (v !== null && v !== undefined) form.append(k, String(v));
+    form.append('file', blob, 'photo.jpg');
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', 'api/photos');
+    xhr.setRequestHeader('X-Telegram-Init-Data', initData());
+    xhr.timeout = 60000;
+    xhr.upload.onprogress = e => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
+    xhr.onload = () => {
+      let data = null;
+      try { data = JSON.parse(xhr.responseText); } catch (e) { /* не JSON */ }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+      else reject(new ApiError((data && data.error) || 'Не получилось загрузить фото', xhr.status));
+    };
+    xhr.onerror = xhr.ontimeout = () => reject(new ApiError('Нет связи с сервером — фото не загрузилось', 0));
+    xhr.send(form);
+  });
+}

@@ -196,6 +196,68 @@ def init_db():
         )
     """)
     c.execute("CREATE INDEX IF NOT EXISTS idx_habit_logs_user ON habit_logs(user_id, local_date)")
+    # Календарь планов. Повторяющийся план — одна строка с правилом повтора;
+    # судьба отдельных дней серии (выполнен / отпущен / перенесён) — в plan_exceptions.
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS plans (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            time TEXT,
+            title TEXT NOT NULL,
+            note TEXT,
+            mode TEXT DEFAULT 'free',
+            quest_key TEXT,
+            tier TEXT,
+            color TEXT,
+            repeat_rule TEXT DEFAULT 'none',
+            status TEXT DEFAULT 'planned',
+            remind TEXT DEFAULT 'none',
+            board_week TEXT,
+            board_cell INTEGER,
+            created_at TEXT,
+            done_at TEXT
+        )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_plans_user_date ON plans(user_id, date)")
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS plan_exceptions (
+            plan_id INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            status TEXT NOT NULL,
+            done_at TEXT,
+            PRIMARY KEY (plan_id, date)
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS plan_reminders (
+            plan_id INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            sent_at TEXT,
+            PRIMARY KEY (plan_id, date)
+        )
+    """)
+    # Фото: файлы лежат в PHOTOS_DIR (Railway Volume), здесь только метаданные.
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS photos (
+            id TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            target_type TEXT NOT NULL,
+            quest_history_id INTEGER,
+            plan_id INTEGER,
+            plan_date TEXT,
+            day TEXT,
+            board_week TEXT,
+            board_cell INTEGER,
+            caption TEXT,
+            w INTEGER,
+            h INTEGER,
+            size INTEGER,
+            created_at TEXT
+        )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_photos_user ON photos(user_id, created_at)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_photos_plan ON photos(plan_id)")
 
     # Migrations for bots created before these features existed.
     _ensure_column(c, "users", "last_active_date", "TEXT")
@@ -225,6 +287,7 @@ def init_db():
     _ensure_column(c, "active_quests", "sphere", "TEXT")
     _ensure_column(c, "active_quests", "tier", "TEXT")
     _ensure_column(c, "active_quests", "daily", "INTEGER DEFAULT 0")
+    _ensure_column(c, "users", "morning_plans", "INTEGER DEFAULT 1")
 
     conn.commit()
     _backfill_history(conn)
@@ -602,5 +665,21 @@ def save_weekly_board(user_id: int, board: dict, today=None):
             board_json = excluded.board_json,
             updated_at = CURRENT_TIMESTAMP
     """, (user_id, get_current_week_key(today), json.dumps(board, ensure_ascii=False)))
+    conn.commit()
+    conn.close()
+
+
+def delete_user_data(user_id: int):
+    """Удаляет все данные пользователя (фото на диске удаляет photos.delete_all)."""
+    conn = connect()
+    plan_ids = [r[0] for r in conn.execute("SELECT id FROM plans WHERE user_id = ?", (user_id,)).fetchall()]
+    if plan_ids:
+        q = ",".join("?" * len(plan_ids))
+        conn.execute(f"DELETE FROM plan_exceptions WHERE plan_id IN ({q})", plan_ids)
+        conn.execute(f"DELETE FROM plan_reminders WHERE plan_id IN ({q})", plan_ids)
+    for table in ("plans", "photos", "habit_logs", "habits", "quest_history", "quest_offers", "favorites",
+                  "achievements_unlocked", "board_awards", "xp_log", "weekly_boards", "active_quests",
+                  "completed_tasks", "survey_answers", "users"):
+        conn.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))
     conn.commit()
     conn.close()

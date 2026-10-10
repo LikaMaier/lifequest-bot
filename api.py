@@ -14,22 +14,31 @@ from collections import defaultdict, deque
 
 from aiohttp import web
 
+import re
+
 import game
 import habits
+import photos
+import plans
+from quests_database import CATALOG
 import storage
 from webapp_auth import InitDataError, validate_init_data
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 INIT_DATA_HEADER = "X-Telegram-Init-Data"
 TZ_HEADER = "X-Timezone"
-MAX_BODY = 3 * 1024 * 1024  # хватает на картинку для «Поделиться»
+MAX_BODY = 6 * 1024 * 1024  # фото до 5 МБ + поля формы
 
 # Ограничения частоты: (запросов, за секунд) на пользователя.
 RATE_LIMITS = {
     "random": (20, 60),
     "write": (90, 60),
     "share": (5, 600),
+    "upload": (40, 600),
 }
+# Файлы фото и .ics открываются через <img>/ссылку без заголовков — для них
+# допускается подписанная короткоживущая ссылка вместо initData.
+SIGNED_PATHS = re.compile(r"^/api/(photos/[0-9a-f]{32}/(full|thumb)|calendar/export\.ics)$")
 
 
 class RateLimiter:
@@ -73,6 +82,8 @@ async def errors_middleware(request, handler):
 async def auth_middleware(request, handler):
     if not request.path.startswith("/api/"):
         return await handler(request)
+    if request.method == "GET" and "sig" in request.query and SIGNED_PATHS.match(request.path):
+        return await handler(request)  # подпись проверяет сам обработчик
     app = request.app
     try:
         data = validate_init_data(request.headers.get(INIT_DATA_HEADER, ""), app[BOT_TOKEN_KEY],
@@ -130,6 +141,10 @@ def _state(request) -> dict:
     data = game.get_state(request["user_id"])
     data["bot_username"] = request.app.get(BOT_USERNAME_KEY)
     data["habits"] = habits.summary(request["user_id"])
+    data["plans_today"] = plans.today_plans(request["user_id"])
+    data["plans_overdue"] = len(plans.overdue_plans(request["user_id"]))
+    data["photos"] = photos.stats(request["user_id"])
+    data["user"]["morning_plans"] = bool(storage.get_user(request["user_id"]).get("morning_plans", 1))
     return data
 
 
@@ -217,17 +232,18 @@ async def post_share(request):
         return _error(503, "Поделиться сейчас нельзя")
     data = await _body(request)
     image = str(data.get("image", ""))
-    prefix = "data:image/png;base64,"
-    if not image.startswith(prefix):
-        raise game.QuestError("Нужна картинка PNG")
+    prefixes = {"data:image/png;base64,": b"\x89PNG", "data:image/jpeg;base64,": b"\xff\xd8\xff"}
+    prefix = next((p for p in prefixes if image.startswith(p)), None)
+    if not prefix:
+        raise game.QuestError("Нужна картинка PNG или JPEG")
     try:
         raw = base64.b64decode(image[len(prefix):], validate=True)
     except (binascii.Error, ValueError):
         raise game.QuestError("Картинка повреждена")
-    if len(raw) > 2_500_000 or not raw.startswith(b"\x89PNG"):
+    if len(raw) > 4_000_000 or not raw.startswith(prefixes[prefix]):
         raise game.QuestError("Картинка слишком большая")
     from aiogram.types import BufferedInputFile
-    await bot.send_photo(request["user_id"], BufferedInputFile(raw, filename="lifequest.png"),
+    await bot.send_photo(request["user_id"], BufferedInputFile(raw, filename="lifequest.png" if prefix.endswith("png;base64,") else "lifequest.jpg"),
                          caption="✨ Мой прогресс в LifeQuest. Перешли друзьям — пусть тоже выберутся из привычного сценария!")
     return web.json_response({"ok": True})
 
@@ -261,6 +277,176 @@ async def habit_log(request):
                                               delta=data.get("delta"), count=data.get("count"), day=data.get("date")))
 
 
+# ==================== ПЛАНЫ И КАЛЕНДАРЬ ====================
+def _range(request) -> tuple:
+    start = plans.parse_date(request.query.get("from"), "дата начала")
+    end = plans.parse_date(request.query.get("to"), "дата конца")
+    if end < start:
+        raise game.QuestError("Конец периода раньше начала")
+    return start, end
+
+
+async def get_plans(request):
+    start, end = _range(request)
+    return web.json_response({"plans": plans.occurrences(request["user_id"], start, end)})
+
+
+async def create_plan(request):
+    _limit(request, "write")
+    return web.json_response({"plan": plans.create_plan(request["user_id"], await _body(request))})
+
+
+async def patch_plan(request):
+    _limit(request, "write")
+    return web.json_response({"plan": plans.update_plan(request["user_id"], _int(request.match_info["id"]), await _body(request))})
+
+
+async def delete_plan(request):
+    _limit(request, "write")
+    scope = request.query.get("scope", "all")
+    return web.json_response(plans.delete_plan(request["user_id"], _int(request.match_info["id"]),
+                                               request.query.get("date"), whole=scope != "day"))
+
+
+async def complete_plan(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(plans.complete_plan(request["user_id"], _int(request.match_info["id"]), data.get("date")))
+
+
+async def skip_plan(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(plans.skip_plan(request["user_id"], _int(request.match_info["id"]), data.get("date")))
+
+
+async def move_plan(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(plans.move_plan(request["user_id"], _int(request.match_info["id"]), data.get("date"), data.get("to")))
+
+
+async def calendar_summary(request):
+    return web.json_response(plans.month_summary(request["user_id"], request.query.get("month", "")))
+
+
+def _ics_response(user_id: int, start, end):
+    if (end - start).days > plans.RANGE_MAX_DAYS:
+        raise game.QuestError("Слишком большой период")
+    body = plans.export_ics(user_id, start, end)
+    return web.Response(text=body, content_type="text/calendar", charset="utf-8",
+                        headers={"Content-Disposition": 'attachment; filename="lifequest.ics"'})
+
+
+async def export_ics(request):
+    q = request.query
+    if "sig" in q:
+        try:
+            uid, exp = int(q.get("u", "0")), int(q.get("exp", "0"))
+        except ValueError:
+            return _error(403, "Ссылка недействительна")
+        if not photos.verify(uid, f"ics:{q.get('from')}:{q.get('to')}", "ics", exp, q.get("sig")):
+            return _error(403, "Ссылка устарела — открой экспорт заново")
+        start, end = plans.parse_date(q.get("from")), plans.parse_date(q.get("to"))
+        return _ics_response(uid, start, end)
+    start, end = _range(request)
+    return _ics_response(request["user_id"], start, end)
+
+
+async def export_link(request):
+    data = await _body(request)
+    start, end = plans.parse_date(data.get("from")), plans.parse_date(data.get("to"))
+    if end < start or (end - start).days > plans.RANGE_MAX_DAYS:
+        raise game.QuestError("Некорректный период")
+    uid = request["user_id"]
+    signed = photos.sign(uid, f"ics:{start.isoformat()}:{end.isoformat()}", "ics")
+    _path, query = signed.split("?", 1)
+    return web.json_response({"url": f"api/calendar/export.ics?{query}&from={start.isoformat()}&to={end.isoformat()}"})
+
+
+async def search_quests(request):
+    """Поиск по банку заданий для «Запланировать задание»."""
+    query = request.query.get("q", "").strip().lower()[:60]
+    mode = request.query.get("mode")
+    sphere = request.query.get("sphere")
+    items = []
+    for q in CATALOG.values():
+        if mode in game.MODES and q["mode"] != mode:
+            continue
+        if sphere and q["sphere"] != sphere:
+            continue
+        if query and query not in q["title"].lower() and query not in q["text"].lower():
+            continue
+        items.append(game.public_quest(q))
+        if len(items) >= 60:
+            break
+    return web.json_response({"quests": items})
+
+
+# ==================== ФОТО ====================
+async def upload_photo(request):
+    _limit(request, "upload")
+    if not photos.enabled():
+        return _error(503, "Фото пока недоступны")
+    reader = await request.multipart()
+    fields, raw = {}, b""
+    while True:
+        part = await reader.next()
+        if part is None:
+            break
+        if part.name == "file":
+            raw = await part.read(decode=False)
+            if len(raw) > photos.MAX_BYTES:
+                raise game.QuestError("Фото больше 5 МБ — выбери поменьше")
+        elif part.name in ("target", "quest_history_id", "plan_id", "plan_date", "day", "board_cell", "caption"):
+            fields[part.name] = (await part.text())[:200]
+    return web.json_response(photos.save_upload(request["user_id"], raw, fields))
+
+
+async def list_photos(request):
+    return web.json_response({"photos": photos.list_photos(request["user_id"], dict(request.query)), **photos.stats(request["user_id"])})
+
+
+async def get_photo_file(request):
+    photo_id, kind = request.match_info["id"], request.match_info["kind"]
+    q = request.query
+    if "sig" in q:
+        try:
+            uid, exp = int(q.get("u", "0")), int(q.get("exp", "0"))
+        except ValueError:
+            return _error(403, "Ссылка недействительна")
+        if not photos.verify(uid, photo_id, kind, exp, q.get("sig")):
+            return _error(403, "Ссылка устарела")
+    else:
+        uid = request["user_id"]
+    path = photos.file_path(uid, photo_id, kind)
+    if not path:
+        return _error(404, "Фото не найдено")
+    resp = web.FileResponse(path, headers={"Content-Type": "image/jpeg"})
+    return resp
+
+
+async def delete_photo(request):
+    _limit(request, "write")
+    return web.json_response(photos.delete_photo(request["user_id"], request.match_info["id"]))
+
+
+async def delete_my_photos(request):
+    _limit(request, "write")
+    return web.json_response({"deleted": photos.delete_all(request["user_id"])})
+
+
+async def delete_my_data(request):
+    _limit(request, "write")
+    data = await _body(request)
+    if data.get("confirm") != "DELETE":
+        raise game.QuestError("Нужно подтверждение")
+    uid = request["user_id"]
+    photos.delete_all(uid)
+    storage.delete_user_data(uid)
+    return web.json_response({"ok": True})
+
+
 async def index(request):
     return web.FileResponse(os.path.join(STATIC_DIR, "index.html"))
 
@@ -277,6 +463,7 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app[BOT_USERNAME_KEY] = None
     app[INIT_DATA_MAX_AGE_KEY] = init_data_max_age or int(os.getenv("INIT_DATA_MAX_AGE", 24 * 3600))
     app[LIMITER_KEY] = RateLimiter()
+    photos.configure(bot_token)
     app.router.add_get("/api/state", get_state)
     app.router.add_post("/api/quest/random", quest_random)
     app.router.add_post("/api/quest/accept", quest_accept)
@@ -294,6 +481,23 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_post("/api/habits/update", habit_update)
     app.router.add_post("/api/habits/delete", habit_delete)
     app.router.add_post("/api/habits/log", habit_log)
+    app.router.add_get("/api/plans", get_plans)
+    app.router.add_post("/api/plans", create_plan)
+    app.router.add_patch("/api/plans/{id}", patch_plan)
+    app.router.add_delete("/api/plans/{id}", delete_plan)
+    app.router.add_post("/api/plans/{id}/complete", complete_plan)
+    app.router.add_post("/api/plans/{id}/skip", skip_plan)
+    app.router.add_post("/api/plans/{id}/move", move_plan)
+    app.router.add_get("/api/calendar/summary", calendar_summary)
+    app.router.add_get("/api/calendar/export.ics", export_ics)
+    app.router.add_post("/api/calendar/export-link", export_link)
+    app.router.add_get("/api/quests/search", search_quests)
+    app.router.add_post("/api/photos", upload_photo)
+    app.router.add_get("/api/photos", list_photos)
+    app.router.add_get("/api/photos/{id:[0-9a-f]{32}}/{kind:(full|thumb)}", get_photo_file)
+    app.router.add_delete("/api/photos/{id:[0-9a-f]{32}}", delete_photo)
+    app.router.add_post("/api/me/delete-photos", delete_my_photos)
+    app.router.add_post("/api/me/delete-all", delete_my_data)
     app.router.add_get("/health", health)
     app.router.add_get("/", index)
     assets = os.path.join(STATIC_DIR, "assets")

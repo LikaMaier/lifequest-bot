@@ -393,6 +393,7 @@ def complete_quest(user_id: int, active_id: int):
     xp_total = (user.get("xp") or 0) + xp
     level_after = level_for_xp(xp_total)
     return {
+        "history_id": hist["id"], "title": hist.get("title") or "",
         "xp": xp, "breakdown": [{"label": label, "xp": v} for label, v in parts],
         "streak": streak, "used_freeze": used_freeze,
         "level_up": level_info(xp_total) if level_after > level_before else None,
@@ -514,6 +515,11 @@ ACHIEVEMENTS = [
     ("habit_first", "Хорошая привычка", "Выполни дневную цель по любой привычке", "✅", "lime", "habit_done", 1),
     ("habit_streak_7", "Привычка закрепилась", "Держи любую привычку 7 дней подряд", "🌿", "lime", "habit_streak", 7),
     ("habit_streak_21", "21 день", "Держи любую привычку 21 день подряд", "🌳", "purple", "habit_streak", 21),
+    ("photo_first", "Первое фото-воспоминание", "Прикрепи первое фото", "📷", "pink", "photos", 1),
+    ("photo_reports_10", "10 фото-отчётов", "Прикрепи фото к 10 выполненным заданиям", "🖼️", "orange", "photo_reports", 10),
+    ("photo_streak_7", "Фото за 7 дней подряд", "Добавляй фото 7 дней подряд", "🎞️", "purple", "photo_streak", 7),
+    ("photo_month", "Альбом месяца", "Собери 15 фото за один месяц", "📔", "lav", "photo_month", 15),
+    ("plan_first", "Всё по плану", "Выполни запланированное в календаре", "🗓️", "blue", "plans_done", 1),
 ]
 ACHIEVEMENT_BY_CODE = {a[0]: a for a in ACHIEVEMENTS}
 
@@ -528,6 +534,11 @@ def achievement_metrics(user_id: int) -> dict:
     offers = conn.execute("SELECT COUNT(*) FROM quest_offers WHERE user_id = ?", (user_id,)).fetchone()[0]
     active_now = conn.execute("SELECT COUNT(*) FROM active_quests WHERE user_id = ?", (user_id,)).fetchone()[0]
     habits_created = conn.execute("SELECT COUNT(*) FROM habits WHERE user_id = ?", (user_id,)).fetchone()[0]
+    photo_rows = conn.execute("""SELECT target_type, quest_history_id, COALESCE(day, plan_date, substr(created_at, 1, 10))
+                                 FROM photos WHERE user_id = ?""", (user_id,)).fetchall()
+    plans_done = conn.execute("SELECT COUNT(*) FROM plans WHERE user_id = ? AND status = 'done'", (user_id,)).fetchone()[0] \
+        + conn.execute("""SELECT COUNT(*) FROM plan_exceptions e JOIN plans p ON p.id = e.plan_id
+                          WHERE p.user_id = ? AND e.status = 'done'""", (user_id,)).fetchone()[0]
     habit_done = conn.execute("SELECT habit_id, local_date FROM habit_logs WHERE user_id = ? AND done = 1 ORDER BY habit_id, local_date",
                               (user_id,)).fetchall()
     conn.close()
@@ -560,10 +571,29 @@ def achievement_metrics(user_id: int) -> dict:
         "habits_created": habits_created,
         "habit_done": len(habit_done),
         "habit_streak": _longest_habit_run(habit_done),
+        "photos": len(photo_rows),
+        "photo_reports": len({r[1] for r in photo_rows if r[0] == "quest" and r[1]}),
+        "photo_streak": _longest_day_run({r[2] for r in photo_rows if r[2]}),
+        "photo_month": max(Counter(r[2][:7] for r in photo_rows if r[2]).values(), default=0),
+        "plans_done": plans_done,
     }
     for sphere in BINGO_SPHERES:
         m[f"sphere:{sphere}"] = spheres.get(sphere, 0)
     return m
+
+
+def _longest_day_run(days: set) -> int:
+    best = 0
+    for d in days:
+        prev = (date.fromisoformat(d) - timedelta(days=1)).isoformat()
+        if prev in days:
+            continue  # считаем только от начала серии
+        n, cur = 0, date.fromisoformat(d)
+        while cur.isoformat() in days:
+            n += 1
+            cur += timedelta(days=1)
+        best = max(best, n)
+    return best
 
 
 def _longest_habit_run(rows) -> int:
@@ -746,7 +776,7 @@ def get_stats(user_id: int, days) -> dict:
     user = storage.get_user(user_id)
     today = local_today(user)
     conn = storage.connect(rows=True)
-    done = conn.execute("""SELECT quest_key, mode, sphere, title, local_date, xp, completed_at FROM quest_history
+    done = conn.execute("""SELECT id, quest_key, mode, sphere, title, local_date, xp, completed_at FROM quest_history
                            WHERE user_id = ? AND status = 'done' AND local_date IS NOT NULL
                            ORDER BY completed_at DESC, id DESC""", (user_id,)).fetchall()
     xp_rows = conn.execute("SELECT local_date, SUM(amount) FROM xp_log WHERE user_id = ? GROUP BY local_date",
@@ -781,7 +811,7 @@ def get_stats(user_id: int, days) -> dict:
 
     def lookup(r):
         q = CATALOG.get(r["quest_key"]) or {}
-        return {"id": r["quest_key"], "title": r["title"] or q.get("title") or "Задание",
+        return {"id": r["quest_key"], "hid": r["id"], "title": r["title"] or q.get("title") or "Задание",
                 "emoji": q.get("emoji") or "📌", "mode": r["mode"], "sphere": r["sphere"],
                 "date": r["local_date"], "xp": r["xp"] or 0}
 
@@ -838,5 +868,7 @@ def update_settings(user_id: int, data: dict) -> dict:
         if data["accent"] not in allowed:
             raise QuestError("Этот цвет откроется на более высоком уровне")
         fields["accent"] = data["accent"]
+    if "morning_plans" in data:
+        fields["morning_plans"] = 1 if data["morning_plans"] else 0
     storage.update_user(user_id, **fields)
     return fields
