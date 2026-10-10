@@ -752,6 +752,7 @@ def get_state(user_id: int) -> dict:
             "reminder_hour": user.get("reminder_hour") if user.get("reminder_hour") is not None else 9,
             "evening_reminder_hour": user.get("evening_reminder_hour") if user.get("evening_reminder_hour") is not None else 20,
             "is_premium": bool(user.get("is_premium")),
+            "onboarded": bool(user.get("onboarded")),
         },
         "level": lv,
         "unlocks": unlocks(lv["level"]),
@@ -868,6 +869,8 @@ def update_settings(user_id: int, data: dict) -> dict:
         if data["accent"] not in allowed:
             raise QuestError("Этот цвет откроется на более высоком уровне")
         fields["accent"] = data["accent"]
+    if "onboarded" in data:
+        fields["onboarded"] = 1 if data["onboarded"] else 0
     if "morning_plans" in data:
         fields["morning_plans"] = 1 if data["morning_plans"] else 0
     storage.update_user(user_id, **fields)

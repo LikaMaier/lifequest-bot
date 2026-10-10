@@ -125,6 +125,14 @@ export function render(el, { state, go }) {
   prem.addEventListener('click', () => { haptic.tap(); go('premium'); });
   el.append(prem);
 
+  // Повторно открыть приветствие
+  const tour = h('button', { type: 'button', class: 'quest-item c-lav', style: { marginTop: '14px' } },
+    h('span', { class: 'q-emoji', 'aria-hidden': 'true' }, '💡'),
+    h('span', { class: 'grow' }, h('span', { class: 'q-title', style: { display: 'block' } }, 'Как устроен LifeQuest'),
+      h('span', { class: 'q-meta', style: { display: 'block' } }, 'Миссия и возможности приложения')));
+  tour.addEventListener('click', () => { haptic.tap(); import('../onboarding.js').then(m => m.showOnboarding()); });
+  el.append(tour);
+
   // Утренняя сводка планов
   const morning = h('button', { type: 'button', class: `toggle ${u.morning_plans ? 'on' : ''}`, role: 'switch',
     'aria-checked': String(u.morning_plans), 'aria-label': 'Утренняя сводка планов' }, h('span', { class: 'knob' }));

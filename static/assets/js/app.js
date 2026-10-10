@@ -136,6 +136,8 @@ async function boot() {
   tabbar.hidden = false;
   const start = (location.hash || '#home').slice(1);
   go(SCREENS[start] ? start : 'home', { replace: true });
+  // Первое открытие — приветствие с миссией и возможностями.
+  if (!store.state.user.onboarded) import('./onboarding.js').then(m => m.showOnboarding());
 }
 
 window.addEventListener('popstate', () => {
