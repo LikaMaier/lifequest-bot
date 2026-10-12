@@ -150,7 +150,7 @@ def _state(request) -> dict:
     data = game.get_state(request["user_id"])
     data["bot_username"] = request.app.get(BOT_USERNAME_KEY)
     data["habits"] = habits.summary(request["user_id"])
-    data["plans_today"] = plans.today_plans(request["user_id"])
+    data["plans_today"] = plans.today_sheet(request["user_id"])
     data["notes"] = notes.home_view(request["user_id"], game.local_today(storage.get_user(request["user_id"])))
     data["plans_overdue"] = len(plans.overdue_plans(request["user_id"]))
     data["photos"] = photos.stats(request["user_id"])

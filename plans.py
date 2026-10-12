@@ -237,6 +237,12 @@ def today_plans(user_id: int) -> list:
     return [o for o in occurrences(user_id, t, t) if o["status"] == "planned"]
 
 
+def today_sheet(user_id: int) -> list:
+    """План на сегодня для главной: и невыполненные, и уже сделанные (зачёркнутые)."""
+    t = _today(user_id)
+    return [o for o in occurrences(user_id, t, t) if o["status"] in ("planned", "done")]
+
+
 def overdue_plans(user_id: int, days: int = 14) -> list:
     t = _today(user_id)
     return [o for o in occurrences(user_id, t - timedelta(days=days), t - timedelta(days=1)) if o["overdue"]]
