@@ -6,6 +6,7 @@ import { ICONS } from './icons.js';
 import { mascot } from './mascot.js';
 import { skeleton } from './ui.js';
 import { store, onState, refreshState } from './store.js';
+import { initKeyboard } from './keyboard.js';
 
 // Экраны подгружаются лениво — модуль экрана грузится при первом открытии.
 const SCREENS = {
@@ -117,6 +118,7 @@ function fullscreen(kind, expr, title, text, action) {
 
 async function boot() {
   initTelegram();
+  initKeyboard();
   if (!isTelegram()) {
     fullscreen('cat-lav', 'surprised', 'Открой LifeQuest в Telegram',
       'Приложение работает внутри бота: нажми кнопку «Открыть LifeQuest» в чате с ботом.');
