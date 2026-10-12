@@ -372,6 +372,9 @@ def complete_plan(user_id: int, plan_id: int, day=None) -> dict:
             total = (user.get("xp") or 0) + FREE_PLAN_XP
             result.update(xp=FREE_PLAN_XP, breakdown=[{"label": "План", "xp": FREE_PLAN_XP}],
                           level_up=game.level_info(total) if game.level_for_xp(total) > before else None)
+        if d == _today(user_id):  # выполненный сегодня план продлевает серию
+            _streak, used = game.bump_streak(user_id, storage.get_user(user_id), d)
+            result["used_freeze"] = used
     _set_occurrence_status(plan, d, "done")
     # План, привязанный к клетке карты недели, закрывает и клетку.
     if plan["board_cell"] is not None and plan["board_week"] == storage.get_current_week_key(_today(user_id)):

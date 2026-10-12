@@ -298,6 +298,10 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, item TEXT NOT NULL,
         price INTEGER NOT NULL, created_at TEXT NOT NULL)""")
     c.execute("CREATE INDEX IF NOT EXISTS idx_purchases_user ON purchases(user_id)")
+    c.execute("""CREATE TABLE IF NOT EXISTS notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, text TEXT NOT NULL, day TEXT NOT NULL,
+        color TEXT DEFAULT 'yellow', pinned INTEGER DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)""")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_notes_user_day ON notes(user_id, day)")
     # Старые маскоты заменены зверями того же уровня.
     for old, new in (("cat-blue", "frog"), ("heart", "puppy"), ("cat-orange", "bear"),
                      ("cat-lav", "leopard"), ("cat-pink2", "panda"), ("cat-lime", "pig")):
@@ -716,7 +720,7 @@ def delete_user_data(user_id: int):
         q = ",".join("?" * len(plan_ids))
         conn.execute(f"DELETE FROM plan_exceptions WHERE plan_id IN ({q})", plan_ids)
         conn.execute(f"DELETE FROM plan_reminders WHERE plan_id IN ({q})", plan_ids)
-    for table in ("plans", "photos", "habit_logs", "habits", "quest_history", "quest_offers", "favorites",
+    for table in ("notes", "purchases", "plans", "photos", "habit_logs", "habits", "quest_history", "quest_offers", "favorites",
                   "achievements_unlocked", "board_awards", "xp_log", "weekly_boards", "active_quests",
                   "completed_tasks", "survey_answers", "users"):
         conn.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))
