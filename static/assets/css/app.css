@@ -304,7 +304,12 @@ p { margin: 0; }
   padding: 10px 18px calc(20px + var(--safe-bottom));
   animation: sheet-up .32s cubic-bezier(.2,1.2,.4,1) both;
 }
-.sheet .grabber { width: 44px; height: 5px; border-radius: 99px; background: var(--line); margin: 0 auto 14px; }
+.sheet .grabber { width: 44px; height: 5px; border-radius: 99px; background: var(--line); margin: 0 auto; }
+.sheet-top { position: sticky; top: -10px; z-index: 2; display: flex; align-items: center; justify-content: center;
+  margin: -10px -18px 8px; padding: 12px 18px 8px; background: inherit; min-height: 44px; touch-action: none; }
+.sheet-close { position: absolute; right: 10px; top: 6px; width: 40px; height: 40px; border-radius: 50%; border: 0;
+  background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); font-size: 16px; font-weight: 800; }
+.sheet { transition: transform .15s ease-out; }
 @keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
 .modal {
   width: 100%; max-width: 360px; background: var(--cream); border-radius: var(--r-xl); padding: 22px 20px;

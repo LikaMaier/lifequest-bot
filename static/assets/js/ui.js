@@ -59,12 +59,19 @@ export function button(text, { cls = '', color, onClick, label, icon } = {}) {
 
 // ---------- Нижний лист и модалка ----------
 export function sheet(content, { onClose, label = 'Окно' } = {}) {
-  const panel = h('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': label },
-    h('div', { class: 'grabber', 'aria-hidden': 'true' }), content);
+  // Шапка листа: «ручка» и крестик. Закрыть можно всегда — крестиком, свайпом
+  // вниз за шапку, тапом мимо или кнопкой «Назад», даже когда открыта клавиатура.
+  const top = () => {
+    const x = h('button', { type: 'button', class: 'sheet-close', 'aria-label': 'Закрыть' }, '✕');
+    x.addEventListener('click', () => close());
+    return h('div', { class: 'sheet-top' }, h('div', { class: 'grabber', 'aria-hidden': 'true' }), x);
+  };
+  const panel = h('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': label }, top(), content);
   const overlay = h('div', { class: 'overlay' }, panel);
   let releaseBack;
   const close = () => {
     if (!overlay.isConnected) return;
+    if (document.activeElement && panel.contains(document.activeElement)) document.activeElement.blur(); // спрятать клавиатуру
     overlay.remove();
     releaseBack && releaseBack();
     document.removeEventListener('keydown', onKey);
@@ -72,11 +79,31 @@ export function sheet(content, { onClose, label = 'Окно' } = {}) {
   };
   const onKey = e => { if (e.key === 'Escape') close(); };
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  // Свайп вниз: за шапку — всегда, за остальное — когда лист прокручен к началу.
+  let sy = null, fromTop = false;
+  panel.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) return;
+    fromTop = Boolean(e.target.closest('.sheet-top'));
+    if (!fromTop && (panel.scrollTop > 0 || e.target.closest('input, textarea'))) { sy = null; return; }
+    sy = e.touches[0].clientY;
+  }, { passive: true });
+  panel.addEventListener('touchmove', e => {
+    if (sy === null) return;
+    const dy = e.touches[0].clientY - sy;
+    if (dy > 0) panel.style.transform = `translateY(${dy}px)`;
+  }, { passive: true });
+  panel.addEventListener('touchend', e => {
+    if (sy === null) return;
+    const dy = e.changedTouches[0].clientY - sy;
+    sy = null;
+    if (dy > 90) close();
+    else panel.style.transform = '';
+  });
   document.addEventListener('keydown', onKey);
   document.body.append(overlay);
   releaseBack = pushBack(close);
-  setTimeout(() => { const f = panel.querySelector('button, [tabindex]'); f && f.focus({ preventScroll: true }); }, 50);
-  return { close, panel, setContent(node) { clear(panel); panel.append(h('div', { class: 'grabber', 'aria-hidden': 'true' }), node); } };
+  setTimeout(() => { const f = panel.querySelector('.sheet-close'); f && f.focus({ preventScroll: true }); }, 50);
+  return { close, panel, setContent(node) { clear(panel); panel.append(top(), node); } };
 }
 
 export function modal(content, { label = 'Сообщение' } = {}) {
