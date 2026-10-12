@@ -9,10 +9,11 @@ import { store, onState, refreshState } from './store.js';
 
 // Экраны подгружаются лениво — модуль экрана грузится при первом открытии.
 const SCREENS = {
-  home: { title: 'Главная', icon: ICONS.home, load: () => import('./screens/home.js') },
+  home: { title: 'Мой день', icon: ICONS.home, load: () => import('./screens/home.js') },
   quests: { title: 'Квесты', icon: ICONS.quests, load: () => import('./screens/quests.js') },
   habits: { title: 'Привычки', icon: ICONS.habits, load: () => import('./screens/habits.js') },
-  board: { title: 'Карта', icon: ICONS.board, load: () => import('./screens/board.js') },
+  board: { title: 'Карта недели', sub: true, load: () => import('./screens/board.js') },
+  notes: { title: 'Заметки', icon: ICONS.notes, load: () => import('./screens/notes.js') },
   progress: { title: 'Прогресс', icon: ICONS.progress, load: () => import('./screens/progress.js') },
   calendar: { title: 'Календарь', icon: ICONS.calendar, load: () => import('./screens/calendar.js') },
   awards: { title: 'Награды', sub: true, load: () => import('./screens/awards.js') },
@@ -21,7 +22,7 @@ const SCREENS = {
   profile: { title: 'Профиль', sub: true, load: () => import('./screens/profile.js') },
   premium: { title: 'Premium', sub: true, load: () => import('./screens/profile.js'), entry: 'renderPremium' },
 };
-const TABS = ['home', 'quests', 'calendar', 'habits', 'board', 'progress'];
+const TABS = ['home', 'calendar', 'habits', 'notes', 'quests', 'progress'];
 
 const root = document.getElementById('app');
 const mounted = {}; // name -> { el, module, dirty }

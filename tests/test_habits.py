@@ -102,3 +102,31 @@ class EveningTextTest(TempDBTestCase):
         habits.log_habit(3, tricky["id"], delta=1)
         habits.log_habit(3, water["id"], count=8)
         self.assertIn("Все привычки на сегодня выполнены", habits.evening_text(3))
+
+
+class StreakFromDayItemsTest(TempDBTestCase):
+    def setUp(self):
+        super().setUp()
+        storage.ensure_user(5)
+        self.today = game.local_today(storage.get_user(5))
+
+    def test_habit_and_plan_extend_streak(self):
+        import plans
+        y = (self.today - timedelta(days=1)).isoformat()
+        storage.update_user(5, streak_current=3, streak_best=3, streak_last_date=y)
+        hb = habits.create_habit(5, {"title": "Вода", "target": 1})["habit"]
+        habits.log_habit(5, hb["id"], delta=1)
+        self.assertEqual(storage.get_user(5)["streak_current"], 4)
+        habits.log_habit(5, hb["id"], delta=-1)
+        habits.log_habit(5, hb["id"], delta=1)
+        self.assertEqual(storage.get_user(5)["streak_current"], 4)  # тот же день — без двойного счёта
+        storage.update_user(5, streak_current=7, streak_last_date=y)
+        p = plans.create_plan(5, {"title": "Йога", "date": self.today.isoformat()})
+        plans.complete_plan(5, p["id"], self.today.isoformat())
+        self.assertEqual(storage.get_user(5)["streak_current"], 8)
+
+    def test_past_habit_day_does_not_touch_streak(self):
+        storage.update_user(5, streak_current=2, streak_last_date=(self.today - timedelta(days=1)).isoformat())
+        hb = habits.create_habit(5, {"title": "Чтение", "target": 1})["habit"]
+        habits.log_habit(5, hb["id"], count=1, day=(self.today - timedelta(days=2)).isoformat())
+        self.assertEqual(storage.get_user(5)["streak_current"], 2)

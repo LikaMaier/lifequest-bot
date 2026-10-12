@@ -14,7 +14,15 @@ export function render(el, ctx) {
   clear(el);
   const { state } = ctx;
   el.append(h('header', { class: 'page-head' }, mascot('cat-orange', 'silly', { size: 56 }),
-    h('div', null, h('h1', null, 'Квесты'), h('p', null, 'Выбери формат — я подкину задание. Не понравится — возьмём другое.'))));
+    h('div', null, h('h1', null, 'Квесты'), h('p', null, 'Бонус к твоему дню: выбери формат — я подкину задание. Не понравится — возьмём другое.'))));
+
+  // Карта недели живёт здесь — во вкладках её больше нет
+  const boardBtn = h('button', { type: 'button', class: 'card soft c-blue empty-line', style: { width: '100%', border: 0, textAlign: 'left', marginBottom: '14px' } },
+    h('span', { 'aria-hidden': 'true', style: { fontSize: '24px' } }, '🗺️'),
+    h('span', { class: 'grow' }, h('span', { class: 'bold', style: { display: 'block' } }, 'Карта недели'),
+      h('span', { class: 'tiny bold muted' }, '9 своих целей на неделю — собери линию и получи бонус')), h('span', { 'aria-hidden': 'true' }, '›'));
+  boardBtn.addEventListener('click', () => { haptic.tap(); ctx.go('board'); });
+  el.append(boardBtn);
 
   // Генератор
   el.append(h('div', { class: 'small bold muted', style: { margin: '0 2px 8px' } }, 'Сфера для «Для себя»'),

@@ -19,6 +19,7 @@ import re
 import game
 import ops
 import habits
+import notes
 import photos
 import plans
 from quests_database import CATALOG
@@ -150,6 +151,7 @@ def _state(request) -> dict:
     data["bot_username"] = request.app.get(BOT_USERNAME_KEY)
     data["habits"] = habits.summary(request["user_id"])
     data["plans_today"] = plans.today_plans(request["user_id"])
+    data["notes"] = notes.home_view(request["user_id"], game.local_today(storage.get_user(request["user_id"])))
     data["plans_overdue"] = len(plans.overdue_plans(request["user_id"]))
     data["photos"] = photos.stats(request["user_id"])
     data["user"]["morning_plans"] = bool(storage.get_user(request["user_id"]).get("morning_plans", 1))
@@ -295,6 +297,31 @@ async def habit_delete(request):
     _limit(request, "write")
     data = await _body(request)
     return web.json_response(habits.delete_habit(request["user_id"], _int(data.get("id"))))
+
+
+async def get_notes(request):
+    q = request.query
+    try:
+        limit, offset = int(q.get("limit", 50)), int(q.get("offset", 0))
+    except ValueError:
+        return _error(400, "Некорректный запрос")
+    return web.json_response(notes.list_notes(request["user_id"], q.get("day"), q.get("q"), limit, offset))
+
+
+async def create_note(request):
+    _limit(request, "write")
+    return web.json_response({"note": notes.create_note(request["user_id"], await _body(request))})
+
+
+async def patch_note(request):
+    _limit(request, "write")
+    return web.json_response({"note": notes.update_note(request["user_id"], _int(request.match_info["id"]),
+                                                        await _body(request))})
+
+
+async def delete_note(request):
+    _limit(request, "write")
+    return web.json_response(notes.delete_note(request["user_id"], _int(request.match_info["id"])))
 
 
 async def habit_log(request):
@@ -511,6 +538,10 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_post("/api/habits/update", habit_update)
     app.router.add_post("/api/habits/delete", habit_delete)
     app.router.add_post("/api/habits/log", habit_log)
+    app.router.add_get("/api/notes", get_notes)
+    app.router.add_post("/api/notes", create_note)
+    app.router.add_patch("/api/notes/{id}", patch_note)
+    app.router.add_delete("/api/notes/{id}", delete_note)
     app.router.add_get("/api/plans", get_plans)
     app.router.add_post("/api/plans", create_plan)
     app.router.add_patch("/api/plans/{id}", patch_plan)

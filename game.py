@@ -376,6 +376,18 @@ def _history_for_active(conn, user_id: int, active_id: int, key: str, text: str)
     return dict(conn.execute("SELECT * FROM quest_history WHERE id = ?", (cur.lastrowid,)).fetchone())
 
 
+def bump_streak(user_id: int, user: dict, today: date):
+    """День засчитан в серию (квест, план или привычка). Возвращает (серия, сработала ли заморозка)."""
+    tokens = user.get("freeze_tokens") or 0
+    streak, best, freeze_week, used_freeze, tokens_used = advance_streak(
+        user.get("streak_current"), user.get("streak_best"), user.get("streak_last_date"),
+        user.get("freeze_week"), today, tokens)
+    storage.update_user(user_id, streak_current=streak, streak_best=best,
+                        streak_last_date=today.isoformat(), freeze_week=freeze_week,
+                        freeze_tokens=tokens - tokens_used)
+    return streak, used_freeze
+
+
 def complete_quest(user_id: int, active_id: int):
     """Выполнение принятого задания. None — если его уже нет (закрыто в
     другом окне). Иначе — XP, серия, новый уровень и новые ачивки."""
@@ -396,13 +408,7 @@ def complete_quest(user_id: int, active_id: int):
     conn.commit()
     conn.close()
 
-    tokens = user.get("freeze_tokens") or 0
-    streak, best, freeze_week, used_freeze, tokens_used = advance_streak(
-        user.get("streak_current"), user.get("streak_best"), user.get("streak_last_date"),
-        user.get("freeze_week"), today, tokens)
-    storage.update_user(user_id, streak_current=streak, streak_best=best,
-                        streak_last_date=today.isoformat(), freeze_week=freeze_week,
-                        freeze_tokens=tokens - tokens_used)
+    streak, used_freeze = bump_streak(user_id, user, today)
 
     accepted_local = hist.get("local_date")
     same_day = accepted_local == today.isoformat()
