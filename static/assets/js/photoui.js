@@ -54,6 +54,36 @@ export function lazyThumb(photo, alt = '') {
   return img;
 }
 
+// ---------- Доска воспоминаний: полароиды на скотче и кнопках ----------
+function hashOf(str) {
+  let x = 0;
+  for (const c of String(str)) x = (x * 31 + c.charCodeAt(0)) | 0;
+  return Math.abs(x);
+}
+
+const SHORT_DAY = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' });
+
+/** Один полароид: белая рамка, подпись от руки, лёгкий наклон, скотч или кнопка. */
+export function polaroid(photo, { onOpen, small = false, caption } = {}) {
+  const n = hashOf(photo.id);
+  const tilt = ((n % 9) - 4) * (small ? 1.6 : 1.2); // −6…+6°, у каждого фото свой и не меняется
+  const deco = n % 3 === 0 ? 'pin' : 'tape';
+  const text = caption !== undefined ? caption : (photo.label || SHORT_DAY.format(new Date(`${photo.day}T12:00:00`)));
+  const b = h('button', { type: 'button', class: `polaroid ${small ? 'small' : ''} ${deco} pc-${n % 5}`,
+    style: { '--tilt': `${tilt}deg` }, 'aria-label': `${photo.label || 'Фото'}, ${photo.day}` },
+    h('span', { class: 'polaroid-img' }, lazyThumb(photo)),
+    text ? h('span', { class: 'polaroid-cap' }, text) : null);
+  if (onOpen) b.addEventListener('click', () => { haptic.tap(); onOpen(); });
+  return b;
+}
+
+/** Доска с полароидами (альбом, неделя в календаре). */
+export function memoryBoard(list, { onDelete, small = false, captions = true } = {}) {
+  return h('div', { class: `memo-board ${small ? 'small' : ''}` },
+    list.map((p, i) => polaroid(p, { small, caption: captions ? undefined : '',
+      onOpen: () => openViewer(list, i, { onDelete }) })));
+}
+
 export const photosEnabled = () => Boolean(store.state && store.state.photos && store.state.photos.enabled);
 
 /** Лента фото элемента (задание / план / день / клетка карты) с добавлением. */

@@ -1,11 +1,12 @@
-// Альбом: все фото по месяцам, полноэкранный просмотр со свайпом и зумом.
+// Альбом: все фото по месяцам на «доске воспоминаний» — полароиды на скотче
+// и кнопках; полноэкранный просмотр со свайпом и зумом.
 
 import { h, clear, fmtMonth } from '../dom.js';
 import { api } from '../api.js';
 import { haptic } from '../tg.js';
 import { mascot } from '../mascot.js';
 import { skeleton, emptyState, sectionTitle } from '../ui.js';
-import { lazyThumb, openViewer } from '../photoui.js';
+import { memoryBoard } from '../photoui.js';
 
 export async function render(el, ctx) {
   clear(el);
@@ -41,11 +42,6 @@ export async function render(el, ctx) {
     byMonth.get(key).push(p);
   }
   for (const [key, list] of byMonth) {
-    const grid = h('div', { class: 'album-grid' }, list.map((p, i) => {
-      const b = h('button', { type: 'button', class: 'album-cell', 'aria-label': `${p.label || 'Фото'}, ${p.day}` }, lazyThumb(p));
-      b.addEventListener('click', () => { haptic.tap(); openViewer(list, i, { onDelete: () => render(el, ctx) }); });
-      return b;
-    }));
-    body.append(sectionTitle(fmtMonth(`${key}-01`)), grid);
+    body.append(sectionTitle(fmtMonth(`${key}-01`)), memoryBoard(list, { onDelete: () => render(el, ctx) }));
   }
 }
