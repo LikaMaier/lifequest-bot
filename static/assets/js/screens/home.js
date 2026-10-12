@@ -4,12 +4,10 @@
 import { h, clear, plural } from '../dom.js';
 import { haptic } from '../tg.js';
 import { mascot, moodFor, jump } from '../mascot.js';
-import { ring, sectionTitle, MODE_INFO, toastError } from '../ui.js';
+import { ring, sectionTitle, MODE_INFO } from '../ui.js';
 import { openQuest, openRandom } from '../questflow.js';
 import { habitCard } from '../habitui.js';
-import { openAddChooser, planRow } from '../planui.js';
-import { api } from '../api.js';
-import { refreshState } from '../store.js';
+import { dayPlanField } from '../dayplan.js';
 import { noteCard, noteComposer } from '../noteui.js';
 
 const DATE_FMT = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -68,9 +66,9 @@ export function render(el, { state, go }) {
         h('div', { class: 'day-line' }, h('span', { 'aria-hidden': 'true' }, streak.current ? '🔥' : '✨'), h('span', { class: 'grow' }, 'Серия'),
           h('b', { class: 'num' }, `${streak.current} ${plural(streak.current, 'день', 'дня', 'дней')}`))))));
 
-  // План на сегодня: дела и ввод прямо в карточке
+  // План на сегодня: одно поле ввода, строка — план
   el.append(sectionTitle(`План на сегодня${plans.length ? ` · ${plansDone}/${plans.length}` : ''}`, link('Календарь', () => go('calendar'))),
-    planWidget(plans, state));
+    dayPlanField(plans, state.today.date));
 
   // Привычки
   el.append(sectionTitle(`Привычки${hb.total ? ` · ${hb.done}/${hb.total}` : ''}`, link(hb.total ? 'Все' : 'Добавить', () => go('habits'))));
@@ -118,53 +116,6 @@ function bonusCard(state, go) {
       state.active.length ? link(`Мои квесты · ${state.active.length}`, () => go('quests')) : null),
     h('p', { class: 'small bold muted', style: { margin: '4px 0 10px' } }, 'Возьми случайное задание — маленькое приключение на сегодня.'),
     modes, dailyBtn);
-}
-
-const planDraft = { title: '', time: '' }; // набранный текст переживает перерисовку главной
-
-/** План на сегодня: список дел и строка ввода прямо в карточке — набрал, Enter, готово. */
-function planWidget(plans, state) {
-  const sorted = [...plans].sort((a, b) => (a.status === 'done') - (b.status === 'done') || (a.time || '99').localeCompare(b.time || '99'));
-  const card = h('section', { class: 'card plan-widget', 'aria-label': 'План на сегодня' });
-  if (sorted.length) card.append(h('div', { class: 'stack-sm' }, sorted.map(o => planRow(o, { compact: true }))));
-  else if (state.plans_overdue) {
-    card.append(h('p', { class: 'tiny muted bold', style: { margin: '0 2px 10px' } },
-      `На сегодня пусто. ${state.plans_overdue} ${plural(state.plans_overdue, 'план ждёт', 'плана ждут', 'планов ждут')} решения в календаре.`));
-  }
-
-  const title = h('input', { class: 'input pw-title', type: 'text', maxlength: '120', enterkeyhint: 'done',
-    placeholder: sorted.length ? 'Ещё дело…' : 'Что успеть сегодня?', 'aria-label': 'Новое дело на сегодня' });
-  const time = h('input', { class: 'input pw-time', type: 'time', 'aria-label': 'Время (необязательно)' });
-  const addBtn = h('button', { type: 'button', class: 'btn pw-add', 'aria-label': 'Добавить в план', disabled: true }, '＋');
-  const more = h('button', { type: 'button', class: 'link pw-more' }, 'Повтор, напоминание или задание из банка →');
-  title.value = planDraft.title;
-  time.value = planDraft.time;
-  addBtn.disabled = !title.value.trim();
-  title.addEventListener('input', () => { planDraft.title = title.value; addBtn.disabled = !title.value.trim(); });
-  time.addEventListener('input', () => { planDraft.time = time.value; });
-  const submit = async () => {
-    const text = title.value.trim();
-    if (!text || addBtn.dataset.busy) return;
-    addBtn.dataset.busy = '1';
-    addBtn.disabled = true;
-    try {
-      await api.createPlan({ title: text, date: state.today.date, ...(time.value ? { time: time.value } : {}) });
-      planDraft.title = '';
-      planDraft.time = '';
-      haptic.success();
-      await refreshState(); // главная перерисуется с новым делом
-    } catch (e) {
-      toastError(e);
-      addBtn.disabled = false;
-    } finally {
-      delete addBtn.dataset.busy;
-    }
-  };
-  addBtn.addEventListener('click', submit);
-  title.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
-  more.addEventListener('click', () => { haptic.tap(); openAddChooser(state.today.date); });
-  card.append(h('div', { class: 'pw-input', style: { marginTop: sorted.length ? '10px' : '0' } }, title, time, addBtn), more);
-  return card;
 }
 
 function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
