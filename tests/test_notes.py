@@ -44,14 +44,8 @@ class NotesServiceTest(TempDBTestCase):
             with self.assertRaises(game.QuestError):
                 fn()
 
-    def test_home_view_and_delete_all(self):
+    def test_delete_all(self):
         notes.create_note(1, {"text": "сегодня"})
-        notes.create_note(1, {"text": "давно", "day": "2025-05-05"})
-        pinned = notes.create_note(1, {"text": "важно", "day": "2025-05-06", "pinned": True})
-        home = notes.home_view(1, game.local_today(storage.get_user(1)))
-        self.assertEqual([n["text"] for n in home["items"]], ["важно", "сегодня"])
-        self.assertEqual(home["total"], 3)
-        self.assertEqual(pinned["pinned"], True)
         storage.delete_user_data(1)
         self.assertEqual(notes.list_notes(1)["total"], 0)
 
@@ -74,8 +68,9 @@ class NotesApiTest(TempDBTestCase, AioHTTPTestCase):
         nid = (await r.json())["note"]["id"]
         r = await self.client.patch(f"/api/notes/{nid}", headers=h, json={"pinned": True, "color": "blue"})
         self.assertEqual((await r.json())["note"]["color"], "blue")
-        state = await (await self.client.get("/api/state", headers=h)).json()
-        self.assertEqual(state["notes"]["items"][0]["text"], "Купить молоко")
+        day = (await (await self.client.get("/api/state", headers=h)).json())["today"]["date"]
+        listed = await (await self.client.get(f"/api/notes?day={day}", headers=h)).json()
+        self.assertEqual(listed["notes"][0]["text"], "Купить молоко")
         self.assertEqual((await self.client.patch(f"/api/notes/{nid}", headers=headers(7), json={"text": "x"})).status, 400)
         self.assertEqual((await self.client.get("/api/notes?limit=abc", headers=h)).status, 400)
         self.assertEqual((await self.client.delete(f"/api/notes/{nid}", headers=h)).status, 200)

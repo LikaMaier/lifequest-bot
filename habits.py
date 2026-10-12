@@ -137,8 +137,6 @@ def log_habit(user_id: int, habit_id: int, delta: int = None, count: int = None,
 
     xp = 0
     level_up = None
-    if done and target_day == today:  # привычка, выполненная сегодня, продлевает серию
-        game.bump_streak(user_id, storage.get_user(user_id), today)
     if done and not already:
         xp = HABIT_XP
         level_before = game.level_for_xp(user.get("xp") or 0)
