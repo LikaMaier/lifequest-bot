@@ -740,42 +740,11 @@ p { margin: 0; }
 .home-footer .link, .bonus-card .link { background: none; border: 0; padding: 8px 4px; font-weight: 800; color: var(--accent-deep); font-size: 13px; min-height: 44px; }
 .bonus-modes { flex-wrap: nowrap; } .bonus-modes .chip { flex: 1; justify-content: center; padding-left: 6px; padding-right: 6px; font-size: 13px; white-space: nowrap; }
 
-/* ---------- План на сегодня: лист тетради в линейку ---------- */
-.notebook {
-  --line: 44px; --lines: 4;
-  position: relative; background-color: #FFFEF6; color: #2C2A22; border-radius: 6px 6px 14px 6px;
-  padding: 10px 14px 6px 46px; margin-right: 18px;
-  background-image:
-    linear-gradient(90deg, transparent 37px, #F2A3A3 37px, #F2A3A3 39px, transparent 39px),
-    repeating-linear-gradient(180deg, transparent 0 calc(var(--line) - 1px), #BFD7EE calc(var(--line) - 1px) var(--line));
-  background-position: 0 0, 0 10px;
-  box-shadow: 0 1px 0 #E9E2C8, 0 3px 0 #F3EEDB, 0 4px 0 #E2DAC0, 0 8px 18px rgba(60, 45, 20, .12);
-  min-height: calc(var(--lines) * var(--line) + 16px);
-  transition: min-height .35s cubic-bezier(.3, 1.3, .5, 1);
-}
-.nb-holes { position: absolute; left: 12px; top: 18px; bottom: 18px; width: 12px;
-  background: radial-gradient(circle at 6px 6px, #F1EAD2 5px, #D9CFAE 5.5px, transparent 6px) 0 0 / 12px 64px repeat-y; }
-.nb-lines { list-style: none; margin: 0; padding: 0; }
-.nb-line { height: var(--line); display: flex; align-items: flex-end; gap: 10px; padding-bottom: 5px; box-sizing: border-box; animation: nb-in .3s ease both; }
-.nb-check {
-  width: 24px; height: 24px; flex-shrink: 0; border-radius: 6px; border: 2px solid #8C8570; background: transparent;
-  display: grid; place-items: center; font-family: 'Caveat', cursive; font-weight: 700; font-size: 22px; color: #3E8E2E; padding: 0;
-}
-.nb-check.on { border-color: #3E8E2E; }
-.nb-check.ghost { border-style: dashed; border-color: #D5CDB3; }
-.nb-text { flex: 1; min-width: 0; border: 0; background: none; padding: 0; text-align: left; color: inherit;
-  display: flex; align-items: baseline; gap: 8px; }
-.nb-time { font-weight: 800; font-size: 12px; color: #7A6F55; flex-shrink: 0; }
-.nb-title { font-family: 'Caveat', 'Nunito', cursive; font-weight: 700; font-size: 23px; line-height: 1.15;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #24324F; }
-.nb-line.done .nb-title { text-decoration: line-through; text-decoration-thickness: 2px; color: #8C8570; }
-.nb-line.skipped .nb-title { color: #B5AE98; }
-.nb-empty .nb-title { color: #B5AE98; font-size: 21px; }
-.nb-pencil { position: absolute; right: -26px; top: -14px; width: 118px; height: 24px; border: 0; background: none; padding: 0;
-  transform: rotate(-58deg); transform-origin: 100% 50%; filter: drop-shadow(2px 3px 2px rgba(0, 0, 0, .25)); }
-.nb-pencil svg { width: 100%; height: 100%; display: block; }
-.nb-pencil:active { transform: rotate(-52deg) translateX(-4px); }
-@keyframes nb-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .notebook { transition: none; } .nb-line { animation: none; } }
-.nb-line:nth-child(-n+2) { padding-right: 34px; } /* под карандашом */
-.nb-title { padding-right: 4px; }
+/* ---------- План на сегодня: ввод прямо в карточке ---------- */
+.plan-widget { padding: 12px; }
+.pw-input { display: flex; gap: 6px; align-items: center; }
+.pw-title { flex: 1; min-width: 0; }
+.pw-time { width: 92px; flex-shrink: 0; padding-left: 8px; padding-right: 6px; }
+.pw-add { min-width: 48px; width: 48px; padding: 0; font-size: 22px; flex-shrink: 0; }
+.pw-more { display: block; margin: 6px auto 0; background: none; border: 0; font-weight: 800; font-size: 12.5px;
+  color: var(--accent-deep); min-height: 36px; }
