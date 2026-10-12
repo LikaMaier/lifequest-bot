@@ -740,11 +740,20 @@ p { margin: 0; }
 .home-footer .link, .bonus-card .link { background: none; border: 0; padding: 8px 4px; font-weight: 800; color: var(--accent-deep); font-size: 13px; min-height: 44px; }
 .bonus-modes { flex-wrap: nowrap; } .bonus-modes .chip { flex: 1; justify-content: center; padding-left: 6px; padding-right: 6px; font-size: 13px; white-space: nowrap; }
 
-/* ---------- План на сегодня: ввод прямо в карточке ---------- */
-.plan-widget { padding: 12px; }
-.pw-input { display: flex; gap: 6px; align-items: center; }
-.pw-title { flex: 1; min-width: 0; }
-.pw-time { width: 92px; flex-shrink: 0; padding-left: 8px; padding-right: 6px; }
-.pw-add { min-width: 48px; width: 48px; padding: 0; font-size: 22px; flex-shrink: 0; }
-.pw-more { display: block; margin: 6px auto 0; background: none; border: 0; font-weight: 800; font-size: 12.5px;
-  color: var(--accent-deep); min-height: 36px; }
+/* ---------- План на сегодня: одно поле, строка — план ---------- */
+.dayplan {
+  background: var(--white); border-radius: var(--r-lg); padding: 6px 14px; min-height: 132px; cursor: text;
+  box-shadow: inset 0 0 0 2px var(--line); transition: box-shadow .15s;
+}
+.dayplan:focus-within { box-shadow: inset 0 0 0 2px var(--accent-deep); }
+.dp-line { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.dp-line + .dp-line { border-top: 1px dashed color-mix(in srgb, var(--line) 80%, transparent); }
+.dp-check { width: 24px; height: 24px; flex-shrink: 0; border-radius: 7px; border: 2px solid var(--muted); background: transparent;
+  padding: 0; display: grid; place-items: center; font-weight: 900; font-size: 15px; color: var(--accent-ink); }
+.dp-check.on { background: var(--accent-deep); border-color: var(--accent-deep); }
+.dp-check:disabled:not(.on) { opacity: .35; }
+.dp-text { flex: 1; min-width: 0; border: 0; background: transparent; outline: none; padding: 10px 0;
+  font: inherit; font-weight: 700; font-size: 15.5px; color: var(--ink); }
+.dp-text::placeholder { color: var(--muted); opacity: .8; font-weight: 600; }
+.dp-text[readonly] { cursor: pointer; }
+.dp-line.done .dp-text { text-decoration: line-through; color: var(--muted); }
