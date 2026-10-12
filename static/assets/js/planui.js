@@ -4,6 +4,8 @@
 import { h, clear, fmtDay, parseDate } from './dom.js';
 import { api } from './api.js';
 import { haptic } from './tg.js';
+import { dayPlanField } from './dayplan.js';
+import { noteCard, noteComposer } from './noteui.js';
 import { store, refreshState } from './store.js';
 import { celebrate } from './celebrate.js';
 import { mascot } from './mascot.js';
@@ -313,29 +315,37 @@ export function openQuestPicker(date, { onChange } = {}) {
 }
 
 // ---------- Лист дня ----------
+/** Страница дня: свободное поле для планов (как на главной), «Как всё прошло?»
+ *  с заметками этого дня и фото дня. Без выбора заданий, даты и напоминаний. */
 export function openDaySheet(date, { onChange } = {}) {
   const s = sheet(h('div'), { label: dayTitle(date) });
-  const refresh = () => { load(); onChange && onChange(); };
-  const load = async () => {
-    const body = h('div', { class: 'stack' }, h('h2', null, dayTitle(date)));
-    const list = h('div', { class: 'stack-sm' }, h('div', { class: 'skeleton', style: { height: '64px' } }));
-    const add = h('button', { type: 'button', class: 'btn block' }, '＋ Добавить');
-    add.addEventListener('click', () => { haptic.tap(); s.close(); openAddChooser(date, { onChange }); });
-    body.append(list, add);
-    if (photosEnabled() && date <= todayIso()) {
-      body.append(h('div', null, h('h3', { style: { marginBottom: '8px' } }, '📷 Фото дня'),
-        photoStrip({ target: 'day', day: date }, { onChange: () => onChange && onChange() })));
-    }
-    s.setContent(body);
+  const today = todayIso();
+  const planHost = h('div', null, h('div', { class: 'skeleton', style: { height: '120px' } }));
+  const notesHost = h('div', { class: 'note-grid', style: { marginTop: '10px' } });
+  const loadNotes = async () => {
     try {
-      const items = (await api.plans(date, date)).plans;
-      clear(list);
-      if (!items.length) list.append(emptyState('Здесь пока пусто. Запланируем что-нибудь приятное?', { kind: 'cat-lav', expr: 'wink' }));
-      for (const o of items) list.append(planRow(o, { onChange: refresh }));
-    } catch (e) {
-      clear(list).append(h('p', { class: 'muted bold' }, e.message));
-    }
+      const { notes } = await api.notes({ day: date, limit: 50 });
+      notesHost.replaceChildren(...notes.map(n => noteCard(n, { onChange: loadNotes })));
+    } catch (e) { /* заметки подгрузятся при следующем открытии */ }
   };
-  load();
+  const body = h('div', { class: 'stack' },
+    h('h2', null, dayTitle(date)),
+    planHost,
+    h('div', null,
+      h('h3', { style: { marginBottom: '8px' } }, date <= today ? 'Как всё прошло?' : 'Заметки к этому дню'),
+      noteComposer({ day: date, draftKey: `day-${date}`, onSaved: loadNotes,
+        placeholder: date <= today ? 'Пара слов о дне: что получилось, что запомнилось…' : 'Мысли и идеи к этому дню…' }),
+      notesHost));
+  if (photosEnabled() && date <= today) {
+    body.append(h('div', null, h('h3', { style: { marginBottom: '8px' } }, '📷 Фото дня'),
+      photoStrip({ target: 'day', day: date }, { onChange: () => onChange && onChange() })));
+  }
+  s.setContent(body);
+  api.plans(date, date).then(res => {
+    const items = res.plans.filter(o => o.status === 'planned' || o.status === 'done');
+    planHost.replaceChildren(dayPlanField(items, date, { onChange, canComplete: date <= today,
+      placeholder: date === today ? 'Что сегодня в планах?' : 'Что запланируем на этот день?' }));
+  }).catch(e => planHost.replaceChildren(h('p', { class: 'muted bold' }, e.message)));
+  loadNotes();
   return s;
 }

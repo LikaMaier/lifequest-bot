@@ -8,7 +8,7 @@ import { haptic, tg } from '../tg.js';
 import { mascot } from '../mascot.js';
 import { skeleton, toastError, sectionTitle, emptyState } from '../ui.js';
 import { memoryBoard, photosEnabled } from '../photoui.js';
-import { PLAN_MODES, planRow, openDaySheet, openAddChooser, todayIso, addDays, dayTitle } from '../planui.js';
+import { PLAN_MODES, planRow, openDaySheet, todayIso, addDays, dayTitle } from '../planui.js';
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
@@ -70,7 +70,7 @@ export function render(el, ctx) {
       return b;
     }));
   const add = h('button', { type: 'button', class: 'btn small' }, '＋ План');
-  add.addEventListener('click', () => { haptic.tap(); openAddChooser(todayIso(), { onChange: () => refresh(el, ctx) }); });
+  add.addEventListener('click', () => { haptic.tap(); openDaySheet(todayIso(), { onChange: () => refresh(el, ctx) }); });
   el.append(h('div', { class: 'row', style: { marginBottom: '14px' } }, h('div', { class: 'grow' }, seg), add));
 
   if (overdue) {
@@ -131,7 +131,7 @@ async function drawWeek(body, el, ctx) {
     const dayPlans = plans.filter(o => o.date === date);
     const dayPhotos = photos.filter(p => p.day === date);
     const add = h('button', { type: 'button', class: 'icon-btn small', 'aria-label': `Добавить план на ${dayTitle(date)}` }, '＋');
-    add.addEventListener('click', e => { e.stopPropagation(); haptic.tap(); openAddChooser(date, { onChange }); });
+    add.addEventListener('click', e => { e.stopPropagation(); haptic.tap(); openDaySheet(date, { onChange }); });
     const head = h('button', { type: 'button', class: 'week-day-head', 'aria-label': `Открыть день: ${dayTitle(date)}` },
       h('span', { class: 'week-num num' }, String(parseDate(date).getDate())),
       h('span', { class: 'grow' }, h('span', { class: 'bold' }, WEEKDAY_FULL[i]),
@@ -266,7 +266,7 @@ async function drawList(body, el, ctx) {
   });
   if (!visible.length) {
     const add = h('button', { type: 'button', class: 'btn' }, '＋ Запланировать');
-    add.addEventListener('click', () => openAddChooser(todayIso(), { onChange: () => refresh(el, ctx) }));
+    add.addEventListener('click', () => openDaySheet(todayIso(), { onChange: () => refresh(el, ctx) }));
     body.append(h('div', { class: 'card' }, emptyState('Здесь пока пусто. Запланируем что-нибудь приятное?', { kind: 'cat-lav', expr: 'wink', action: add })));
     return;
   }

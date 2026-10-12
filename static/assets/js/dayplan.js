@@ -1,4 +1,4 @@
-// «План на сегодня» как одно поле ввода: каждая строка — план.
+// План дня как одно поле ввода: каждая строка — план (главная и день в календаре).
 // Enter — следующая строка, пустая строка — план удалён, квадратик — выполнено.
 // Время можно написать в начале строки: «18:30 зал».
 // Пока человек печатает, главная не перерисовывается (иначе на телефоне
@@ -13,7 +13,7 @@ import { refreshState } from './store.js';
 import { completePlan, openPlanSheet } from './planui.js';
 
 const TIME_RE = /^([01]?\d|2[0-3])[:.]([0-5]\d)\s+(.+)$/;
-const draft = { text: '' }; // недописанная последняя строка
+const drafts = new Map(); // недописанная последняя строка — по дню
 
 function parseLine(text) {
   const m = text.trim().match(TIME_RE);
@@ -22,7 +22,8 @@ function parseLine(text) {
 }
 const lineText = o => (o.time ? `${o.time} ${o.title}` : o.title);
 
-export function dayPlanField(plans, today) {
+export function dayPlanField(plans, date, { onChange, canComplete = true, placeholder = 'Что сегодня в планах?' } = {}) {
+  const draft = { get text() { return drafts.get(date) || ''; }, set text(v) { if (v) drafts.set(date, v); else drafts.delete(date); } };
   const box = h('div', { class: 'dayplan', role: 'list', 'aria-label': 'План на сегодня' });
   let dirty = false;
 
@@ -31,7 +32,7 @@ export function dayPlanField(plans, today) {
   function makeLine(plan) {
     const done = plan && plan.status === 'done';
     const locked = plan && (done || plan.quest); // задание из банка правится в календаре
-    const check = h('button', { type: 'button', class: `dp-check ${done ? 'on' : ''}`, disabled: !plan || done,
+    const check = h('button', { type: 'button', class: `dp-check ${done ? 'on' : ''}`, disabled: !plan || done || !canComplete,
       'aria-label': plan ? (done ? `Выполнено: ${plan.title}` : `Отметить выполненным: ${plan.title}`) : 'Сначала напиши план' }, done ? '✓' : '');
     const input = h('input', { class: 'dp-text', type: 'text', maxlength: '130', enterkeyhint: 'next', autocomplete: 'off',
       'aria-label': plan ? `План: ${plan.title}` : 'Новый план', readonly: locked ? true : null });
@@ -82,9 +83,9 @@ export function dayPlanField(plans, today) {
       const { title, time } = parseLine(text);
       draft.text = '';
       line.classList.remove('new');
-      job = api.createPlan({ title, date: today, ...(time ? { time } : {}) }).then(res => {
+      job = api.createPlan({ title, date, ...(time ? { time } : {}) }).then(res => {
         line._plan = res.plan;
-        line.querySelector('.dp-check').disabled = false;
+        line.querySelector('.dp-check').disabled = !canComplete;
         input.setAttribute('aria-label', `План: ${res.plan.title}`);
         if (!box.querySelector('.dp-line.new')) box.append(makeLine(null)); // всегда есть пустая строка
       });
@@ -108,7 +109,7 @@ export function dayPlanField(plans, today) {
   sorted.forEach(o => box.append(makeLine(o)));
   box.append(makeLine(null));
   const first = box.querySelector('.dp-line.new .dp-text');
-  first.placeholder = sorted.length ? 'Ещё дело…' : 'Что сегодня в планах?';
+  first.placeholder = sorted.length ? 'Ещё дело…' : placeholder;
 
   // Фокус ушёл из поля — обновляем общее состояние (кольцо дня, счётчики).
   box.addEventListener('focusout', () => {
@@ -117,6 +118,7 @@ export function dayPlanField(plans, today) {
       dirty = false;
       await Promise.all([...box.querySelectorAll('.dp-line')].map(l => l._saving).filter(Boolean));
       refreshState().catch(() => {});
+      onChange && onChange();
     }, 250);
   });
   // Нажатие на свободное место поля — к последней строке.
