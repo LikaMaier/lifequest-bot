@@ -264,6 +264,10 @@ def list_photos(user_id: int, filters: dict) -> list:
     if filters.get("board_cell") not in (None, ""):
         where.append("p.board_week = ?")
         args.append(storage.get_current_week_key(game.local_today(storage.get_user(user_id))))
+    for key, op in (("from", ">="), ("to", "<=")):  # диапазон дней — для недели в календаре
+        if filters.get(key):
+            where.append(f"COALESCE(p.day, p.plan_date, substr(p.created_at, 1, 10)) {op} ?")
+            args.append(str(filters[key])[:10])
     sql = _SELECT + "".join(f" AND {w}" for w in where) + " ORDER BY p.created_at DESC, p.id LIMIT 500"
     conn = storage.connect(rows=True)
     rows = conn.execute(sql, (user_id, *args)).fetchall()

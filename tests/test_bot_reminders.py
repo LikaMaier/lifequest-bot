@@ -234,8 +234,9 @@ class WeeklySummaryTest(TempDBTestCase, unittest.IsolatedAsyncioTestCase):
         self.assertEqual(lifequest_bot.build_weekly_message(21), (None, None))
 
     async def test_sent_on_sunday_only(self):
-        self.add_done(game.local_today(storage.get_user(21)))
-        sunday = date(2026, 10, 11)
+        today = game.local_today(storage.get_user(21))
+        sunday = today + timedelta(days=6 - today.weekday())  # ближайшее воскресенье, не зависит от даты запуска
+        self.add_done(sunday)
         with mock.patch.object(lifequest_bot, "users_at_local_hour", return_value=[21]), \
              mock.patch.object(game, "local_today", return_value=sunday):
             await lifequest_bot.send_evening_reminders()

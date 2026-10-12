@@ -187,6 +187,15 @@ class PhotosServiceTest(PhotoDirMixin, TempDBTestCase):
         with self.assertRaises(game.QuestError):
             photos.save_upload(1, jpeg(200, 200), {"target": "day", "day": future})
 
+    def test_filter_by_date_range(self):
+        t = date.fromisoformat(self.today)
+        days = [(t - timedelta(days=n)).isoformat() for n in (0, 3, 9)]
+        for d in days:
+            photos.save_upload(1, jpeg(200, 200), {"target": "day", "day": d})
+        week = photos.list_photos(1, {"from": days[1], "to": days[0]})
+        self.assertEqual(sorted(p["day"] for p in week), sorted(days[:2]))
+        self.assertEqual(len(photos.list_photos(1, {"to": days[2]})), 1)
+
     def test_only_owner_and_signed_urls(self):
         ph = photos.save_upload(1, jpeg(), {"target": "day", "day": self.today})["photo"]
         self.assertIsNone(photos.file_path(2, ph["id"], "full"))
