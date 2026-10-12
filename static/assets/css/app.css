@@ -762,3 +762,6 @@ p { margin: 0; }
 .dp-text::placeholder { color: var(--muted); opacity: .8; font-weight: 600; }
 .dp-text[readonly] { cursor: pointer; }
 .dp-line.done .dp-text { text-decoration: line-through; color: var(--muted); }
+
+/* Клавиатура открыта — нижнее меню прячем, чтобы не висело над ней */
+.kb-open .tabbar { display: none; }
