@@ -1,5 +1,5 @@
-"""Заметки: короткие записи на день — мысли, итоги, списки. Можно закрепить
-и раскрасить как стикер. Видит только автор."""
+"""Заметки к дням календаря («Как всё прошло?»): короткие записи на день,
+можно закрепить и раскрасить как стикер. Видит только автор."""
 
 from datetime import date
 
@@ -103,14 +103,3 @@ def list_notes(user_id: int, day: str = None, q: str = None, limit: int = 50, of
                         (*args, limit, offset)).fetchall()
     conn.close()
     return {"notes": [_view(r) for r in rows], "total": total}
-
-
-def home_view(user_id: int, today: date) -> dict:
-    """Для главной: закреплённые и сегодняшние заметки (до 4) и общее число."""
-    conn = storage.connect(rows=True)
-    rows = conn.execute("""SELECT * FROM notes WHERE user_id = ? AND (pinned = 1 OR day = ?)
-                           ORDER BY pinned DESC, updated_at DESC, id DESC LIMIT 4""",
-                        (user_id, today.isoformat())).fetchall()
-    total = conn.execute("SELECT COUNT(*) FROM notes WHERE user_id = ?", (user_id,)).fetchone()[0]
-    conn.close()
-    return {"items": [_view(r) for r in rows], "total": total}

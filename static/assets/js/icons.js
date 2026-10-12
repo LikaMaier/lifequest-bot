@@ -9,7 +9,6 @@ export const ICONS = {
   progress: wrap('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
   awards: wrap('<path d="M8 4h8v5a4 4 0 0 1-8 0V4z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4"/><path d="M12 13v4M8.5 20h7M10 17h4v3h-4z"/>'),
   habits: wrap('<path d="M12 3c3 4 6 7 6 10.5A6 6 0 0 1 6 13.5C6 10 9 7 12 3z"/><path d="M9.5 14l1.8 1.8 3.4-3.6"/>'),
-  notes: wrap('<path d="M6 3.5h9l4 4V19a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 19V5a1.5 1.5 0 0 1 1-1.5z"/><path d="M15 3.5V8h4M8.5 12h7M8.5 15.5h5"/>'),
   calendar: wrap('<rect x="3.5" y="5" width="17" height="15.5" rx="3.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><circle cx="8.5" cy="14.5" r="1" fill="currentColor"/><circle cx="12" cy="14.5" r="1" fill="currentColor"/>'),
   plus: wrap('<path d="M12 5v14M5 12h14"/>'),
   minus: wrap('<path d="M5 12h14"/>'),
