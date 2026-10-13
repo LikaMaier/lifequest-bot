@@ -8,7 +8,7 @@ import { mascot } from '../mascot.js';
 import { emptyState, sectionTitle, skeleton, busy, toastError, SPHERE_INFO } from '../ui.js';
 import { modeButtons, openQuest, questItem, completeQuest, sphereChips } from '../questflow.js';
 
-const view = { tab: 'active', sphere: null, query: '', soloSphere: null, history: null, historyLoading: false };
+const view = { tab: 'active', query: '', soloSphere: null, history: null, historyLoading: false };
 
 export function render(el, ctx) {
   clear(el);
@@ -17,7 +17,7 @@ export function render(el, ctx) {
     h('div', null, h('h1', null, 'Квесты'), h('p', null, 'Выбери формат — я подкину задание. Не понравится — возьмём другое.'))));
 
   // Генератор
-  el.append(h('div', { class: 'small bold muted', style: { margin: '0 2px 8px' } }, 'Сфера для «Для себя»'),
+  el.append(h('div', { class: 'small bold muted', style: { margin: '0 2px 8px' } }, 'Сфера задания «Для себя»'),
     sphereChips(view.soloSphere, sp => { view.soloSphere = sp; }),
     modeButtons(() => view.soloSphere),
     h('p', { class: 'center tiny muted bold', style: { marginTop: '4px' } },
@@ -36,7 +36,7 @@ export function render(el, ctx) {
   const search = h('input', { class: 'input', type: 'search', placeholder: 'Поиск по названию', value: view.query, 'aria-label': 'Поиск по заданиям', style: { marginTop: '12px' } });
   const listHost = h('div', { class: 'stack-sm', style: { marginTop: '10px' } });
   search.addEventListener('input', () => { view.query = search.value; drawList(listHost, ctx); });
-  el.append(search, h('div', { style: { marginTop: '10px' } }, sphereChips(view.sphere, sp => { view.sphere = sp; drawList(listHost, ctx); })), listHost);
+  el.append(search, listHost);
   drawList(listHost, ctx);
 }
 
@@ -47,7 +47,6 @@ export function update(el, ctx) {
 
 function matches(q) {
   const query = view.query.trim().toLowerCase();
-  if (view.sphere && q.sphere !== view.sphere) return false;
   return !query || q.title.toLowerCase().includes(query) || (q.text || '').toLowerCase().includes(query);
 }
 

@@ -1,12 +1,12 @@
-// ① Главная: приветствие с маскотом, кольцо дня, метрики, три кнопки
-// случайных заданий, задание дня, активные квесты, мини-график недели.
+// ① Главная: приветствие с маскотом, кольцо дня и серия, уровень, три кнопки
+// случайных заданий, «Сегодня» (задание дня, планы, привычки), активные квесты.
+// Графики — на экране «Прогресс».
 
 import { h, clear, plural } from '../dom.js';
 import { haptic } from '../tg.js';
 import { mascot, moodFor, jump } from '../mascot.js';
 import { ring, progressBar, sectionTitle, emptyState, busy, toastError } from '../ui.js';
 import { buyStars } from '../premium.js';
-import { barChart } from '../charts.js';
 import { modeButtons, openQuest, questItem, completeQuest } from '../questflow.js';
 import { habitCard } from '../habitui.js';
 import { planRow, openAddChooser } from '../planui.js';
@@ -58,26 +58,18 @@ export function render(el, { state, go }) {
   const banner = streakBanner(state, go);
   if (banner) el.append(banner);
 
-  // Метрики
+  // Уровень — одной карточкой; награды и магазин — ссылками в ней
   const lv = state.level;
-  const levelCard = h('button', { type: 'button', class: 'metric c-purple', style: { gridColumn: 'span 2' }, 'aria-label': 'Уровень и награды' },
+  const linkStyle = { background: 'transparent', border: '0', padding: '0', font: 'inherit', fontWeight: '800', color: 'inherit', cursor: 'pointer' };
+  const awardsLink = h('button', { type: 'button', class: 'hint', style: linkStyle }, `🏅 Баджи ${state.badges.unlocked}/${state.badges.total} ›`);
+  awardsLink.addEventListener('click', () => { haptic.tap(); go('awards'); });
+  const shopLink = h('button', { type: 'button', class: 'hint', style: linkStyle }, `🛍️ ${state.user.balance} XP в магазин ›`);
+  shopLink.addEventListener('click', () => { haptic.tap(); go('shop'); });
+  el.append(h('section', { class: 'metric c-purple', style: { marginTop: '14px', minHeight: '0' }, 'aria-label': 'Уровень' },
     h('div', { class: 'spread' }, h('span', { class: 'label' }, `Уровень ${lv.level}`), h('span', { class: 'hint' }, `${lv.xp} / ${lv.next} XP`)),
     h('div', { class: 'value', style: { fontSize: '19px', margin: '2px 0 8px' } }, lv.name),
-    progressBar(lv.progress, 'purple'),
-    h('div', { class: 'hint', style: { marginTop: '6px' } }, `До «${lv.next_name}» — ${lv.next - lv.xp} XP`));
-  levelCard.addEventListener('click', () => { haptic.tap(); go('awards'); });
-  const badges = h('button', { type: 'button', class: 'metric c-yellow', 'aria-label': 'Баджи' },
-    h('span', { class: 'label' }, 'Баджи'), h('span', { class: 'value' }, `${state.badges.unlocked}`),
-    h('span', { class: 'hint' }, `из ${state.badges.total}`), h('span', { class: 'deco', 'aria-hidden': 'true' }, '🏅'));
-  badges.addEventListener('click', () => { haptic.tap(); go('awards'); });
-  const shopCard = h('button', { type: 'button', class: 'metric c-pink', style: { gridColumn: 'span 2', minHeight: '0' }, 'aria-label': 'Магазин' },
-    h('div', { class: 'spread' }, h('span', { class: 'label' }, '🛍️ Магазин'), h('span', { class: 'hint' }, `${state.user.balance} XP можно потратить`)),
-    h('div', { class: 'hint', style: { marginTop: '2px' } }, 'Заморозки серии и обновки для маскота'));
-  shopCard.addEventListener('click', () => { haptic.tap(); go('shop'); });
-  el.append(h('section', { class: 'metrics', style: { marginTop: '14px' }, 'aria-label': 'Показатели' },
-    h('div', { class: 'metric c-lime' }, h('span', { class: 'label' }, 'За месяц'), h('span', { class: 'value' }, String(state.month_done)),
-      h('span', { class: 'hint' }, plural(state.month_done, 'задание', 'задания', 'заданий')), h('span', { class: 'deco', 'aria-hidden': 'true' }, '✅')),
-    badges, levelCard, shopCard));
+    progressBar(lv.progress, 'yellow'),
+    h('div', { class: 'spread', style: { marginTop: '10px' } }, awardsLink, shopLink)));
 
   // Три кнопки случайных заданий
   el.append(sectionTitle('Получить задание'), modeButtons());
@@ -140,16 +132,6 @@ export function render(el, { state, go }) {
     }
     el.append(list);
   }
-
-  // Мини-график недели
-  const weekTotal = state.week.reduce((s, d) => s + d.count, 0);
-  const statsLink = h('button', { type: 'button', class: 'link' }, 'Подробнее');
-  statsLink.addEventListener('click', () => { haptic.tap(); go('progress'); });
-  el.append(sectionTitle('Неделя', statsLink),
-    h('section', { class: 'card' },
-      h('div', { class: 'spread', style: { marginBottom: '8px' } }, h('span', { class: 'bold' }, 'Выполнено за 7 дней'),
-        h('span', { class: 'num', style: { fontSize: '20px' } }, String(weekTotal))),
-      barChart(state.week, { height: 120, compact: true, label: 'Выполнено за последние 7 дней' })));
 }
 
 function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
