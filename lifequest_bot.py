@@ -17,7 +17,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, 
     InlineKeyboardButton, BotCommand, KeyboardButton, ReplyKeyboardMarkup,
-    WebAppInfo, MenuButtonWebApp, LabeledPrice, PreCheckoutQuery
+    WebAppInfo, MenuButtonWebApp, LabeledPrice, PreCheckoutQuery, ReplyKeyboardRemove
 )
 from apscheduler.events import EVENT_JOB_ERROR
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -107,44 +107,12 @@ async def on_error(event):
 
 # ==================== KEYBOARD BUILDER ====================
 # ==================== WELCOME ====================
-WELCOME_TEXT = """👋 <b>Привет! Добро пожаловать в LifeQuest.</b>
+WELCOME_TEXT = """👋 <b>Привет! Я LifeQuest.</b>
 
-Моя работа — подкидывать тебе задания, после которых можно сказать:
-«Это была ужасно странная идея...»
-«Но как же хорошо, что мы это сделали».
+Подкидываю задания, после которых день перестаёт быть обычным: расследовать загадку, \
+заговорить с незнакомцем, устроить свидание, которое никто не повторит.
 
-Здесь не будет:
-❌ «сходи в кино»
-❌ «почитай книгу»
-❌ «попробуй новое хобби»
-
-Слишком легко.
-
-Вместо этого тебе может выпасть:
-🕵️ расследовать загадочную историю
-🗺️ уехать в место, которое для тебя совсем новое
-🎭 на один вечер стать совершенно другим человеком
-🗣️ заговорить с незнакомцем и узнать его историю
-🎲 отдать часть решений случайности
-❤️ устроить свидание, которое никто не сможет повторить
-👯 втянуть друзей в авантюру, о которой они не просили
-
-<b>Как играем:</b>
-1️⃣ Выбираешь формат
-2️⃣ Получаешь задание
-3️⃣ Выполняешь
-4️⃣ Возвращаешься за следующим
-
-Некоторые задания займут час. Некоторые — целый день.
-
-Твоя задача — выбраться из привычного сценария. Моя — придумать, как.
-
-🎲 <b>Выбери формат:</b>
-🎯 На одного — приключение для себя
-💞 Для пары — задание на двоих
-👥 Для компании — что-то странное для друзей
-
-Какое приключение начнём сегодня?"""
+🎯 <b>Выбери формат</b> — или открой приложение: там план дня, привычки, календарь и твой маскот."""
 
 def build_start_menu_keyboard() -> InlineKeyboardMarkup:
     rows = [[build_miniapp_button()]] if MINIAPP_URL else []
@@ -518,7 +486,13 @@ async def handle_miniapp_data(message: Message):
     if result["xp"]:
         text += f"\n+{result['xp']} XP"
 
-    await message.answer(text, parse_mode="HTML", reply_markup=build_board_keyboard(user_id))
+    if MINIAPP_URL:
+        # Старая карта больше не нужна — убираем её клавиатуру, дальше всё в приложении.
+        await message.answer(text, parse_mode="HTML", reply_markup=ReplyKeyboardRemove())
+        await message.answer("Карта недели теперь живёт в приложении 👇",
+                             reply_markup=InlineKeyboardMarkup(inline_keyboard=[[build_miniapp_button("🗺️ Открыть карту", "board")]]))
+    else:
+        await message.answer(text, parse_mode="HTML", reply_markup=build_board_keyboard(user_id))
 
 # ==================== DAILY REMINDERS ====================
 def users_at_local_hour(column: str, default_hour: int) -> list:
