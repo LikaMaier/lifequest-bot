@@ -321,3 +321,31 @@ class CalendarApiTest(TempDBTestCase, AioHTTPTestCase):
         r = await self.client.get("/api/quests/search?q=ложь&mode=company", headers=headers(1))
         titles = [q["title"] for q in (await r.json())["quests"]]
         self.assertIn("Две правды одна ложь", titles)
+
+
+class UncompletePlanTest(TempDBTestCase):
+    def setUp(self):
+        super().setUp()
+        storage.ensure_user(1)
+        self.today = game.local_today(storage.get_user(1)).isoformat()
+
+    def test_untick_returns_xp_and_status(self):
+        p = plans.create_plan(1, {"title": "Йога", "date": self.today})
+        xp0 = storage.get_user(1).get("xp") or 0
+        plans.complete_plan(1, p["id"], self.today)
+        self.assertGreater(storage.get_user(1)["xp"], xp0)
+        res = plans.uncomplete_plan(1, p["id"], self.today)
+        self.assertEqual(res["plan"]["status"], "planned")
+        self.assertEqual(storage.get_user(1)["xp"], xp0)
+        plans.complete_plan(1, p["id"], self.today)  # можно отметить снова
+        self.assertEqual(plans.occurrence(1, p["id"], date.fromisoformat(self.today))["status"], "done")
+        with self.assertRaises(game.QuestError):
+            plans.uncomplete_plan(2, p["id"], self.today)  # чужой
+
+    def test_untick_repeating_day_only(self):
+        p = plans.create_plan(1, {"title": "Вода", "date": self.today, "repeat_rule": "daily"})
+        plans.complete_plan(1, p["id"], self.today)
+        plans.uncomplete_plan(1, p["id"], self.today)
+        self.assertEqual(plans.occurrence(1, p["id"], date.fromisoformat(self.today))["status"], "planned")
+        with self.assertRaises(game.QuestError):
+            plans.uncomplete_plan(1, p["id"], self.today)  # уже не выполнен

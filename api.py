@@ -367,6 +367,12 @@ async def complete_plan(request):
     return web.json_response(plans.complete_plan(request["user_id"], _int(request.match_info["id"]), data.get("date")))
 
 
+async def uncomplete_plan(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(plans.uncomplete_plan(request["user_id"], _int(request.match_info["id"]), data.get("date")))
+
+
 async def skip_plan(request):
     _limit(request, "write")
     data = await _body(request)
@@ -547,6 +553,7 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_delete("/api/plans/{id}", delete_plan)
     app.router.add_post("/api/plans/{id}/complete", complete_plan)
     app.router.add_post("/api/plans/{id}/skip", skip_plan)
+    app.router.add_post("/api/plans/{id}/uncomplete", uncomplete_plan)
     app.router.add_post("/api/plans/{id}/move", move_plan)
     app.router.add_get("/api/calendar/summary", calendar_summary)
     app.router.add_get("/api/calendar/export.ics", export_ics)

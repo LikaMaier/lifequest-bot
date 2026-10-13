@@ -73,6 +73,7 @@ export const api = {
   deletePlan: (id, { date, scope = 'all' } = {}) => request('DELETE', `api/plans/${id}?scope=${scope}${date ? `&date=${date}` : ''}`),
   completePlan: (id, date) => request('POST', `api/plans/${id}/complete`, { date }),
   skipPlan: (id, date) => request('POST', `api/plans/${id}/skip`, { date }),
+  uncompletePlan: (id, date) => request('POST', `api/plans/${id}/uncomplete`, { date }),
   movePlan: (id, date, to) => request('POST', `api/plans/${id}/move`, { date, to }),
   calendarSummary: month => request('GET', `api/calendar/summary?month=${month}`),
   exportLink: (from, to) => request('POST', 'api/calendar/export-link', { from, to }),
