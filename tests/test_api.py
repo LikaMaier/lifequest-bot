@@ -36,6 +36,15 @@ class ApiTest(TempDBTestCase, AioHTTPTestCase):
         resp = await self.client.get("/api/state", headers={"X-Telegram-Init-Data": "user=%7B%22id%22%3A1%7D&hash=00"})
         self.assertEqual(resp.status, 401)
 
+    async def test_premium_interest_is_recorded_once(self):
+        await self.client.get("/api/state", headers=headers(42))
+        resp = await self.client.post("/api/premium/interest", headers=headers(42))
+        self.assertEqual(resp.status, 200)
+        first = storage.get_user(42)["premium_interest_at"]
+        self.assertTrue(first)
+        await self.client.post("/api/premium/interest", headers=headers(42))
+        self.assertEqual(storage.get_user(42)["premium_interest_at"], first)
+
     async def test_state_creates_user_with_timezone(self):
         resp = await self.client.get("/api/state", headers=headers(42))
         self.assertEqual(resp.status, 200)

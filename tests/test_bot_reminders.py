@@ -267,3 +267,41 @@ class EditMessageTest(unittest.IsolatedAsyncioTestCase):
         for _ in range(30):
             _text, kb = lifequest_bot.fresh_variant(lambda: lifequest_bot.build_solo_quest_message(*lifequest_bot.get_random_solo_task()), msg)
             self.assertNotEqual(kb.inline_keyboard[0][0].callback_data, shown_kb.inline_keyboard[0][0].callback_data)
+
+
+class BotHandlersTest(TempDBTestCase, unittest.IsolatedAsyncioTestCase):
+    """Обработчики бота на фейковых callback/message (без Telegram)."""
+
+    def _callback(self, data, user_id=77):
+        cb = mock.MagicMock()
+        cb.data = data
+        cb.from_user.id, cb.from_user.username, cb.from_user.first_name = user_id, "u", "Тест"
+        cb.answer = mock.AsyncMock()
+        return cb
+
+    async def test_solo_take_works_for_keys_with_underscores(self):
+        from quests_database import KEY_TO_TASK
+        keys = [k for k in KEY_TO_TASK if "_" in k]
+        self.assertTrue(keys)
+        with mock.patch.object(lifequest_bot, "safe_edit", new=mock.AsyncMock()) as edit:
+            for i, key in enumerate(keys[:20]):
+                cb = self._callback(f"solo_take_{key}_medium", user_id=100 + i)
+                await lifequest_bot.solo_take(cb)
+                self.assertEqual([q[1] for q in storage.get_active_quests(100 + i)], [key])
+                self.assertIn("Квест добавлен", edit.call_args.args[1])
+
+    async def test_solo_take_unknown_tier_is_rejected(self):
+        key = "no_list"
+        cb = self._callback(f"solo_take_{key}_nonsense")
+        with mock.patch.object(lifequest_bot, "safe_edit", new=mock.AsyncMock()):
+            await lifequest_bot.solo_take(cb)
+        cb.answer.assert_awaited()
+        self.assertEqual(storage.get_active_quests(77), [])
+
+    async def test_remind_creates_missing_user(self):
+        msg = mock.MagicMock()
+        msg.text = "/remind 8"
+        msg.from_user.id, msg.from_user.username, msg.from_user.first_name = 555, "u", "Тест"
+        msg.answer = mock.AsyncMock()
+        await lifequest_bot.set_reminder_time(msg)
+        self.assertEqual(storage.get_user(555)["reminder_hour"], 8)

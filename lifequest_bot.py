@@ -110,7 +110,7 @@ WELCOME_TEXT = """👋 <b>Привет! Добро пожаловать в LifeQ
 
 Моя работа — подкидывать тебе задания, после которых можно сказать:
 «Это была ужасно странная идея...»
-«Но почему-то я рад(а), что мы это сделали».
+«Но как же хорошо, что мы это сделали».
 
 Здесь не будет:
 ❌ «сходи в кино»
@@ -121,7 +121,7 @@ WELCOME_TEXT = """👋 <b>Привет! Добро пожаловать в LifeQ
 
 Вместо этого тебе может выпасть:
 🕵️ расследовать загадочную историю
-🗺️ уехать туда, где ты никогда не был(а)
+🗺️ уехать в место, которое для тебя совсем новое
 🎭 на один вечер стать совершенно другим человеком
 🗣️ заговорить с незнакомцем и узнать его историю
 🎲 отдать часть решений случайности
@@ -281,9 +281,10 @@ async def solo_swap(callback: CallbackQuery):
 @dp.callback_query(F.data.startswith("solo_take_"))
 async def solo_take(callback: CallbackQuery):
     user_id = callback.from_user.id
-    _, _, task_key, tier = callback.data.split("_", 3)
+    # ключи заданий сами содержат «_» (no_list, …), поэтому уровень — после последнего «_»
+    task_key, _, tier = callback.data[len("solo_take_"):].rpartition("_")
     task = KEY_TO_TASK.get(task_key)
-    if not task:
+    if not task or tier not in task:
         await callback.answer("Это задание уже недоступно, попробуй ещё раз /start")
         return
 
@@ -510,7 +511,7 @@ async def handle_miniapp_data(message: Message):
     if filled == BOARD_CELLS and done == BOARD_CELLS:
         text = "🎉 <b>Бинго! Карта недели закрыта полностью.</b>"
         if board["reward"].strip():
-            text += f"\n\nТвоя награда: {html.escape(board['reward'])} — ты её заслужил(а)!"
+            text += f"\n\nТвоя награда: {html.escape(board['reward'])} — она честно заработана!"
     else:
         text = f"✅ Карта недели сохранена. Выполнено {done} из {BOARD_CELLS}."
     if result["xp"]:
@@ -764,7 +765,7 @@ async def send_monthly_recap():
             await ops.safe_send(
                 user_id,
                 f"🎉 <b>Итоги месяца: {month_name}</b>\n\n"
-                f"За {month_name} ты закрыл(а) {count} {word}. Это {count} раз, когда ты выбрал(а) сделать шаг, "
+                f"В копилке за {month_name}: {count} {word}. Это {count} раз, когда выбор был в пользу шага, "
                 "а не отложить — и это реально считается, даже если дни были обычными.\n\n"
                 "Новый месяц — новый счёт. Погнали дальше?",
                 parse_mode="HTML",
@@ -781,6 +782,7 @@ async def set_reminder_time(message: Message):
         return
 
     hour = int(parts[1])
+    ensure_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
     conn = connect()
     c = conn.cursor()
     c.execute("UPDATE users SET reminder_hour = ? WHERE user_id = ?", (hour, message.from_user.id))
@@ -796,6 +798,7 @@ async def set_evening_reminder_time(message: Message):
         return
 
     hour = int(parts[1])
+    ensure_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
     conn = connect()
     c = conn.cursor()
     c.execute("UPDATE users SET evening_reminder_hour = ? WHERE user_id = ?", (hour, message.from_user.id))
@@ -818,6 +821,8 @@ async def admin_stats(message: Message):
     avg_streak = c.fetchone()[0] or 0
     c.execute("SELECT COUNT(*) FROM users WHERE COALESCE(blocked, 0) = 1")
     blocked_count = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM users WHERE premium_interest_at IS NOT NULL")
+    premium_interest = c.fetchone()[0]
     conn.close()
 
     await message.answer(
@@ -825,7 +830,8 @@ async def admin_stats(message: Message):
         f"Пользователей: {users_count} (заблокировали бота: {blocked_count})\n"
         f"Выполнено заданий: {tasks_count}\n"
         f"Средняя неделя: {avg_week:.1f}\n"
-        f"Средний стрик: {avg_streak:.1f} дней",
+        f"Средний стрик: {avg_streak:.1f} дней\n"
+        f"Нажали «Хочу Premium»: {premium_interest}",
         parse_mode="HTML"
     )
 

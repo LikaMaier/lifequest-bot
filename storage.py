@@ -294,6 +294,7 @@ def init_db():
     _ensure_column(c, "users", "xp_spent", "INTEGER DEFAULT 0")
     _ensure_column(c, "users", "freeze_tokens", "INTEGER DEFAULT 0")
     _ensure_column(c, "users", "accessory", "TEXT")
+    _ensure_column(c, "users", "premium_interest_at", "TEXT")
     c.execute("""CREATE TABLE IF NOT EXISTS purchases (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, item TEXT NOT NULL,
         price INTEGER NOT NULL, created_at TEXT NOT NULL)""")
