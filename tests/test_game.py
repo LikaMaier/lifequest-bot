@@ -32,6 +32,7 @@ class RandomQuestDBTest(TempDBTestCase):
         storage.ensure_user(1, "u", "U")
 
     def test_no_repeats_across_rolls(self):
+        storage.update_user(1, is_premium=1)  # окно повторов больше бесплатного лимита попыток
         rng = random.Random(7)
         pool = [q for q in CATALOG.values() if q["mode"] == "company"]
         seen = [game.random_quest(1, "company", rng=rng)["id"] for _ in range(game.RECENT_OFFERS)]
@@ -54,11 +55,14 @@ class RandomQuestDBTest(TempDBTestCase):
         conn = storage.connect()
         today = game.local_today(storage.get_user(1)).isoformat()
         conn.executemany("INSERT INTO quest_offers (user_id, quest_key, mode, local_date) VALUES (1, 'x', 'solo', ?)",
-                         [(today,)] * game.DAILY_ROLL_LIMIT)
+                         [(today,)] * game.roll_limit(storage.get_user(1)))
         conn.commit()
         conn.close()
-        with self.assertRaises(game.QuestError):
+        with self.assertRaises(game.QuestError) as err:
             game.random_quest(1, "solo")
+        self.assertEqual(err.exception.code, "roll_limit")
+        storage.update_user(1, premium_until="2999-01-01 00:00:00")  # с Premium лимит выше
+        game.random_quest(1, "solo")
 
     def test_bad_mode(self):
         with self.assertRaises(game.QuestError):

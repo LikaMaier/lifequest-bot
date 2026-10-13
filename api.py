@@ -17,6 +17,7 @@ from aiohttp import web
 
 import re
 
+import billing
 import game
 import ops
 import habits
@@ -67,8 +68,11 @@ INIT_DATA_MAX_AGE_KEY = web.AppKey("init_data_max_age", int)
 LIMITER_KEY = web.AppKey("limiter", "RateLimiter")
 
 
-def _error(status: int, message: str):
-    return web.json_response({"error": message}, status=status)
+def _error(status: int, message: str, code: str = None):
+    body = {"error": message}
+    if code:
+        body["code"] = code
+    return web.json_response(body, status=status)
 
 
 @web.middleware
@@ -76,7 +80,7 @@ async def errors_middleware(request, handler):
     try:
         return await handler(request)
     except game.QuestError as e:
-        return _error(400, str(e))
+        return _error(400, str(e), e.code)
     except (json.JSONDecodeError, UnicodeDecodeError):
         return _error(400, "Некорректный запрос")
     except web.HTTPException:
@@ -154,7 +158,9 @@ def _state(request) -> dict:
     data["plans_today"] = plans.today_plans(request["user_id"])
     data["plans_overdue"] = len(plans.overdue_plans(request["user_id"]))
     data["photos"] = photos.stats(request["user_id"])
-    data["user"]["morning_plans"] = bool(storage.get_user(request["user_id"]).get("morning_plans", 1))
+    user = storage.get_user(request["user_id"])
+    data["user"]["morning_plans"] = bool(user.get("morning_plans", 1))
+    data["premium"] = billing.premium_view(user)
     return data
 
 
@@ -182,6 +188,10 @@ async def quest_complete(request):
     result = game.complete_quest(request["user_id"], _int(data.get("active_id")))
     if result is None:
         return _error(404, "Это задание уже закрыто")
+    user = storage.get_user(request["user_id"])
+    # после 3-го выполненного квеста — один раз предлагаем пробную неделю Premium
+    result["trial_offer"] = (billing.trial_available(user)
+                             and billing.done_count(request["user_id"]) == billing.TRIAL_AFTER_QUESTS)
     return web.json_response(result)
 
 
@@ -244,6 +254,27 @@ async def premium_interest(request):
     conn.commit()
     conn.close()
     return web.json_response({"ok": True})
+
+
+async def premium_invoice(request):
+    """Ссылка на счёт в звёздах — мини-апп открывает её через openInvoice."""
+    _limit(request, "write")
+    bot = request.app.get(BOT_KEY)
+    if bot is None:
+        return _error(503, "Оплата сейчас недоступна — попробуй чуть позже")
+    data = await _body(request)
+    p = billing.invoice_params(request["user_id"], str(data.get("product") or ""))
+    from aiogram.types import LabeledPrice
+    link = await bot.create_invoice_link(title=p["title"], description=p["description"], payload=p["payload"],
+                                         provider_token="", currency=p["currency"],
+                                         prices=[LabeledPrice(label=p["title"], amount=p["stars"])])
+    return web.json_response({"link": link, "stars": p["stars"]})
+
+
+async def premium_trial(request):
+    _limit(request, "write")
+    billing.start_trial(request["user_id"])
+    return web.json_response(_state(request))
 
 
 async def get_shop(request):
@@ -550,6 +581,8 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_post("/api/settings", post_settings)
     app.router.add_post("/api/share", post_share)
     app.router.add_post("/api/premium/interest", premium_interest)
+    app.router.add_post("/api/premium/invoice", premium_invoice)
+    app.router.add_post("/api/premium/trial", premium_trial)
     app.router.add_get("/api/shop", get_shop)
     app.router.add_post("/api/shop/buy", shop_buy)
     app.router.add_post("/api/shop/equip", shop_equip)

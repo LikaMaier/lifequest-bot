@@ -4,7 +4,8 @@
 import { h, clear, plural } from '../dom.js';
 import { haptic } from '../tg.js';
 import { mascot, moodFor, jump } from '../mascot.js';
-import { ring, progressBar, sectionTitle, emptyState, busy } from '../ui.js';
+import { ring, progressBar, sectionTitle, emptyState, busy, toastError } from '../ui.js';
+import { buyStars } from '../premium.js';
 import { barChart } from '../charts.js';
 import { modeButtons, openQuest, questItem, completeQuest } from '../questflow.js';
 import { habitCard } from '../habitui.js';
@@ -50,8 +51,12 @@ export function render(el, { state, go }) {
         h('div', { class: 'row', style: { gap: '6px' } }, h('span', { class: 'num', style: { fontSize: '34px' } }, String(streak.current)),
           h('span', { style: { fontSize: '26px' }, 'aria-hidden': 'true' }, streak.current ? '🔥' : '🌱')),
         h('div', { class: 'small bold' }, `${plural(streak.current, 'день', 'дня', 'дней')} подряд — ${streakText}`),
-        h('div', { class: 'tiny muted bold' }, (streak.freeze_available ? '❄️ Заморозка на неделю доступна' : '❄️ Недельная заморозка использована')
+        h('div', { class: 'tiny muted bold' }, (streak.freeze_available
+          ? `❄️ ${streak.freeze_weekly_left > 1 ? `${streak.freeze_weekly_left} заморозки` : 'Заморозка'} на неделю доступна`
+          : '❄️ Недельная заморозка использована')
           + (streak.freeze_tokens ? ` · ещё ${streak.freeze_tokens} в запасе` : ''))))));
+  const banner = streakBanner(state, go);
+  if (banner) el.append(banner);
 
   // Метрики
   const lv = state.level;
@@ -148,3 +153,26 @@ export function render(el, { state, go }) {
 }
 
 function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+// Серия в опасности или только что сгорела — подсказываем, как спасти.
+function streakBanner(state, go) {
+  const s = state.streak;
+  const p = state.premium || {};
+  if (p.restore) {
+    const b = h('button', { type: 'button', class: 'btn small colored c-pink' }, `🔥 Вернуть за ${p.prices.streak_restore}⭐`);
+    b.addEventListener('click', busy(b, async () => {
+      try { await buyStars('streak_restore'); } catch (e) { toastError(e); }
+    }));
+    return h('section', { class: 'card tinted c-pink', style: { marginTop: '12px' } },
+      h('div', { class: 'bold' }, `💔 Серия ${p.restore} ${plural(p.restore, 'день', 'дня', 'дней')} прервалась`),
+      h('p', { class: 'small bold', style: { margin: '4px 0 10px' } }, 'Её ещё можно вернуть — пока не начата новая.'), b);
+  }
+  if (s.status === 'at_risk' && s.current >= 3 && !s.freeze_weekly_left && !s.freeze_tokens) {
+    const b = h('button', { type: 'button', class: 'btn small ghost' }, '🧊 Купить заморозку');
+    b.addEventListener('click', () => { haptic.tap(); go('shop'); });
+    return h('section', { class: 'card tinted c-orange', style: { marginTop: '12px' } },
+      h('div', { class: 'bold' }, '🔥 Заморозок не осталось'),
+      h('p', { class: 'small bold', style: { margin: '4px 0 10px' } }, 'Если сегодня ничего не сделать, серия сгорит в полночь.'), b);
+  }
+  return null;
+}

@@ -7,6 +7,7 @@ import { api } from '../api.js';
 import { mascot, mascotSVG } from '../mascot.js';
 import { skeleton, sectionTitle, toast, toastError, modal, confetti } from '../ui.js';
 import { setState } from '../store.js';
+import { openPaywall, buyStars } from '../premium.js';
 
 let cache = null;
 let preview = undefined; // аксессуар, который сейчас примеряем (undefined — надетый)
@@ -64,7 +65,7 @@ function draw(body, el, ctx) {
         h('p', { class: 'small muted bold', style: { marginTop: '2px' } }, freeze.about),
         h('div', { class: 'shop-tokens', 'aria-label': `В запасе ${freeze.count} из ${freeze.max}` },
           Array.from({ length: freeze.max }, (_, i) => h('span', { class: i < freeze.count ? 'on' : '' }, '❄️'))))),
-    h('div', { style: { marginTop: '10px' } }, freezeBtn)));
+    h('div', { style: { marginTop: '10px' } }, freezeBtn, starsFreeze(ctx, full, el))));
 
   // Аксессуары
   const grid = h('div', { class: 'shop-grid' }, shop.items.filter(i => i.kind === 'accessory').map(item => {
@@ -90,6 +91,43 @@ function draw(body, el, ctx) {
   }));
   body.append(sectionTitle('Аксессуары для маскота'),
     h('p', { class: 'tiny muted bold', style: { margin: '-4px 4px 10px' } }, 'Нажми на картинку, чтобы примерить'), grid);
+
+  // Premium-аксессуары: примерить может каждый, надеть — с Premium
+  const premGrid = h('div', { class: 'shop-grid' }, shop.items.filter(i => i.kind === 'premium').map(item => {
+    const state = !shop.premium ? '🔒 Premium' : item.equipped ? 'Снять' : 'Надеть';
+    const card = h('div', { class: `shop-item premium ${item.equipped ? 'on' : ''} ${worn === item.id ? 'trying' : ''}` },
+      h('button', { type: 'button', class: 'shop-try', 'aria-label': `Примерить: ${item.name}` },
+        h('span', { class: 'shop-img', html: mascotSVG(u.mascot, 'happy', item.id) }),
+        h('span', { class: 'bold small' }, item.name)),
+      h('button', { type: 'button', class: `btn small ${shop.premium ? 'ghost' : 'colored c-yellow'}` }, state));
+    const [tryBtn, actBtn] = card.querySelectorAll('button');
+    tryBtn.addEventListener('click', () => { haptic.select(); preview = item.id; redraw(el, ctx); });
+    actBtn.addEventListener('click', async () => {
+      if (!shop.premium) { openPaywall('premium_item'); return; }
+      try {
+        const res = await api.equip(item.equipped ? null : item.id);
+        haptic.success();
+        apply(res, el, ctx);
+        toast(item.equipped ? 'Снято' : `${item.name} — к лицу! ✨`, 'good', 1500);
+      } catch (e) { toastError(e); }
+    });
+    return card;
+  }));
+  body.append(sectionTitle('👑 Premium-коллекция'), premGrid);
+}
+
+function starsFreeze(ctx, full, el) {
+  const p = ctx.state.premium || {};
+  if (!p.payments || full) return null;
+  const b = h('button', { type: 'button', class: 'btn ghost small', style: { marginLeft: '8px' } }, `или ${p.prices.freeze}⭐`);
+  b.addEventListener('click', async () => {
+    b.disabled = true;
+    try {
+      if (await buyStars('freeze') === 'paid') { cache = null; redraw(el, ctx); }
+    } catch (e) { toastError(e); }
+    b.disabled = false;
+  });
+  return b;
 }
 
 function apply(res, el, ctx) {

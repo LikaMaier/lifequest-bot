@@ -2,6 +2,7 @@
 
 import { h, clear, plural } from './dom.js';
 import { api } from './api.js';
+import { openPaywall, offerTrial } from './premium.js';
 import { haptic } from './tg.js';
 import { store, refreshState } from './store.js';
 import { celebrate } from './celebrate.js';
@@ -84,7 +85,8 @@ export async function completeQuest(activeId) {
     confetti(70);
     await refreshState();
     await celebrate(res, { xpText: '🎉 Засчитано!' });
-    if (res.history_id) openPhotoReport(res.history_id, res.title || 'Задание', { intro: true });
+    if (res.trial_offer) offerTrial();
+    else if (res.history_id) openPhotoReport(res.history_id, res.title || 'Задание', { intro: true });
     return res;
   } catch (e) {
     toastError(e);
@@ -123,6 +125,7 @@ export function openRandom(mode, sphere = null) {
       celebrate(res);
     } catch (e) {
       clearInterval(timer);
+      if (e.code === 'roll_limit') { s.close(); openPaywall('roll_limit'); return; }
       haptic.error();
       const retry = h('button', { type: 'button', class: 'btn ghost' }, 'Закрыть');
       retry.addEventListener('click', () => s.close());

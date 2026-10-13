@@ -2,12 +2,13 @@
 // пояс, «Поделиться достижением» и вход в заготовку Premium.
 
 import { h, clear } from '../dom.js';
-import { haptic, openTgLink, showMainButton } from '../tg.js';
+import { haptic, openTgLink } from '../tg.js';
 import { api } from '../api.js';
 import { mascot, mascotSVG } from '../mascot.js';
 import { sectionTitle, progressBar, toast, toastError, busy, button, ICONS } from '../ui.js';
 import { setState, store, refreshState } from '../store.js';
 import { buildShareCard } from '../share.js';
+import { PERKS, premiumActions, openPaywall, handlePremiumError } from '../premium.js';
 
 const COMMON_TZ = [
   'Europe/Kaliningrad', 'Europe/Moscow', 'Europe/Samara', 'Asia/Yekaterinburg', 'Asia/Omsk', 'Asia/Novosibirsk',
@@ -30,7 +31,7 @@ async function saveSettings(patch, okText = 'Сохранено ✓') {
     haptic.success();
     setState(state);
     toast(okText, 'good', 1500);
-  } catch (e) { toastError(e); }
+  } catch (e) { if (!handlePremiumError(e)) toastError(e); }
 }
 
 export function render(el, { state, go }) {
@@ -84,6 +85,7 @@ export function render(el, { state, go }) {
     matrix: { bg: '#020A04', cells: ['#00FF66', '#2CF2C8', '#D6FF3D'], mark: '⌨️', radius: '3px' },
     forest: { bg: 'linear-gradient(180deg, #EDE383, #B9CC74)', cells: ['#365004', '#8DA432', '#925E06'], mark: '🍃', radius: '10px' },
     ocean: { bg: 'linear-gradient(180deg, #DFD0B1, #3BEAEF 70%, #3D7282)', cells: ['rgba(255,255,255,.55)', 'rgba(255,255,255,.55)', 'rgba(255,255,255,.55)'], mark: '🫧', radius: '10px' },
+    space: { bg: 'radial-gradient(circle at 30% 20%, #3B1F6E, #0B0820 70%)', cells: ['#FF5FD2', '#5FE3FF', '#FFD84D'], mark: '🪐', radius: '50%' },
   };
   const themes = h('div', { class: 'theme-grid', role: 'radiogroup', 'aria-label': 'Стиль приложения' },
     state.unlocks.themes.map(t => {
@@ -93,9 +95,10 @@ export function render(el, { state, go }) {
         h('span', { class: 'theme-preview', style: { background: p.bg }, 'aria-hidden': 'true' },
           h('b', null, p.mark),
           p.cells.map(c => h('i', { style: { background: c, borderRadius: p.radius, border: p.border || 'none' } }))),
-        h('span', { class: 'theme-name' }, `${on ? '✓ ' : ''}${t.name}`),
+        h('span', { class: 'theme-name' }, `${on ? '✓ ' : ''}${t.name}${t.premium && !u.is_premium ? ' 🔒' : ''}`),
         h('span', { class: 'theme-desc' }, t.description));
-      b.addEventListener('click', busy(b, () => saveSettings({ theme: t.id }, `Стиль «${t.name}» включён`)));
+      b.addEventListener('click', busy(b, () => (t.premium && !u.is_premium ? openPaywall('premium_theme')
+        : saveSettings({ theme: t.id }, `Стиль «${t.name}» включён`))));
       return b;
     }));
   el.append(sectionTitle('Стиль приложения'), themes);
@@ -133,7 +136,8 @@ export function render(el, { state, go }) {
   const prem = h('button', { type: 'button', class: 'card tinted c-yellow', style: { width: '100%', border: '0', textAlign: 'left', marginTop: '22px' } },
     h('div', { class: 'row' }, h('span', { style: { fontSize: '34px' }, 'aria-hidden': 'true' }, '👑'),
       h('div', { class: 'grow' }, h('div', { class: 'card-title', style: { margin: 0 } }, 'LifeQuest Premium'),
-        h('div', { class: 'small bold' }, u.is_premium ? 'Подписка активна — спасибо! 💛' : 'Скоро: больше заданий и фишек'))));
+        h('div', { class: 'small bold' }, u.is_premium ? 'Premium активен — спасибо! 💛'
+          : (state.premium && state.premium.trial_available) ? '🎁 Неделя Premium в подарок ждёт тебя' : 'Безлимит, аксессуары, стиль «Космос»'))));
   prem.addEventListener('click', () => { haptic.tap(); go('premium'); });
   el.append(prem);
 
@@ -184,37 +188,28 @@ export function render(el, { state, go }) {
     })));
 }
 
-const PERKS = [
-  ['🎲', 'Безлимит «Другое»', 'Крути задания сколько хочешь — без дневного лимита'],
-  ['📸', 'Больше фото на доске', 'Полароидов в календаре — в разы больше'],
-  ['🎩', 'Эксклюзивные аксессуары и темы', 'Наряды для маскота и оформления, которых нет в магазине'],
-  ['❄️', '+1 заморозка в неделю', 'Серия переживёт даже насыщенную неделю'],
-  ['🗂️', 'Тематические подборки', 'Свидания, выходные, путешествия — наборы заданий по теме'],
-  ['📈', 'Подробная статистика', 'Итоги месяца и года с красивыми карточками'],
-];
-
 export function renderPremium(el, { state }) {
   clear(el);
-  const isPremium = state.user.is_premium;
+  const p = state.premium || {};
+  const status = p.forever ? 'Premium навсегда. Спасибо, что ты с нами! 💛'
+    : p.active ? `Premium активен до ${fmtDate(p.until)}. Спасибо! 💛`
+    : 'Больше приключений, больше стиля, больше тебя.';
   el.append(h('section', { class: 'premium-hero' },
-    mascot('star', 'love', { size: 110, cls: 'jump' }),
+    mascot(state.user.mascot || 'star', 'love', { size: 110, cls: 'jump', acc: 'wizard' }),
     h('h1', { style: { marginTop: '10px' } }, 'LifeQuest Premium'),
-    h('p', { class: 'bold', style: { marginTop: '8px', color: 'var(--ink-soft)' } },
-      isPremium ? 'Подписка активна. Спасибо, что поддерживаешь LifeQuest! 💛' : 'Больше приключений, больше стиля, больше тебя.')));
+    h('p', { class: 'bold', style: { marginTop: '8px', color: 'var(--ink-soft)' } }, status)));
   el.append(h('div', { class: 'stack-sm', style: { marginTop: '16px' } }, PERKS.map(([emoji, title, text]) =>
     h('div', { class: 'quest-item c-yellow' }, h('div', { class: 'q-emoji', 'aria-hidden': 'true' }, emoji),
       h('div', { class: 'grow' }, h('div', { class: 'q-title' }, title), h('div', { class: 'q-meta' }, text))))));
-  if (!isPremium) {
-    el.append(h('div', { class: 'card center', style: { marginTop: '16px' } },
-      h('div', { class: 'num', style: { fontSize: '22px' } }, 'Скоро'),
-      h('p', { class: 'small bold muted', style: { marginTop: '6px' } }, 'Подписка ещё в разработке — оплата появится через Telegram Stars. Сейчас всё в LifeQuest бесплатно.')));
-    const want = () => {
-      haptic.success();
-      api.premiumInterest().catch(() => {});
-      toast('💛 Записали! Premium уже в работе — ты узнаешь о запуске первым.', 'good', 3200);
-    };
-    if (!showMainButton('Хочу Premium', want, '#F3619C')) {
-      el.append(h('div', { style: { marginTop: '14px' } }, button('Хочу Premium', { cls: 'block', onClick: want })));
-    }
+  if (!p.active && !p.trial_available && !p.trial_used && p.trial_after) {
+    el.append(h('p', { class: 'small bold muted center', style: { marginTop: '14px' } },
+      `🎁 После ${p.trial_after} выполненных квестов откроется неделя Premium в подарок.`));
   }
+  if (!p.forever) el.append(premiumActions());
+}
+
+function fmtDate(utc) {
+  if (!utc) return '';
+  const d = new Date(utc.replace(' ', 'T') + 'Z');
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
 }

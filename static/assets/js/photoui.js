@@ -3,6 +3,7 @@
 
 import { h, clear, fmtDay } from './dom.js';
 import { api, uploadPhoto } from './api.js';
+import { handlePremiumError } from './premium.js';
 import { haptic, tg, pushBack } from './tg.js';
 import { store, refreshState } from './store.js';
 import { mascotSVG } from './mascot.js';
@@ -131,7 +132,7 @@ export function photoStrip(target, { title = 'Фото', onChange } = {}) {
         refreshState().catch(() => {});
         if ((res.new_achievements || []).length) celebrate(res);
       } catch (e) {
-        toastError(e);
+        if (!handlePremiumError(e)) toastError(e);
       }
       preview.remove();
       draw();

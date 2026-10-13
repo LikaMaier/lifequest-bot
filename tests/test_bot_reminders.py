@@ -305,3 +305,19 @@ class BotHandlersTest(TempDBTestCase, unittest.IsolatedAsyncioTestCase):
         msg.answer = mock.AsyncMock()
         await lifequest_bot.set_reminder_time(msg)
         self.assertEqual(storage.get_user(555)["reminder_hour"], 8)
+
+
+class StreakAlarmTest(TempDBTestCase):
+    def test_alarm_only_when_nothing_can_save_streak(self):
+        storage.ensure_user(9)
+        user = storage.get_user(9)
+        today = game.local_today(user)
+        storage.update_user(9, streak_current=6, streak_best=6,
+                            streak_last_date=(today - timedelta(days=1)).isoformat(),
+                            freeze_week=game.week_key(today), freeze_week_count=1, freeze_tokens=1)
+        self.assertIsNone(lifequest_bot.build_streak_alarm(9)[0])  # есть заморозка в запасе
+        storage.update_user(9, freeze_tokens=0)
+        text, kb = lifequest_bot.build_streak_alarm(9)
+        self.assertIn("Серия 6 дней сгорит", text)
+        storage.update_user(9, streak_push_date=today.isoformat())
+        self.assertIsNone(lifequest_bot.build_streak_alarm(9)[0])  # не чаще раза в день

@@ -7,6 +7,7 @@
 # ============================================================
 
 import hashlib
+import os
 import random
 from collections import Counter
 from datetime import date, datetime, timedelta
@@ -78,8 +79,10 @@ THEMES = [
     ("matrix", "Матрица", "Зелёный код на чёрном. Следуй за белым кроликом"),
     ("forest", "Лес", "Солнечная поляна, мох и падающие листья"),
     ("ocean", "Морской мир", "Песок, бирюза, стеклянные плашки и пузырьки"),
+    ("space", "Космос", "Звёзды, планеты и неоновая туманность"),
 ]
 THEME_IDS = {t[0] for t in THEMES}
+PREMIUM_THEMES = {"space"}
 
 
 def level_threshold(level: int) -> int:
@@ -115,7 +118,7 @@ def level_info(xp: int) -> dict:
 def unlocks(level: int) -> dict:
     return {
         "mascots": [{"id": k, "name": n, "level": lv, "unlocked": level >= lv} for k, n, lv in MASCOTS],
-        "themes": [{"id": k, "name": n, "description": d} for k, n, d in THEMES],
+        "themes": [{"id": k, "name": n, "description": d, "premium": k in PREMIUM_THEMES} for k, n, d in THEMES],
     }
 
 
@@ -131,49 +134,91 @@ def _missed_days(last: str, today: date) -> int:
         return -1
 
 
-def advance_streak(current: int, best: int, last: str, freeze_week: str, today: date, tokens: int = 0):
+def advance_streak(current: int, best: int, last: str, freeze_week: str, today: date, tokens: int = 0,
+                   weekly_left: int = None):
     """Новое состояние серии после выполнения задания сегодня.
     Возвращает (current, best, freeze_week, used_freeze, tokens_used).
-    Заморозка: один пропущенный день в неделю бесплатно; каждый следующий
-    пропущенный день закрывает купленная в магазине заморозка (tokens)."""
+    Заморозка: пропущенные дни сначала закрывают бесплатные недельные
+    (weekly_left: 1 в неделю, с Premium — 2), потом купленные (tokens)."""
     current, best, tokens = current or 0, best or 0, max(0, tokens or 0)
     t = today.isoformat()
     if last == t:
         return current, max(best, current), freeze_week, False, 0
     missed = _missed_days(last, today)
-    weekly = 1 if freeze_week != week_key(today) else 0
+    weekly = (1 if freeze_week != week_key(today) else 0) if weekly_left is None else max(0, weekly_left)
     if missed == 0:
         current += 1
         return current, max(best, current), freeze_week, False, 0
     if current > 0 and 1 <= missed <= weekly + tokens:
-        tokens_used = missed - weekly
-        if weekly:
+        tokens_used = max(0, missed - weekly)
+        if missed > tokens_used:
             freeze_week = week_key(today)
         current += 1
         return current, max(best, current), freeze_week, True, tokens_used
     return 1, max(best, 1), freeze_week, False, 0
 
 
-def streak_view(current: int, best: int, last: str, freeze_week: str, today: date, tokens: int = 0) -> dict:
+def streak_view(current: int, best: int, last: str, freeze_week: str, today: date, tokens: int = 0,
+                weekly_left: int = None) -> dict:
     """Серия для показа: done — сегодня уже засчитано; at_risk — вчера было,
     сегодня ещё нет; freeze — пропущены дни, но заморозки спасут;
     lost — серия прервалась; none — серии нет."""
     current, best, tokens = current or 0, best or 0, max(0, tokens or 0)
-    freeze_available = freeze_week != week_key(today)
+    if weekly_left is None:
+        weekly_left = 1 if freeze_week != week_key(today) else 0
+    freeze_available = weekly_left > 0
     missed = _missed_days(last, today)
     if last == today.isoformat():
         status, value = "done", current
     elif missed == 0:
         status, value = "at_risk", current
-    elif current > 0 and 1 <= missed <= (1 if freeze_available else 0) + tokens:
+    elif current > 0 and 1 <= missed <= weekly_left + tokens:
         status, value = "freeze", current
     elif current >= 2:
         status, value = "lost", 0
     else:
         status, value = "none", 0
     return {"current": value, "best": max(best, value), "status": status,
-            "freeze_available": freeze_available, "freeze_tokens": tokens,
+            "freeze_available": freeze_available, "freeze_weekly_left": weekly_left, "freeze_tokens": tokens,
+            "missed": missed,
             "lost_value": current if status == "lost" else 0}
+
+
+# ==================== PREMIUM ====================
+# Оплата звёздами включается переменной окружения PAYMENTS_ENABLED=1. Пока
+# она выключена, Premium можно получить только пробной неделей или подарком
+# админа, а бесплатные лимиты остаются щедрыми — урезать их без способа
+# купить Premium было бы нечестно.
+PAYMENTS_ENABLED = os.getenv("PAYMENTS_ENABLED", "") == "1"
+FREEZE_WEEKLY = 1
+FREEZE_WEEKLY_PREMIUM = 2
+
+
+def premium_until(user: dict):
+    """Дата окончания Premium (UTC, naive) или None."""
+    try:
+        return datetime.strptime(user.get("premium_until") or "", "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return None
+
+
+def is_premium(user: dict) -> bool:
+    if user.get("is_premium"):  # выдан вручную навсегда
+        return True
+    until = premium_until(user)
+    return bool(until and until > datetime.utcnow())
+
+
+def weekly_freeze_left(user: dict, today: date) -> int:
+    quota = FREEZE_WEEKLY_PREMIUM if is_premium(user) else FREEZE_WEEKLY
+    used = max(1, user.get("freeze_week_count") or 0) if user.get("freeze_week") == week_key(today) else 0
+    return max(0, quota - used)
+
+
+def user_streak(user: dict, today: date) -> dict:
+    return streak_view(user.get("streak_current"), user.get("streak_best"), user.get("streak_last_date"),
+                       user.get("freeze_week"), today, user.get("freeze_tokens"),
+                       weekly_left=weekly_freeze_left(user, today))
 
 
 # ==================== XP ====================
@@ -221,10 +266,16 @@ def add_xp(user_id: int, amount: int, reason: str, local_date: str):
 
 # ==================== ЗАДАНИЯ ====================
 class QuestError(Exception):
-    """Ошибка, которую можно показать пользователю как есть."""
+    """Ошибка, которую можно показать пользователю как есть. code — для
+    особых случаев на клиенте (например, лимит → предложить Premium)."""
+
+    def __init__(self, message: str = "", code: str = None):
+        super().__init__(message)
+        self.code = code
 
 
-DAILY_ROLL_LIMIT = 40
+DAILY_ROLL_LIMIT_STRICT = 10  # бесплатный лимит, когда включена оплата
+DAILY_ROLL_LIMIT_SOFT = 40
 DAILY_ROLL_LIMIT_PREMIUM = 200
 RECENT_OFFERS = 30  # сколько последних выпавших заданий режима не повторять
 
@@ -284,7 +335,9 @@ def rolls_today(user_id: int, today: date) -> int:
 
 
 def roll_limit(user: dict) -> int:
-    return DAILY_ROLL_LIMIT_PREMIUM if user.get("is_premium") else DAILY_ROLL_LIMIT
+    if is_premium(user):
+        return DAILY_ROLL_LIMIT_PREMIUM
+    return DAILY_ROLL_LIMIT_STRICT if PAYMENTS_ENABLED else DAILY_ROLL_LIMIT_SOFT
 
 
 def choose_quest(pool: list, done: set, active: set, recent: set, rng=random) -> dict:
@@ -305,7 +358,8 @@ def random_quest(user_id: int, mode: str, sphere: str = None, rng=random) -> dic
     user = storage.get_user(user_id)
     today = local_today(user)
     if rolls_today(user_id, today) >= roll_limit(user):
-        raise QuestError("На сегодня попытки закончились — загляни завтра или возьми задание из избранного 💛")
+        raise QuestError("На сегодня попытки закончились — загляни завтра или возьми задание из избранного 💛",
+                         code="roll_limit")
     pool = [q for q in CATALOG.values() if q["mode"] == mode and (not sphere or q["sphere"] == sphere)]
     q = choose_quest(pool, _keys_with_status(user_id, "done"), _active_keys(user_id),
                      _recent_offer_keys(user_id, mode), rng)
@@ -397,12 +451,19 @@ def complete_quest(user_id: int, active_id: int):
     conn.close()
 
     tokens = user.get("freeze_tokens") or 0
+    weekly_left = weekly_freeze_left(user, today)
     streak, best, freeze_week, used_freeze, tokens_used = advance_streak(
         user.get("streak_current"), user.get("streak_best"), user.get("streak_last_date"),
-        user.get("freeze_week"), today, tokens)
+        user.get("freeze_week"), today, tokens, weekly_left=weekly_left)
+    week_count = user.get("freeze_week_count") or 0
+    if used_freeze:
+        weekly_used = _missed_days(user.get("streak_last_date"), today) - tokens_used
+        if weekly_used > 0:
+            before = max(1, week_count) if user.get("freeze_week") == week_key(today) else 0
+            week_count = before + weekly_used
     storage.update_user(user_id, streak_current=streak, streak_best=best,
                         streak_last_date=today.isoformat(), freeze_week=freeze_week,
-                        freeze_tokens=tokens - tokens_used)
+                        freeze_week_count=week_count, freeze_tokens=tokens - tokens_used)
 
     accepted_local = hist.get("local_date")
     same_day = accepted_local == today.isoformat()
@@ -781,8 +842,7 @@ def week_summary(user_id: int, today: date) -> dict:
         if n > best_count:
             best_day, best_count = date.fromisoformat(iso), n
     user = storage.get_user(user_id)
-    streak = streak_view(user.get("streak_current"), user.get("streak_best"), user.get("streak_last_date"),
-                         user.get("freeze_week"), today, user.get("freeze_tokens"))
+    streak = user_streak(user, today)
     return {
         "done": sum(days.values()), "prev_done": sum(prev.values()), "active_days": len(days),
         "xp": xp, "best_day": WEEKDAYS_RU[best_day.weekday()] if best_day else None, "best_count": best_count,
@@ -813,20 +873,18 @@ def get_state(user_id: int) -> dict:
         "user": {
             "id": user_id, "first_name": user.get("first_name") or user.get("username") or "",
             "mascot": LEGACY_MASCOTS.get(user.get("mascot"), user.get("mascot")) or "cat-purple",
-            "theme": user.get("theme") if user.get("theme") in THEME_IDS else "classic",
-            "accessory": user.get("accessory") if user.get("accessory") in ACCESSORY_IDS else None,
+            "theme": visible_theme(user),
+            "accessory": visible_accessory(user),
             "balance": balance(user),
             "daily_goal": user.get("daily_goal") or 1, "tz": user.get("tz"),
             "reminder_hour": user.get("reminder_hour") if user.get("reminder_hour") is not None else 9,
             "evening_reminder_hour": user.get("evening_reminder_hour") if user.get("evening_reminder_hour") is not None else 20,
-            "is_premium": bool(user.get("is_premium")),
+            "is_premium": is_premium(user),
             "onboarded": bool(user.get("onboarded")),
         },
         "level": lv,
         "unlocks": unlocks(lv["level"]),
-        "streak": streak_view(user.get("streak_current"), user.get("streak_best"),
-                              user.get("streak_last_date"), user.get("freeze_week"), today,
-                              user.get("freeze_tokens")),
+        "streak": user_streak(user, today),
         "today": {"date": today.isoformat(), "hour": now.hour, "done": week.get(today.isoformat(), 0),
                   "goal": user.get("daily_goal") or 1},
         "month_done": month,
@@ -921,6 +979,26 @@ ACCESSORIES = [  # id, название, цена
     ("halo", "Нимб", 250),
 ]
 ACCESSORY_IDS = {a[0] for a in ACCESSORIES}
+PREMIUM_ACCESSORIES = [  # бесплатно для Premium
+    ("wizard", "Шляпа волшебника"),
+    ("tiara", "Диадема"),
+    ("pirate", "Треуголка"),
+]
+PREMIUM_ACCESSORY_IDS = {a[0] for a in PREMIUM_ACCESSORIES}
+
+
+def visible_accessory(user: dict):
+    acc = user.get("accessory")
+    if acc in ACCESSORY_IDS or (acc in PREMIUM_ACCESSORY_IDS and is_premium(user)):
+        return acc
+    return None
+
+
+def visible_theme(user: dict) -> str:
+    theme = user.get("theme")
+    if theme not in THEME_IDS or (theme in PREMIUM_THEMES and not is_premium(user)):
+        return "classic"
+    return theme
 
 
 def balance(user: dict) -> int:
@@ -944,8 +1022,12 @@ def shop_view(user_id: int) -> dict:
     for aid, name, price in ACCESSORIES:
         items.append({"id": aid, "kind": "accessory", "name": name, "price": price,
                       "owned": aid in owned, "equipped": user.get("accessory") == aid})
+    premium = is_premium(user)
+    for aid, name in PREMIUM_ACCESSORIES:
+        items.append({"id": aid, "kind": "premium", "name": name, "price": 0,
+                      "owned": premium, "equipped": premium and user.get("accessory") == aid})
     return {"balance": balance(user), "xp": user.get("xp") or 0, "freeze_tokens": tokens,
-            "accessory": user.get("accessory"), "items": items}
+            "accessory": visible_accessory(user), "premium": premium, "items": items}
 
 
 def buy(user_id: int, item: str) -> dict:
@@ -979,7 +1061,10 @@ def buy(user_id: int, item: str) -> dict:
 
 
 def equip(user_id: int, item) -> dict:
-    if item is not None and item not in owned_items(user_id):
+    if item in PREMIUM_ACCESSORY_IDS:
+        if not is_premium(storage.get_user(user_id)):
+            raise QuestError("Этот аксессуар — для Premium 💛", code="premium_item")
+    elif item is not None and item not in owned_items(user_id):
         raise QuestError("Сначала купи этот аксессуар")
     storage.update_user(user_id, accessory=item)
     return shop_view(user_id)
@@ -1016,6 +1101,8 @@ def update_settings(user_id: int, data: dict) -> dict:
     if "theme" in data:
         if data["theme"] not in THEME_IDS:
             raise QuestError("Такого стиля нет")
+        if data["theme"] in PREMIUM_THEMES and not is_premium(user):
+            raise QuestError("Этот стиль — для Premium 💛", code="premium_theme")
         fields["theme"] = data["theme"]
     if "onboarded" in data:
         fields["onboarded"] = 1 if data["onboarded"] else 0

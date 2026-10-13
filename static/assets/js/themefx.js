@@ -332,4 +332,46 @@ function forestLeaves() {
   }, 33);
 }
 
-const EFFECTS = { matrix: matrixRain, pixel: tetrisRain, ocean: oceanBubbles, halloween: halloweenSky, forest: forestLeaves };
+// Космос: звёзды мерцают на своих местах, иногда пролетает комета.
+function spaceSky() {
+  let stars = [], comet = null;
+  const COLORS = ['#FFFFFF', '#FFE9A8', '#B9D8FF', '#FFC2F0'];
+  return canvasLoop('space-sky', canvas => {
+    const count = Math.max(40, Math.round(canvas.width * canvas.height / 6000));
+    stars = Array.from({ length: count }, () => ({
+      x: Math.random() * canvas.width, y: Math.random() * canvas.height,
+      r: 0.4 + Math.random() * Math.random() * 1.8, phase: Math.random() * Math.PI * 2,
+      speed: 0.02 + Math.random() * 0.05, color: COLORS[Math.floor(Math.random() * COLORS.length)],
+    }));
+  }, (canvas, ctx) => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const st of stars) {
+      st.phase += st.speed;
+      ctx.globalAlpha = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(st.phase));
+      ctx.fillStyle = st.color;
+      ctx.beginPath();
+      ctx.arc(st.x, st.y, st.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (!comet && Math.random() < 0.006) {
+      comet = { x: Math.random() * canvas.width * 0.7, y: Math.random() * canvas.height * 0.4, vx: 9, vy: 4, life: 1 };
+    }
+    if (comet) {
+      const grad = ctx.createLinearGradient(comet.x, comet.y, comet.x - comet.vx * 9, comet.y - comet.vy * 9);
+      grad.addColorStop(0, 'rgba(255,255,255,.95)');
+      grad.addColorStop(1, 'rgba(255,95,210,0)');
+      ctx.globalAlpha = comet.life;
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(comet.x, comet.y);
+      ctx.lineTo(comet.x - comet.vx * 9, comet.y - comet.vy * 9);
+      ctx.stroke();
+      comet.x += comet.vx; comet.y += comet.vy; comet.life -= 0.02;
+      if (comet.life <= 0 || comet.x > canvas.width + 50) comet = null;
+    }
+    ctx.globalAlpha = 1;
+  }, 40);
+}
+
+const EFFECTS = { matrix: matrixRain, pixel: tetrisRain, ocean: oceanBubbles, halloween: halloweenSky, forest: forestLeaves, space: spaceSky };
