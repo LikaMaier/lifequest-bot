@@ -158,9 +158,7 @@ export function openHabitEditor(habit = null, { onSaved, preset } = {}) {
       save);
     if (!isNew) {
       const del = h('button', { type: 'button', class: 'btn ghost block' }, 'Удалить привычку');
-      let armed = false;
       del.addEventListener('click', busy(del, async () => {
-        if (!armed) { armed = true; haptic.warning(); del.textContent = 'Точно удалить? Нажми ещё раз'; return; }
         try {
           await api.deleteHabit(habit.id);
           haptic.success();
