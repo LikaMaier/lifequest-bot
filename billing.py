@@ -83,8 +83,8 @@ def premium_view(user: dict) -> dict:
     until = game.premium_until(user)
     return {
         "active": game.is_premium(user),
-        "until": _fmt(until) if until and game.is_premium(user) and not user.get("is_premium") else None,
-        "forever": bool(user.get("is_premium")),
+        "until": _fmt(until) if until and game.is_premium(user) and not game.premium_forever(user) else None,
+        "forever": game.premium_forever(user),
         "trial_available": trial_available(user),
         "trial_used": bool(user.get("trial_used")),
         "trial_days": TRIAL_DAYS,
@@ -107,7 +107,7 @@ def check_purchase(user_id: int, product: str):
         raise game.QuestError(f"Больше {game.FREEZE_MAX} заморозок не помещается в морозилку 🧊")
     if product == "streak_restore" and not restore_offer(user):
         raise game.QuestError("Эту серию уже не вернуть — но новая начинается сегодня 🌱")
-    if product in PREMIUM_PRODUCTS and user.get("is_premium"):
+    if product in PREMIUM_PRODUCTS and game.premium_forever(user):
         raise game.QuestError("У тебя уже Premium навсегда 💛")
 
 

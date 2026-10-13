@@ -43,6 +43,7 @@
 | `DB_PATH` | `/data/lifequest.db` | да, вместе с Volume |
 | `MINIAPP_URL` | `https://<ваш-домен>.up.railway.app/` (со слешем в конце) | желательно* |
 | `GROQ_API_KEY` | ключ Groq (console.groq.com) — для «Квеста под настроение» от ИИ. Без него квест подбирается из каталога | нет |
+| `PREMIUM_USER_IDS` | Telegram id через запятую — Premium навсегда (владелец, тестировщики) | нет |
 | `PAYMENTS_ENABLED` | `1` — включить оплату Premium звёздами Telegram. Пока не задан, оплата скрыта, бесплатные лимиты мягкие | нет |
 
 \* Если `MINIAPP_URL` не задан или всё ещё указывает на `github.io`, бот сам возьмёт `RAILWAY_PUBLIC_DOMAIN`: Railway выставляет его автоматически после шага 1.2. Надёжнее задать `MINIAPP_URL` явно.
