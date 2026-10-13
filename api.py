@@ -227,7 +227,7 @@ async def get_achievements(request):
         "achievements": game.achievements_view(request["user_id"]),
         "level": game.level_info(user.get("xp") or 0),
         "levels": [{"level": i + 1, "name": name, "xp": xp} for i, (xp, name) in enumerate(game.LEVELS)],
-        "unlocks": game.unlocks(game.level_for_xp(user.get("xp") or 0)),
+        "unlocks": game.unlocks(game.level_for_xp(user.get("xp") or 0), game.is_premium(user)),
     })
 
 
