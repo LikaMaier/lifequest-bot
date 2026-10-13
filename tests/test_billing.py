@@ -62,6 +62,14 @@ class PremiumTest(TempDBTestCase):
         self.assertEqual(user["freeze_week_count"], 2)
         self.assertEqual(game.weekly_freeze_left(user, today), 0)
 
+    def test_premium_user_ids_env(self):
+        self.assertFalse(game.is_premium(storage.get_user(1)))
+        with mock.patch.object(game, "PREMIUM_USER_IDS", {1}):
+            user = storage.get_user(1)
+            self.assertTrue(game.is_premium(user))
+            self.assertTrue(billing.premium_view(user)["forever"])
+            self.assertFalse(billing.trial_available(user))
+
     def test_payments_disabled_blocks_invoice(self):
         with mock.patch.object(game, "PAYMENTS_ENABLED", False):
             with self.assertRaises(game.QuestError) as err:

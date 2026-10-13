@@ -203,8 +203,17 @@ def premium_until(user: dict):
         return None
 
 
+# Premium навсегда для перечисленных Telegram id (через запятую), например
+# для владельца и тестировщиков: PREMIUM_USER_IDS=503303776
+PREMIUM_USER_IDS = {int(x) for x in os.getenv("PREMIUM_USER_IDS", "").replace(",", " ").split() if x.isdigit()}
+
+
+def premium_forever(user: dict) -> bool:
+    return bool(user.get("is_premium")) or user.get("user_id") in PREMIUM_USER_IDS
+
+
 def is_premium(user: dict) -> bool:
-    if user.get("is_premium"):  # выдан вручную навсегда
+    if premium_forever(user):  # выдан вручную навсегда
         return True
     until = premium_until(user)
     return bool(until and until > datetime.utcnow())
