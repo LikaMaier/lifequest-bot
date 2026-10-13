@@ -6,7 +6,7 @@ import { haptic } from '../tg.js';
 import { api } from '../api.js';
 import { mascot } from '../mascot.js';
 import { emptyState, sectionTitle, skeleton, busy, toastError, sheet, SPHERE_INFO } from '../ui.js';
-import { modeButtons, openQuest, questItem, completeQuest, sphereChips } from '../questflow.js';
+import { modeButtons, openQuest, questItem, completeQuest, sphereChips, openMoodQuest } from '../questflow.js';
 import { openPaywall } from '../premium.js';
 
 const view = { packs: null, tab: 'active', query: '', soloSphere: null, history: null, historyLoading: false };
@@ -24,6 +24,7 @@ export function render(el, ctx) {
   el.append(h('div', { class: 'small bold muted', style: { margin: '0 2px 8px' } }, 'Сфера задания «Для себя»'),
     sphereChips(view.soloSphere, sp => { view.soloSphere = sp; }),
     modeButtons(() => view.soloSphere),
+    moodButton(),
     h('p', { class: 'center tiny muted bold', style: { marginTop: '4px' } },
       `Сегодня ещё ${state.rolls_left} ${plural(state.rolls_left, 'попытка', 'попытки', 'попыток')} — заданий без повторов хватит надолго`));
 
@@ -47,6 +48,12 @@ export function render(el, ctx) {
   search.addEventListener('input', () => { view.query = search.value; drawList(listHost, ctx); });
   el.append(search, listHost);
   drawList(listHost, ctx);
+}
+
+function moodButton() {
+  const b = h('button', { type: 'button', class: 'btn block colored c-purple', style: { marginTop: '10px' } }, '✨ Квест под настроение');
+  b.addEventListener('click', () => { haptic.tap(); openMoodQuest(); });
+  return b;
 }
 
 async function drawPacks(host, ctx) {

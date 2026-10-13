@@ -6,6 +6,7 @@ import { openPaywall, offerTrial, handlePremiumError } from './premium.js';
 import { haptic } from './tg.js';
 import { store, refreshState } from './store.js';
 import { celebrate } from './celebrate.js';
+import { shareInvite } from './screens/friends.js';
 import { openPhotoReport } from './photoui.js';
 import {
   MODE_INFO, SPHERE_INFO, TIER_LABEL, colorOf, sheet, toast, toastError, busy, ICONS, confetti,
@@ -179,8 +180,62 @@ export function openQuest(q, { daily = false } = {}) {
     }));
     body.append(actionsRow(acc, favButton(q)));
   }
+  if (!String(q.id).startsWith('ai_') && store.state && store.state.bot_username) {
+    const call = h('button', { type: 'button', class: 'btn ghost small' }, '👯 Позвать друга на этот квест');
+    call.addEventListener('click', () => shareInvite(store.state, q));
+    body.append(h('div', { class: 'row', style: { justifyContent: 'center', marginTop: '6px' } }, call));
+  }
   s.setContent(body);
   return s;
+}
+
+/** Квест под настроение: настроение + время + место → ИИ придумывает задание. */
+let aiOpts = null;
+export async function openMoodQuest() {
+  const s = sheet(h('div', { class: 'center' }, h('p', { class: 'bold muted' }, 'Загружаю…')), { label: 'Квест под настроение' });
+  try { aiOpts = aiOpts || await api.aiOptions(); } catch (e) { s.close(); toastError(e); return; }
+  const pick = { mood: aiOpts.moods[0].id, time: aiOpts.times[1].id, place: aiOpts.places[0].id };
+  const group = (key, items) => {
+    const wrap = h('div', { class: 'chips', role: 'group' });
+    const draw = () => {
+      clear(wrap);
+      for (const it of items) {
+        const b = h('button', { type: 'button', class: 'chip c-purple', 'aria-pressed': String(pick[key] === it.id) }, it.label);
+        b.addEventListener('click', () => { haptic.select(); pick[key] = it.id; draw(); });
+        wrap.append(b);
+      }
+    };
+    draw();
+    return wrap;
+  };
+  const go = h('button', { type: 'button', class: 'btn block colored c-purple', style: { marginTop: '14px' } },
+    aiOpts.ai ? '✨ Придумать квест' : '✨ Подобрать квест');
+  const form = h('div', null,
+    h('h2', { class: 'center' }, '✨ Квест под настроение'),
+    h('p', { class: 'center small bold muted', style: { margin: '4px 0 12px' } },
+      aiOpts.ai ? `ИИ придумает задание, которого нет в каталоге · ${aiOpts.limit} в день` : 'Подберу задание под твоё состояние'),
+    h('div', { class: 'small bold muted', style: { margin: '8px 2px' } }, 'Настроение'), group('mood', aiOpts.moods),
+    h('div', { class: 'small bold muted', style: { margin: '8px 2px' } }, 'Сколько времени'), group('time', aiOpts.times),
+    h('div', { class: 'small bold muted', style: { margin: '8px 2px' } }, 'Где ты'), group('place', aiOpts.places), go);
+  const run = busy(go, async () => {
+    haptic.tap('medium');
+    try {
+      const res = await api.aiQuest(pick.mood, pick.time, pick.place);
+      const q = res.quest;
+      const acc = h('button', { type: 'button', class: 'btn grow' }, 'Принять вызов');
+      acc.addEventListener('click', busy(acc, async () => { try { await accept(q); s.close(); } catch (e) { toastError(e); } }));
+      const again = h('button', { type: 'button', class: 'btn ghost small' }, '↻ Другой вариант');
+      again.addEventListener('click', () => { s.setContent(form); });
+      s.setContent(h('div', null, questCard(q, { flip: true }), actionsRow(acc),
+        h('div', { class: 'row', style: { justifyContent: 'center' } }, again),
+        res.ai && res.left !== undefined ? h('p', { class: 'center tiny muted bold' }, `ИИ-квестов на сегодня осталось: ${res.left}`) : null));
+    } catch (e) {
+      if (e.code === 'ai_limit' && !(store.state.premium || {}).active) { s.close(); openPaywall('ai_limit'); return; }
+      toastError(e);
+    }
+  });
+  go.addEventListener('click', run);
+  s.setContent(form);
 }
 
 /** Блок из трёх больших кнопок режимов. getSphere — выбранная сфера для «Для себя». */

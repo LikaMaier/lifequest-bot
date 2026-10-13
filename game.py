@@ -390,8 +390,17 @@ def _bot_task_text(q: dict, tier: str) -> str:
     return f"{q['emoji']} {q['title']}".strip()
 
 
-def accept_quest(user_id: int, quest_id: str, tier: str = None, daily: bool = False) -> dict:
+def find_quest(quest_id: str, user_id: int = None):
+    """Задание каталога или сгенерированное ИИ (ai_<n>, только своё)."""
     q = CATALOG.get(quest_id)
+    if q is None and str(quest_id).startswith("ai_"):
+        import aiquest  # aiquest импортирует game — поэтому здесь
+        q = aiquest.get(quest_id, user_id)
+    return q
+
+
+def accept_quest(user_id: int, quest_id: str, tier: str = None, daily: bool = False) -> dict:
+    q = find_quest(quest_id, user_id)
     if not q:
         raise QuestError("Это задание больше недоступно")
     user = storage.get_user(user_id)
@@ -522,7 +531,7 @@ def active_quests_view(user_id: int) -> list:
     conn.close()
     result = []
     for r in rows:
-        q = CATALOG.get(r["task_key"])
+        q = find_quest(r["task_key"], user_id)
         if q:
             item = public_quest(q, r["tier"])
         else:
@@ -968,6 +977,43 @@ def get_stats(user_id: int, days) -> dict:
 
 
 SETTINGS_ALLOWED = {"daily_goal", "tz", "mascot", "theme", "reminder_hour", "evening_reminder_hour"}
+
+
+# ==================== ИТОГИ ПЕРИОДА (карточки) ====================
+RU_MONTHS_NOM = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август",
+                 "сентябрь", "октябрь", "ноябрь", "декабрь"]
+
+
+def recap(user_id: int, period: str) -> dict:
+    """Цифры для карточки «Мой октябрь / Мой 2026 в LifeQuest»."""
+    user = storage.get_user(user_id)
+    today = local_today(user)
+    if period == "year":
+        start, label = today.replace(month=1, day=1), str(today.year)
+    elif period == "month":
+        start, label = today.replace(day=1), RU_MONTHS_NOM[today.month - 1]
+    else:
+        raise QuestError("Неизвестный период")
+    conn = storage.connect(rows=True)
+    rows = conn.execute("""SELECT quest_key, sphere, title, local_date FROM quest_history WHERE user_id = ?
+                           AND status = 'done' AND local_date >= ? AND local_date <= ?""",
+                        (user_id, start.isoformat(), today.isoformat())).fetchall()
+    xp = conn.execute("SELECT COALESCE(SUM(amount), 0) FROM xp_log WHERE user_id = ? AND local_date >= ?",
+                      (user_id, start.isoformat())).fetchone()[0]
+    habit_days = conn.execute("""SELECT COUNT(DISTINCT local_date) FROM habit_logs WHERE user_id = ? AND done = 1
+                                 AND local_date >= ?""", (user_id, start.isoformat())).fetchone()[0]
+    conn.close()
+    days = {r["local_date"] for r in rows}
+    spheres = Counter(r["sphere"] for r in rows if r["sphere"])
+    return {
+        "period": period, "label": label, "quests": len(rows), "active_days": len(days),
+        "xp": xp, "best_streak": max(user.get("streak_best") or 0, user.get("streak_current") or 0),
+        "longest_run": _longest_day_run(days), "top_sphere": spheres.most_common(1)[0][0] if spheres else None,
+        "habit_days": habit_days, "first_name": user.get("first_name") or "",
+        "mascot": LEGACY_MASCOTS.get(user.get("mascot"), user.get("mascot")) or "cat-purple",
+        "accessory": visible_accessory(user),
+        "highlight": rows[-1]["title"] if rows else None,
+    }
 
 
 # ==================== НАБОРЫ КВЕСТОВ ====================

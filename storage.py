@@ -310,6 +310,15 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, challenge_id TEXT NOT NULL,
         start_date TEXT NOT NULL, status TEXT NOT NULL, started_at TEXT, finished_at TEXT)""")
     c.execute("CREATE INDEX IF NOT EXISTS idx_challenges_user ON user_challenges(user_id, status)")
+    # Друзья и ИИ-квесты
+    _ensure_column(c, "users", "referred_by", "INTEGER")
+    c.execute("""CREATE TABLE IF NOT EXISTS friends (
+        user_id INTEGER NOT NULL, friend_id INTEGER NOT NULL, created_at TEXT,
+        PRIMARY KEY (user_id, friend_id))""")
+    c.execute("""CREATE TABLE IF NOT EXISTS ai_quests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, emoji TEXT, title TEXT NOT NULL,
+        text TEXT NOT NULL, sphere TEXT, local_date TEXT, created_at TEXT)""")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_ai_quests_user ON ai_quests(user_id, local_date)")
     c.execute("""CREATE TABLE IF NOT EXISTS purchases (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, item TEXT NOT NULL,
         price INTEGER NOT NULL, created_at TEXT NOT NULL)""")
@@ -736,7 +745,8 @@ def delete_user_data(user_id: int):
         q = ",".join("?" * len(plan_ids))
         conn.execute(f"DELETE FROM plan_exceptions WHERE plan_id IN ({q})", plan_ids)
         conn.execute(f"DELETE FROM plan_reminders WHERE plan_id IN ({q})", plan_ids)
-    for table in ("user_challenges", "notes", "purchases", "plans", "photos", "habit_logs", "habits", "quest_history", "quest_offers", "favorites",
+    conn.execute("DELETE FROM friends WHERE friend_id = ?", (user_id,))
+    for table in ("friends", "ai_quests", "user_challenges", "notes", "purchases", "plans", "photos", "habit_logs", "habits", "quest_history", "quest_offers", "favorites",
                   "achievements_unlocked", "board_awards", "xp_log", "weekly_boards", "active_quests",
                   "completed_tasks", "survey_answers", "users"):
         conn.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))

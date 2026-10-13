@@ -7,7 +7,7 @@ import { haptic } from '../tg.js';
 import { mascot, moodFor, jump } from '../mascot.js';
 import { ring, progressBar, sectionTitle, emptyState, busy, toastError } from '../ui.js';
 import { buyStars } from '../premium.js';
-import { modeButtons, openQuest, questItem, completeQuest } from '../questflow.js';
+import { modeButtons, openQuest, questItem, completeQuest, openMoodQuest } from '../questflow.js';
 import { habitCard } from '../habitui.js';
 import { planRow, openAddChooser } from '../planui.js';
 
@@ -85,7 +85,9 @@ export function render(el, { state, go }) {
   }
 
   // Три кнопки случайных заданий
-  el.append(sectionTitle('Получить задание'), modeButtons());
+  const moodBtn = h('button', { type: 'button', class: 'btn block colored c-purple', style: { marginTop: '10px' } }, '✨ Квест под настроение');
+  moodBtn.addEventListener('click', () => { haptic.tap(); openMoodQuest(); });
+  el.append(sectionTitle('Получить задание'), modeButtons(), moodBtn);
 
   // Задание дня
   const daily = state.daily;

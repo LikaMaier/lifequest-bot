@@ -28,6 +28,7 @@ load_dotenv()  # до импорта storage: он читает DB_PATH при �
 import api
 import billing
 import challenges
+import friends
 import game
 import habits
 import nudges
@@ -127,8 +128,43 @@ def build_start_menu_keyboard() -> InlineKeyboardMarkup:
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
     user_id = message.from_user.id
+    is_new = not storage.get_user(user_id)
     ensure_user(user_id, message.from_user.username, message.from_user.first_name)
+    invite = friends.parse_start((message.text or "").partition(" ")[2])
+    if invite and invite[2] != user_id and storage.get_user(invite[2]):
+        await handle_invite(message, invite, is_new)
+        return
     await message.answer(WELCOME_TEXT, parse_mode="HTML", reply_markup=build_start_menu_keyboard())
+
+
+async def handle_invite(message: Message, invite, is_new: bool):
+    """Пришли по ссылке друга: дружим, дарим заморозки новичку и пригласившему,
+    а если звали на конкретный квест — сразу кладём его в «Мои квесты»."""
+    kind, quest_id, inviter_id = invite
+    user_id = message.from_user.id
+    res = friends.handle_join(user_id, inviter_id, is_new)
+    inviter = storage.get_user(inviter_id)
+    inviter_name = html.escape(inviter.get("first_name") or inviter.get("username") or "Друг")
+    me = html.escape(message.from_user.first_name or "Друг")
+    gift = "\n\n🧊 В подарок — по заморозке серии вам обоим." if res.get("gift") else ""
+    if kind == "q":
+        game.accept_quest(user_id, quest_id)
+        q = game.CATALOG[quest_id]
+        text = (f"👋 <b>{inviter_name} зовёт тебя на квест!</b>\n\n{html.escape(q['emoji'])} "
+                f"<b>{html.escape(q['title'])}</b>\n{html.escape(q['text'])}\n\nОн уже в «Моих квестах». "
+                f"Выполните вместе — или наперегонки.{gift}")
+        note = f"🎯 {me} принимает твой вызов: «{html.escape(q['title'])}»!"
+    else:
+        text = f"👋 <b>{inviter_name} зовёт тебя в LifeQuest</b> — теперь вы друзья.{gift}"
+        note = f"🎉 {me} теперь в LifeQuest по твоей ссылке!"
+    await message.answer(WELCOME_TEXT if kind == "ref" else text, parse_mode="HTML",
+                         reply_markup=build_start_menu_keyboard() if kind == "ref" else
+                         InlineKeyboardMarkup(inline_keyboard=app_row("quests") or [[InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")]]))
+    if kind == "ref":
+        await message.answer(text, parse_mode="HTML")
+    if res.get("added") or res.get("gift"):
+        await ops.safe_send(inviter_id, note + ("\n🧊 +1 заморозка серии в подарок." if res.get("gift") else ""),
+                            parse_mode="HTML")
 
 
 # ==================== QUEST BANK ====================
@@ -892,7 +928,8 @@ def premium_text(user_id: int) -> str:
     view = billing.premium_view(user)
     perks = ("🎲 Безлимит «Другое»\n📸 Больше фото на доске воспоминаний\n"
              "❄️ +1 бесплатная заморозка в неделю\n🎩 Эксклюзивные аксессуары и стиль «Космос»\n"
-             "🗂️ Тематические наборы квестов")
+             "🗂️ Тематические наборы квестов\n✨ 30 ИИ-квестов под настроение в день\n"
+             "🏆 Челлендж на 30 дней и итоги года")
     if view["forever"]:
         head = "👑 <b>Premium навсегда.</b> Спасибо, что ты с нами!"
     elif view["active"]:
