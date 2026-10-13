@@ -93,9 +93,7 @@ export function openNoteEditor(n, { onChange } = {}) {
       await changed(onChange);
     } catch (e) { toastError(e); save.disabled = false; }
   });
-  let armed = false;
   del.addEventListener('click', async () => {
-    if (!armed) { armed = true; del.textContent = 'Точно удалить? Нажми ещё раз'; haptic.tap(); return; }
     try {
       await api.deleteNote(n.id);
       haptic.success();

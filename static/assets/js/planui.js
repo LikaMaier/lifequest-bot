@@ -136,19 +136,12 @@ export function openPlanSheet(o, { onChange } = {}) {
     body.append(h('div', null, h('h3', { style: { marginBottom: '8px' } }, '📷 Фото'),
       photoStrip({ target: 'plan', plan_id: o.id, plan_date: o.date }, { onChange: () => onChange && onChange() })));
   }
-  let armed = false;
-  const delBtn = h('button', { type: 'button', class: 'btn ghost small block' }, '🗑 Удалить план');
-  delBtn.addEventListener('click', busy(delBtn, async () => {
-    if (o.repeat_rule !== 'none' && !armed) {
-      armed = true;
-      clear(delBtn.parentNode).append(
-        act('Только этот день', 'ghost small grow', async () => { await api.deletePlan(o.id, { date: o.date, scope: 'day' }); toast('День убран из серии'); changed(onChange); s.close(); }),
-        act('Всю серию', 'small grow', async () => { await api.deletePlan(o.id); toast('Серия удалена'); changed(onChange); s.close(); }));
-      return;
-    }
-    if (!armed) { armed = true; haptic.warning(); delBtn.textContent = 'Точно удалить? Нажми ещё раз'; return; }
-    try { await api.deletePlan(o.id); haptic.success(); toast('План удалён'); changed(onChange); s.close(); } catch (e) { toastError(e); }
-  }));
+  // Удаление сразу, без «точно?». У повторяющегося — сразу две кнопки: день или вся серия.
+  const removeDay = async () => { await api.deletePlan(o.id, { date: o.date, scope: 'day' }); haptic.success(); toast('День убран из серии'); changed(onChange); s.close(); };
+  const removeAll = async () => { await api.deletePlan(o.id); haptic.success(); toast(o.repeat_rule !== 'none' ? 'Серия удалена' : 'План удалён'); changed(onChange); s.close(); };
+  const delBtn = o.repeat_rule !== 'none'
+    ? h('div', { class: 'row', style: { width: '100%' } }, act('🗑 Убрать этот день', 'ghost small grow', removeDay), act('🗑 Всю серию', 'ghost small grow', removeAll))
+    : act('🗑 Удалить план', 'ghost small block', removeAll);
   body.append(h('div', { class: 'row' }, delBtn));
   s.setContent(body);
   return s;

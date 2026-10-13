@@ -752,3 +752,7 @@ p { margin: 0; }
 
 /* Клавиатура открыта — нижнее меню прячем, чтобы не висело над ней */
 .kb-open .tabbar { display: none; }
+.dp-del { width: 32px; height: 32px; flex-shrink: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted);
+  font-size: 14px; font-weight: 800; padding: 0; opacity: .7; }
+.dp-del:active { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.dp-line.new .dp-del { visibility: hidden; }

@@ -242,9 +242,7 @@ export function openViewer(list, index, { onDelete } = {}) {
     } catch (e) { toastError(e); }
     share.disabled = false;
   });
-  let armed = false;
   del.addEventListener('click', async () => {
-    if (!armed) { armed = true; haptic.warning(); toast('Нажми 🗑 ещё раз, чтобы удалить фото'); setTimeout(() => { armed = false; }, 3000); return; }
     try {
       const p = list[i];
       await api.deletePhoto(p.id);
@@ -257,7 +255,6 @@ export function openViewer(list, index, { onDelete } = {}) {
       i = Math.min(i, list.length - 1);
       show();
     } catch (e) { toastError(e); }
-    armed = false;
   });
   document.addEventListener('keydown', onKey);
   document.body.append(overlay);

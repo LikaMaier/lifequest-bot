@@ -36,7 +36,9 @@ export function dayPlanField(plans, date, { onChange, canComplete = true, placeh
       'aria-label': plan ? (done ? `Выполнено: ${plan.title}` : `Отметить выполненным: ${plan.title}`) : 'Сначала напиши план' }, done ? '✓' : '');
     const input = h('input', { class: 'dp-text', type: 'text', maxlength: '130', enterkeyhint: 'next', autocomplete: 'off',
       'aria-label': plan ? `План: ${plan.title}` : 'Новый план', readonly: locked ? true : null });
-    const line = h('div', { class: `dp-line ${done ? 'done' : ''} ${plan ? '' : 'new'}`, role: 'listitem' }, check, input);
+    const del = h('button', { type: 'button', class: 'dp-del', 'aria-label': 'Удалить план' }, '✕');
+    const line = h('div', { class: `dp-line ${done ? 'done' : ''} ${plan ? '' : 'new'}`, role: 'listitem' }, check, input, del);
+    del.addEventListener('click', () => { haptic.tap(); remove(line); });
     line._plan = plan;
     input.value = plan ? lineText(plan) : draft.text;
 
@@ -49,7 +51,14 @@ export function dayPlanField(plans, date, { onChange, canComplete = true, placeh
       try { await completePlan(line._plan); } catch (e) { line.classList.remove('done'); check.classList.remove('on'); check.textContent = ''; toastError(e); }
     });
     if (locked) input.addEventListener('click', () => { haptic.tap(); openPlanSheet(plan); });
-    input.addEventListener('input', () => { if (!line._plan) draft.text = input.value; });
+    // Сохраняем сами, через секунду после последней буквы: на iPhone в Telegram
+    // событие «ушёл из поля» приходит не всегда — без этого правки терялись.
+    input.addEventListener('input', () => {
+      if (!line._plan) draft.text = input.value;
+      clearTimeout(line._timer);
+      line._timer = setTimeout(() => commit(line), 900);
+    });
+    input.addEventListener('change', () => commit(line));
     input.addEventListener('keydown', e => {
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -67,17 +76,34 @@ export function dayPlanField(plans, date, { onChange, canComplete = true, placeh
         if (line._plan) commit(line);
       }
     });
-    input.addEventListener('blur', () => commit(line));
+    input.addEventListener('blur', () => { clearTimeout(line._timer); commit(line); });
     return line;
   }
 
-  async function commit(line) {
-    if (line._saving) return line._saving;
-    const input = line.querySelector('.dp-text');
-    if (input.readOnly) return null;
-    const text = input.value.trim();
+  const dropPlan = plan => (plan.repeat_rule && plan.repeat_rule !== 'none'
+    ? api.skipPlan(plan.id, plan.date) // повторяющийся — убираем только этот день
+    : api.deletePlan(plan.id));
+
+  // Крестик: удалить сразу, без вопросов.
+  async function remove(line) {
+    clearTimeout(line._timer);
     const plan = line._plan;
     const isLast = line === box.lastElementChild;
+    line._plan = null;
+    line.querySelector('.dp-text').value = '';
+    if (isLast) line.classList.add('new'); else line.remove();
+    if (!plan) return;
+    try { await (line._saving || Promise.resolve()); await dropPlan(plan); dirty = true; scheduleRefresh(); }
+    catch (e) { toastError(e); }
+  }
+
+  async function commit(line) {
+    if (line._saving) { line._again = true; return line._saving; } // допишем, когда закончится текущее сохранение
+    const input = line.querySelector('.dp-text');
+    if (input.readOnly || !line.isConnected) return null;
+    const text = input.value.trim();
+    const plan = line._plan;
+    const focused = document.activeElement === input;
     let job = null;
     if (!plan && text) {
       const { title, time } = parseLine(text);
@@ -90,20 +116,42 @@ export function dayPlanField(plans, date, { onChange, canComplete = true, placeh
         if (!box.querySelector('.dp-line.new')) box.append(makeLine(null)); // всегда есть пустая строка
       });
     } else if (plan && !text) {
-      // Очистил строку — план убран: разовый удаляем, повторяющийся пропускаем сегодня.
-      job = (plan.repeat_rule && plan.repeat_rule !== 'none' ? api.skipPlan(plan.id, plan.date) : api.deletePlan(plan.id))
-        .then(() => { if (!isLast) line.remove(); else { line._plan = null; line.classList.add('new'); } });
+      // Строку стёрли — план убран. Пока человек в строке, она остаётся (можно вписать новое).
+      line._plan = null;
+      job = dropPlan(plan).then(() => {
+        if (!focused && line !== box.lastElementChild) line.remove();
+        else line.classList.add('new');
+      });
+    } else if (!plan && !text && !focused && line !== box.lastElementChild) {
+      line.remove(); // пустая строка в середине — убираем
+      return null;
     } else if (plan && text !== lineText(plan)) {
       const { title, time } = parseLine(text);
       job = api.patchPlan(plan.id, { title, time: time || null }).then(res => {
         line._plan = { ...plan, ...(res.plan || {}), title, time };
-        input.value = lineText(line._plan);
       });
     }
     if (!job) return null;
     dirty = true;
-    line._saving = job.catch(e => toastError(e)).finally(() => { line._saving = null; });
+    line._saving = job.catch(e => toastError(e)).finally(() => {
+      line._saving = null;
+      if (line._again) { line._again = false; commit(line); }
+      scheduleRefresh();
+    });
     return line._saving;
+  }
+
+  // Общее состояние (кольцо дня, календарь) обновляем, когда человек вышел из поля.
+  let refreshTimer = null;
+  function scheduleRefresh() {
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(async () => {
+      if (!dirty || box.contains(document.activeElement)) return;
+      dirty = false;
+      await Promise.all([...box.querySelectorAll('.dp-line')].map(l => l._saving).filter(Boolean));
+      refreshState().catch(() => {});
+      onChange && onChange();
+    }, 300);
   }
 
   sorted.forEach(o => box.append(makeLine(o)));
@@ -111,16 +159,7 @@ export function dayPlanField(plans, date, { onChange, canComplete = true, placeh
   const first = box.querySelector('.dp-line.new .dp-text');
   first.placeholder = sorted.length ? 'Ещё дело…' : placeholder;
 
-  // Фокус ушёл из поля — обновляем общее состояние (кольцо дня, счётчики).
-  box.addEventListener('focusout', () => {
-    setTimeout(async () => {
-      if (!dirty || box.contains(document.activeElement)) return;
-      dirty = false;
-      await Promise.all([...box.querySelectorAll('.dp-line')].map(l => l._saving).filter(Boolean));
-      refreshState().catch(() => {});
-      onChange && onChange();
-    }, 250);
-  });
+  box.addEventListener('focusout', scheduleRefresh);
   // Нажатие на свободное место поля — к последней строке.
   box.addEventListener('click', e => {
     if (e.target === box) { const last = box.lastElementChild.querySelector('.dp-text'); last.focus(); }
