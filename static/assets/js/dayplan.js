@@ -1,5 +1,5 @@
 // План дня как одно поле ввода: каждая строка — план (главная и день в календаре).
-// Enter — следующая строка, пустая строка — план удалён, квадратик — выполнено.
+// Enter — следующая строка, ✏️ — изменить, ✕ — удалить, квадратик — выполнено/снять.
 // Время можно написать в начале строки: «18:30 зал».
 // Пока человек печатает, главная не перерисовывается (иначе на телефоне
 // закроется клавиатура): сохраняем по месту, а общее состояние обновляем,
@@ -10,7 +10,7 @@ import { api } from './api.js';
 import { haptic } from './tg.js';
 import { toastError } from './ui.js';
 import { refreshState } from './store.js';
-import { completePlan, openPlanSheet } from './planui.js';
+import { completePlan } from './planui.js';
 
 const TIME_RE = /^([01]?\d|2[0-3])[:.]([0-5]\d)\s+(.+)$/;
 const drafts = new Map(); // недописанная последняя строка — по дню
@@ -31,26 +31,48 @@ export function dayPlanField(plans, date, { onChange, canComplete = true, placeh
 
   function makeLine(plan) {
     const done = plan && plan.status === 'done';
-    const locked = plan && (done || plan.quest); // задание из банка правится в календаре
-    const check = h('button', { type: 'button', class: `dp-check ${done ? 'on' : ''}`, disabled: !plan || done || !canComplete,
-      'aria-label': plan ? (done ? `Выполнено: ${plan.title}` : `Отметить выполненным: ${plan.title}`) : 'Сначала напиши план' }, done ? '✓' : '');
-    const input = h('input', { class: 'dp-text', type: 'text', maxlength: '130', enterkeyhint: 'next', autocomplete: 'off',
-      'aria-label': plan ? `План: ${plan.title}` : 'Новый план', readonly: locked ? true : null });
+    const check = h('button', { type: 'button', class: `dp-check ${done ? 'on' : ''}`, disabled: !plan || !canComplete,
+      'aria-label': plan ? (done ? `Снять отметку: ${plan.title}` : `Отметить выполненным: ${plan.title}`) : 'Сначала напиши план' }, done ? '✓' : '');
+    // Сохранённый план — просто текст: нажатие ничего не открывает,
+    // править — карандашом, удалять — крестиком.
+    const input = h('input', { class: 'dp-text', type: 'text', maxlength: '130', enterkeyhint: 'done', autocomplete: 'off',
+      'aria-label': plan ? `План: ${plan.title}` : 'Новый план', readonly: plan ? true : null });
+    const edit = h('button', { type: 'button', class: 'dp-edit', 'aria-label': 'Изменить план' }, '✏️');
     const del = h('button', { type: 'button', class: 'dp-del', 'aria-label': 'Удалить план' }, '✕');
-    const line = h('div', { class: `dp-line ${done ? 'done' : ''} ${plan ? '' : 'new'}`, role: 'listitem' }, check, input, del);
-    del.addEventListener('click', () => { haptic.tap(); remove(line); });
+    const line = h('div', { class: `dp-line ${done ? 'done' : ''} ${plan ? '' : 'new'} ${plan && plan.quest ? 'quest' : ''}`, role: 'listitem' },
+      check, input, edit, del);
     line._plan = plan;
     input.value = plan ? lineText(plan) : draft.text;
 
-    check.addEventListener('click', async () => {
-      if (!line._plan || line.classList.contains('done')) return;
+    del.addEventListener('click', () => { haptic.tap(); remove(line); });
+    edit.addEventListener('click', () => {
       haptic.tap();
-      line.classList.add('done');
-      check.classList.add('on');
-      check.textContent = '✓';
-      try { await completePlan(line._plan); } catch (e) { line.classList.remove('done'); check.classList.remove('on'); check.textContent = ''; toastError(e); }
+      line.classList.add('editing');
+      input.readOnly = false;
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
     });
-    if (locked) input.addEventListener('click', () => { haptic.tap(); openPlanSheet(plan); });
+    const stopEditing = () => {
+      if (!line._plan) return; // новая строка остаётся строкой ввода
+      input.readOnly = true;
+      line.classList.remove('editing');
+    };
+
+    // Галочка ставится и снимается.
+    check.addEventListener('click', async () => {
+      const p = line._plan;
+      if (!p) return;
+      haptic.tap();
+      const wasDone = line.classList.contains('done');
+      const set = on => { line.classList.toggle('done', on); check.classList.toggle('on', on); check.textContent = on ? '✓' : '';
+        check.setAttribute('aria-label', on ? `Снять отметку: ${p.title}` : `Отметить выполненным: ${p.title}`); };
+      set(!wasDone);
+      try {
+        if (wasDone) { await api.uncompletePlan(p.id, p.date); line._plan = { ...p, status: 'planned' }; dirty = true; scheduleRefresh(); }
+        else { await completePlan(p); line._plan = { ...p, status: 'done' }; }
+      } catch (e) { set(wasDone); toastError(e); }
+    });
+
     // Сохраняем сами, через секунду после последней буквы: на iPhone в Telegram
     // событие «ушёл из поля» приходит не всегда — без этого правки терялись.
     input.addEventListener('input', () => {
@@ -60,23 +82,19 @@ export function dayPlanField(plans, date, { onChange, canComplete = true, placeh
     });
     input.addEventListener('change', () => commit(line));
     input.addEventListener('keydown', e => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        commit(line);
-        // Фокус переносим сразу, в том же нажатии — клавиатура не закрывается.
-        const next = line.nextElementSibling;
-        if (next && !next.classList.contains('new')) next.querySelector('.dp-text').focus();
-        else if (next) next.querySelector('.dp-text').focus();
-        else if (input.value.trim()) { const fresh = makeLine(null); box.append(fresh); fresh.querySelector('.dp-text').focus(); }
-      } else if (e.key === 'Backspace' && !input.value && line.previousElementSibling) {
-        e.preventDefault();
-        const prev = line.previousElementSibling.querySelector('.dp-text');
-        prev.focus();
-        prev.setSelectionRange(prev.value.length, prev.value.length);
-        if (line._plan) commit(line);
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      clearTimeout(line._timer);
+      commit(line);
+      if (line.classList.contains('editing')) { stopEditing(); input.blur(); return; }
+      // Новая строка: фокус сразу в следующую пустую — клавиатура не закрывается.
+      if (input.value.trim()) {
+        let fresh = box.querySelector('.dp-line.new:not(:focus-within)');
+        if (!fresh || fresh === line) { fresh = makeLine(null); box.append(fresh); }
+        fresh.querySelector('.dp-text').focus();
       }
     });
-    input.addEventListener('blur', () => { clearTimeout(line._timer); commit(line); });
+    input.addEventListener('blur', () => { clearTimeout(line._timer); commit(line); stopEditing(); });
     return line;
   }
 
@@ -91,7 +109,7 @@ export function dayPlanField(plans, date, { onChange, canComplete = true, placeh
     const isLast = line === box.lastElementChild;
     line._plan = null;
     line.querySelector('.dp-text').value = '';
-    if (isLast) line.classList.add('new'); else line.remove();
+    if (isLast) { line.classList.add('new'); line.querySelector('.dp-text').readOnly = false; } else line.remove();
     if (!plan) return;
     try { await (line._saving || Promise.resolve()); await dropPlan(plan); dirty = true; scheduleRefresh(); }
     catch (e) { toastError(e); }
@@ -100,7 +118,7 @@ export function dayPlanField(plans, date, { onChange, canComplete = true, placeh
   async function commit(line) {
     if (line._saving) { line._again = true; return line._saving; } // допишем, когда закончится текущее сохранение
     const input = line.querySelector('.dp-text');
-    if (input.readOnly || !line.isConnected) return null;
+    if (!line.isConnected || (line._plan && line._plan.quest)) return null;
     const text = input.value.trim();
     const plan = line._plan;
     const focused = document.activeElement === input;

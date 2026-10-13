@@ -386,6 +386,27 @@ def complete_plan(user_id: int, plan_id: int, day=None) -> dict:
     return result
 
 
+def uncomplete_plan(user_id: int, plan_id: int, day=None) -> dict:
+    """Снять галочку: план снова «запланирован», XP за него возвращается.
+    Задание из банка уже засчитано в квестах — его не отменяем."""
+    plan, d = _resolve(user_id, plan_id, day)
+    if occurrence(user_id, plan_id, d)["status"] != "done":
+        raise game.QuestError("Этот план ещё не выполнен")
+    if plan["quest_key"]:
+        raise game.QuestError("Задание из банка уже засчитано — отменить его нельзя")
+    reason = f"plan:{plan_id}:{d.isoformat()}"
+    conn = storage.connect()
+    row = conn.execute("SELECT id, amount FROM xp_log WHERE user_id = ? AND reason = ? ORDER BY id DESC LIMIT 1",
+                       (user_id, reason)).fetchone()
+    if row:
+        conn.execute("DELETE FROM xp_log WHERE id = ?", (row[0],))
+        conn.execute("UPDATE users SET xp = MAX(0, COALESCE(xp, 0) - ?) WHERE user_id = ?", (row[1], user_id))
+    conn.commit()
+    conn.close()
+    _set_occurrence_status(plan, d, "planned")
+    return {"plan": occurrence(user_id, plan_id, d), "xp": -(row[1] if row else 0)}
+
+
 def skip_plan(user_id: int, plan_id: int, day=None) -> dict:
     """«Отпустить» — без упрёков: день просто снимается с плана."""
     plan, d = _resolve(user_id, plan_id, day)

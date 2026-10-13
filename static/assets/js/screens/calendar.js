@@ -140,7 +140,7 @@ async function drawWeek(body, el, ctx) {
     head.addEventListener('click', () => { haptic.tap(); openDaySheet(date, { onChange }); });
     host.append(h('section', { class: `card week-day ${date === today ? 'today' : ''} ${date < today ? 'past' : ''}` },
       h('div', { class: 'row', style: { gap: '8px' } }, head, add),
-      dayPlans.length ? h('div', { class: 'stack-sm', style: { marginTop: '10px' } }, dayPlans.map(o => planRow(o, { onChange, compact: true }))) : null,
+      dayPlans.length ? h('div', { class: 'stack-sm', style: { marginTop: '10px' } }, dayPlans.map(o => planRow(o, { onChange, compact: true, onOpen: x => openDaySheet(x.date, { onChange }) }))) : null,
       dayPhotos.length ? memoryBoard(dayPhotos, { small: true, onDelete: onChange }) : null));
   }
   // свайп — соседняя неделя, щипок — назад к месяцу
@@ -278,7 +278,7 @@ async function drawList(body, el, ctx) {
   }
   for (const [key, list] of byDay) {
     const title = key === 'overdue' ? '🌿 Не успелось' : key === todayIso() ? `Сегодня, ${fmtDay(key)}` : key === addDays(todayIso(), 1) ? `Завтра, ${fmtDay(key)}` : dayTitle(key);
-    body.append(sectionTitle(title), h('div', { class: 'stack-sm' }, list.map(o => planRow(o, { onChange: () => refresh(el, ctx) }))));
+    body.append(sectionTitle(title), h('div', { class: 'stack-sm' }, list.map(o => planRow(o, { onChange: () => refresh(el, ctx), onOpen: x => openDaySheet(x.date, { onChange: () => refresh(el, ctx) }) }))));
   }
   const exportBtn = h('button', { type: 'button', class: 'btn ghost block', style: { marginTop: '18px' } }, '📲 Ближайший месяц — в календарь телефона');
   exportBtn.addEventListener('click', () => exportIcs(todayIso(), addDays(todayIso(), 30)));

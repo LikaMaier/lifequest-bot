@@ -61,7 +61,7 @@ async function skipPlan(o, onChange) {
 }
 
 // ---------- Строка плана ----------
-export function planRow(o, { onChange, compact = false } = {}) {
+export function planRow(o, { onChange, compact = false, onOpen = null } = {}) {
   const mode = PLAN_MODES[o.mode] || PLAN_MODES.free;
   const done = o.status === 'done';
   const skipped = o.status === 'skipped';
@@ -72,7 +72,7 @@ export function planRow(o, { onChange, compact = false } = {}) {
     h('span', { class: 'grow' }, h('span', { class: 'plan-title' }, o.title),
       h('span', { class: 'plan-meta' }, meta),
       o.overdue && !compact ? h('span', { class: 'tag c-paleyellow', style: { marginTop: '4px' } }, 'Не успелось?') : null));
-  info.addEventListener('click', () => { haptic.tap(); openPlanSheet(o, { onChange }); });
+  info.addEventListener('click', () => { haptic.tap(); (onOpen ? onOpen(o) : openPlanSheet(o, { onChange })); });
   row.append(info);
   if (!done && !skipped && o.date <= todayIso()) {
     const check = h('button', { type: 'button', class: 'plan-check', 'aria-label': `Выполнено: ${o.title}` }, '✓');
@@ -82,7 +82,13 @@ export function planRow(o, { onChange, compact = false } = {}) {
     }));
     row.append(check);
   } else if (done) {
-    row.append(h('span', { class: 'plan-done-mark', 'aria-label': 'Выполнено' }, '✓'));
+    // Галочку можно снять (кроме задания из банка — оно уже засчитано в квестах).
+    const mark = h('button', { type: 'button', class: 'plan-done-mark', 'aria-label': `Снять отметку: ${o.title}`, disabled: Boolean(o.quest_key) }, '✓');
+    mark.addEventListener('click', busy(mark, async () => {
+      haptic.tap();
+      try { await api.uncompletePlan(o.id, o.date); changed(onChange); } catch (e) { toastError(e); }
+    }));
+    row.append(mark);
   }
   return row;
 }
@@ -136,13 +142,6 @@ export function openPlanSheet(o, { onChange } = {}) {
     body.append(h('div', null, h('h3', { style: { marginBottom: '8px' } }, '📷 Фото'),
       photoStrip({ target: 'plan', plan_id: o.id, plan_date: o.date }, { onChange: () => onChange && onChange() })));
   }
-  // Удаление сразу, без «точно?». У повторяющегося — сразу две кнопки: день или вся серия.
-  const removeDay = async () => { await api.deletePlan(o.id, { date: o.date, scope: 'day' }); haptic.success(); toast('День убран из серии'); changed(onChange); s.close(); };
-  const removeAll = async () => { await api.deletePlan(o.id); haptic.success(); toast(o.repeat_rule !== 'none' ? 'Серия удалена' : 'План удалён'); changed(onChange); s.close(); };
-  const delBtn = o.repeat_rule !== 'none'
-    ? h('div', { class: 'row', style: { width: '100%' } }, act('🗑 Убрать этот день', 'ghost small grow', removeDay), act('🗑 Всю серию', 'ghost small grow', removeAll))
-    : act('🗑 Удалить план', 'ghost small block', removeAll);
-  body.append(h('div', { class: 'row' }, delBtn));
   s.setContent(body);
   return s;
 }
