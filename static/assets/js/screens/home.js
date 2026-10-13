@@ -71,6 +71,19 @@ export function render(el, { state, go }) {
     progressBar(lv.progress, 'yellow'),
     h('div', { class: 'spread', style: { marginTop: '10px' } }, awardsLink, shopLink)));
 
+  // Активный челлендж
+  const ch = state.challenge;
+  if (ch) {
+    const chCard = h('button', { type: 'button', class: 'quest-item c-lime', style: { marginTop: '12px', width: '100%' } },
+      h('span', { class: 'q-emoji', 'aria-hidden': 'true' }, ch.emoji),
+      h('span', { class: 'grow' }, h('span', { class: 'q-title', style: { display: 'block' } }, `${ch.title} · ${ch.done}/${ch.days}`),
+        h('span', { class: 'q-meta', style: { display: 'block' } }, ch.today_done ? 'Сегодня засчитано ✓'
+          : `Сегодня нужен ${ch.sphere ? `квест из сферы «${ch.sphere}»` : 'любой квест'}`)),
+      h('span', { class: 'tag c-paleyellow' }, ch.today_done ? '✓' : `день ${ch.day}`));
+    chCard.addEventListener('click', () => { haptic.tap(); go('challenges'); });
+    el.append(chCard);
+  }
+
   // Три кнопки случайных заданий
   el.append(sectionTitle('Получить задание'), modeButtons());
 

@@ -18,6 +18,7 @@ except ImportError:  # pragma: no cover
     ZoneInfo = None
     ZoneInfoNotFoundError = Exception
 
+import packs
 import storage
 from quests_database import CATALOG, KEY_TO_TASK, BINGO_SPHERES
 
@@ -291,7 +292,7 @@ def public_quest(q: dict, tier: str = None) -> dict:
 
 def daily_quest_id(day: date) -> str:
     """Задание дня — общее для всех, детерминированное по дате."""
-    pool = sorted(k for k, q in CATALOG.items() if q["mode"] == "solo")
+    pool = sorted(k for k, q in CATALOG.items() if q["mode"] == "solo" and not q.get("pack"))
     idx = int(hashlib.sha256(f"lifequest-daily-{day.isoformat()}".encode()).hexdigest(), 16) % len(pool)
     return pool[idx]
 
@@ -360,7 +361,8 @@ def random_quest(user_id: int, mode: str, sphere: str = None, rng=random) -> dic
     if rolls_today(user_id, today) >= roll_limit(user):
         raise QuestError("На сегодня попытки закончились — загляни завтра или возьми задание из избранного 💛",
                          code="roll_limit")
-    pool = [q for q in CATALOG.values() if q["mode"] == mode and (not sphere or q["sphere"] == sphere)]
+    pool = [q for q in CATALOG.values()
+            if q["mode"] == mode and not q.get("pack") and (not sphere or q["sphere"] == sphere)]
     q = choose_quest(pool, _keys_with_status(user_id, "done"), _active_keys(user_id),
                      _recent_offer_keys(user_id, mode), rng)
     tier = rng.choice(list(q["tiers"].keys()))
@@ -384,7 +386,7 @@ def _bot_task_text(q: dict, tier: str) -> str:
     HTML уровня сложности, у парных/компанейских — название с эмодзи."""
     if q["mode"] == "solo":
         raw = KEY_TO_TASK.get(q["id"], {})
-        return raw.get(tier) or raw.get("medium") or q["title"]
+        return raw.get(tier) or raw.get("medium") or f"{q['emoji']} {q['title']}".strip()
     return f"{q['emoji']} {q['title']}".strip()
 
 
@@ -394,6 +396,11 @@ def accept_quest(user_id: int, quest_id: str, tier: str = None, daily: bool = Fa
         raise QuestError("Это задание больше недоступно")
     user = storage.get_user(user_id)
     today = local_today(user)
+    if q.get("pack"):
+        if not packs.in_season(q["pack"], today):
+            raise QuestError("Сезон этого набора закончился — он вернётся в следующем году 🎃")
+        if packs.locked(q, is_premium(user)):
+            raise QuestError("Это задание набора — для Premium 💛", code="pack")
     daily = bool(daily) and quest_id == daily_quest_id(today)
     tier = tier if tier in q["tiers"] else ("medium" if "medium" in q["tiers"] else next(iter(q["tiers"])))
 
@@ -963,6 +970,31 @@ def get_stats(user_id: int, days) -> dict:
 SETTINGS_ALLOWED = {"daily_goal", "tz", "mascot", "theme", "reminder_hour", "evening_reminder_hour"}
 
 
+# ==================== НАБОРЫ КВЕСТОВ ====================
+def packs_view(user_id: int) -> list:
+    user = storage.get_user(user_id)
+    today = local_today(user)
+    premium = is_premium(user)
+    done = _keys_with_status(user_id, "done")
+    active = _active_keys(user_id)
+    out = []
+    for pid, emoji, name, about, mode, _season in packs.PACKS:
+        if not packs.in_season(pid, today):
+            continue
+        quests = []
+        for qid, q in CATALOG.items():
+            if q.get("pack") != pid:
+                continue
+            item = public_quest(q)
+            item["locked"] = packs.locked(q, premium)
+            item["status"] = "done" if qid in done else "active" if qid in active else None
+            quests.append(item)
+        out.append({"id": pid, "emoji": emoji, "name": name, "about": about, "mode": mode,
+                    "until": packs.season_end(pid), "free": packs.FREE_PER_PACK,
+                    "done": sum(1 for q in quests if q["status"] == "done"), "quests": quests})
+    return out
+
+
 # ==================== МАГАЗИН ====================
 # XP копится и тратится: уровень считается по всему заработанному XP,
 # а в магазине тратится баланс = xp - xp_spent.
@@ -978,7 +1010,15 @@ ACCESSORIES = [  # id, название, цена
     ("crown", "Корона", 200),
     ("halo", "Нимб", 250),
 ]
-ACCESSORY_IDS = {a[0] for a in ACCESSORIES}
+# Сезонные: продаются только в свой сезон, купленные остаются навсегда.
+SEASONAL_ACCESSORIES = [  # id, название, цена, с (месяц, день), по (месяц, день)
+    ("pumpkin", "Тыква", 90, (10, 1), (11, 2)),
+]
+ACCESSORY_IDS = {a[0] for a in ACCESSORIES} | {a[0] for a in SEASONAL_ACCESSORIES}
+
+
+def _in_season(start, end, today: date) -> bool:
+    return start <= (today.month, today.day) <= end
 PREMIUM_ACCESSORIES = [  # бесплатно для Premium
     ("wizard", "Шляпа волшебника"),
     ("tiara", "Диадема"),
@@ -1022,6 +1062,12 @@ def shop_view(user_id: int) -> dict:
     for aid, name, price in ACCESSORIES:
         items.append({"id": aid, "kind": "accessory", "name": name, "price": price,
                       "owned": aid in owned, "equipped": user.get("accessory") == aid})
+    today = local_today(user)
+    for aid, name, price, start, end in SEASONAL_ACCESSORIES:
+        if aid in owned or _in_season(start, end, today):
+            items.append({"id": aid, "kind": "seasonal", "name": name, "price": price,
+                          "until": f"{end[1]:02d}.{end[0]:02d}",
+                          "owned": aid in owned, "equipped": user.get("accessory") == aid})
     premium = is_premium(user)
     for aid, name in PREMIUM_ACCESSORIES:
         items.append({"id": aid, "kind": "premium", "name": name, "price": 0,
@@ -1040,7 +1086,13 @@ def buy(user_id: int, item: str) -> dict:
         extra = ", freeze_tokens = COALESCE(freeze_tokens, 0) + 1"
         cond = f" AND COALESCE(freeze_tokens, 0) < {FREEZE_MAX}"
     elif item in ACCESSORY_IDS:
-        price = next(p for a, _n, p in ACCESSORIES if a == item)
+        seasonal = next((a for a in SEASONAL_ACCESSORIES if a[0] == item), None)
+        if seasonal:
+            if not _in_season(seasonal[3], seasonal[4], local_today(user)):
+                raise QuestError("Сезон этой вещи закончился — она вернётся в следующем году")
+            price = seasonal[2]
+        else:
+            price = next(p for a, _n, p in ACCESSORIES if a == item)
         if item in owned_items(user_id):
             raise QuestError("Это уже твоё 🙂")
         extra, cond = ", accessory = ?", ""
