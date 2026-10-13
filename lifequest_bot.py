@@ -11,6 +11,7 @@ import random
 from datetime import datetime
 
 from aiogram import Bot, Dispatcher, F
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
@@ -66,6 +67,36 @@ async def _seen_middleware(handler, event, data):
 
 dp.message.outer_middleware(_seen_middleware)
 dp.callback_query.outer_middleware(_seen_middleware)
+
+
+async def safe_edit(message, text: str, **kwargs):
+    """Редактирует сообщение. «Не изменилось» от Telegram — не ошибка: просто
+    молча пропускаем (например, повторное нажатие той же кнопки)."""
+    try:
+        return await message.edit_text(text, **kwargs)
+    except TelegramBadRequest as e:
+        if "message is not modified" in str(e):
+            return None
+        raise
+
+
+def _first_button_data(message) -> str:
+    try:
+        return message.reply_markup.inline_keyboard[0][0].callback_data or ""
+    except (AttributeError, IndexError, TypeError):
+        return ""
+
+
+def fresh_variant(build, message, tries: int = 10):
+    """Новый случайный вариант, отличный от уже показанного в сообщении —
+    иначе «Поменять» иногда выдавал то же самое задание."""
+    current = _first_button_data(message)
+    text, kb = build()
+    for _ in range(tries):
+        if kb.inline_keyboard[0][0].callback_data != current:
+            break
+        text, kb = build()
+    return text, kb
 
 
 @dp.errors()
@@ -170,7 +201,7 @@ async def accept_group_quest(callback: CallbackQuery, quest_list: list, prefix: 
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")]
     ])
-    await callback.message.edit_text(
+    await safe_edit(callback.message, 
         f"✅ <b>Квест добавлен в «Мои квесты»!</b>\n\n{quest['label']}",
         parse_mode="HTML",
         reply_markup=kb
@@ -185,13 +216,13 @@ async def cmd_company_quest(message: Message):
 @dp.callback_query(F.data == "menu_company")
 async def menu_company_quest(callback: CallbackQuery):
     text, kb = build_group_quest_message(COMPANY_QUESTS, "company")
-    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    await safe_edit(callback.message, text, parse_mode="HTML", reply_markup=kb)
     await callback.answer()
 
 @dp.callback_query(F.data == "company_reroll")
 async def reroll_company_quest(callback: CallbackQuery):
-    text, kb = build_group_quest_message(COMPANY_QUESTS, "company")
-    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    text, kb = fresh_variant(lambda: build_group_quest_message(COMPANY_QUESTS, "company"), callback.message)
+    await safe_edit(callback.message, text, parse_mode="HTML", reply_markup=kb)
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("company_accept_"))
@@ -206,13 +237,13 @@ async def cmd_pair_quest(message: Message):
 @dp.callback_query(F.data == "menu_pair")
 async def menu_pair_quest(callback: CallbackQuery):
     text, kb = build_group_quest_message(PAIR_QUESTS, "pair")
-    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    await safe_edit(callback.message, text, parse_mode="HTML", reply_markup=kb)
     await callback.answer()
 
 @dp.callback_query(F.data == "pair_reroll")
 async def reroll_pair_quest(callback: CallbackQuery):
-    text, kb = build_group_quest_message(PAIR_QUESTS, "pair")
-    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    text, kb = fresh_variant(lambda: build_group_quest_message(PAIR_QUESTS, "pair"), callback.message)
+    await safe_edit(callback.message, text, parse_mode="HTML", reply_markup=kb)
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("pair_accept_"))
@@ -238,14 +269,13 @@ async def cmd_solo(message: Message):
 async def menu_solo(callback: CallbackQuery):
     task, tier = get_random_solo_task()
     text, kb = build_solo_quest_message(task, tier)
-    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    await safe_edit(callback.message, text, parse_mode="HTML", reply_markup=kb)
     await callback.answer()
 
 @dp.callback_query(F.data == "solo_swap")
 async def solo_swap(callback: CallbackQuery):
-    task, tier = get_random_solo_task()
-    text, kb = build_solo_quest_message(task, tier)
-    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    text, kb = fresh_variant(lambda: build_solo_quest_message(*get_random_solo_task()), callback.message)
+    await safe_edit(callback.message, text, parse_mode="HTML", reply_markup=kb)
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("solo_take_"))
@@ -265,7 +295,7 @@ async def solo_take(callback: CallbackQuery):
         [InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")],
         [InlineKeyboardButton(text="🎯 Взять ещё один", callback_data="menu_solo")]
     ])
-    await callback.message.edit_text(
+    await safe_edit(callback.message, 
         f"✅ <b>Квест добавлен в «Мои квесты»!</b>\n\n{task_text}",
         parse_mode="HTML",
         reply_markup=kb
@@ -291,7 +321,7 @@ async def show_my_quests(target, user_id: int, as_edit: bool):
         kb = build_my_quests_keyboard(quests)
 
     if as_edit:
-        await target.edit_text(text, parse_mode="HTML", reply_markup=kb)
+        await safe_edit(target, text, parse_mode="HTML", reply_markup=kb)
     else:
         await target.answer(text, parse_mode="HTML", reply_markup=kb)
 
@@ -318,7 +348,7 @@ async def open_my_quest(callback: CallbackQuery):
         [InlineKeyboardButton(text="✅ Выполнено!", callback_data=f"myquest_done_{quest_id}")],
         [InlineKeyboardButton(text="« Назад к моим квестам", callback_data="menu_myquests")]
     ])
-    await callback.message.edit_text(task_text, parse_mode="HTML", reply_markup=kb)
+    await safe_edit(callback.message, task_text, parse_mode="HTML", reply_markup=kb)
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("myquest_done_"))
@@ -352,7 +382,7 @@ async def show_completed_quests(target, user_id: int, as_edit: bool):
         [InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")]
     ])
     if as_edit:
-        await target.edit_text(text, parse_mode="HTML", reply_markup=kb)
+        await safe_edit(target, text, parse_mode="HTML", reply_markup=kb)
     else:
         await target.answer(text, parse_mode="HTML", reply_markup=kb)
 
@@ -558,7 +588,7 @@ async def daily_accept(callback: CallbackQuery):
     q = game.public_quest(game.CATALOG[key])
     kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")]])
     head = "Задание дня уже у тебя в квестах" if result.get("already") else "Задание дня принято!"
-    await callback.message.edit_text(
+    await safe_edit(callback.message, 
         f"✅ <b>{head}</b>\n\n{html.escape(q['emoji'])} <b>{html.escape(q['title'])}</b>\n{html.escape(q['text'])}\n\n"
         f"Выполни сегодня — получишь +{game.DAILY_BONUS} XP бонусом.",
         parse_mode="HTML", reply_markup=kb)
