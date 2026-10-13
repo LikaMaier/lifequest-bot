@@ -5,7 +5,7 @@
 import { h, clear, plural, fmtDay, parseDate } from '../dom.js';
 import { api } from '../api.js';
 import { haptic, tg } from '../tg.js';
-import { mascot } from '../mascot.js';
+import { myMascot } from '../mascot.js';
 import { skeleton, toastError, sectionTitle, emptyState } from '../ui.js';
 import { memoryBoard, photosEnabled } from '../photoui.js';
 import { PLAN_MODES, planRow, openDaySheet, todayIso, addDays, dayTitle } from '../planui.js';
@@ -54,7 +54,7 @@ export function render(el, ctx) {
   view.month = view.month || monthKey(todayIso());
   clear(el);
   const overdue = ctx.state.plans_overdue;
-  el.append(h('header', { class: 'page-head' }, mascot('cat-blue', overdue ? 'wink' : 'happy', { size: 56 }),
+  el.append(h('header', { class: 'page-head' }, myMascot(overdue ? 'wink' : 'happy', { size: 56 }),
     h('div', { class: 'grow' }, h('h1', null, 'Календарь'), h('p', null, 'Планируй задания и дела на конкретные дни'))));
 
   const seg = h('div', { class: 'segmented', role: 'group', 'aria-label': 'Вид календаря' },

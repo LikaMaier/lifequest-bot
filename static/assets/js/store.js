@@ -2,6 +2,7 @@
 
 import { api } from './api.js';
 import { applyTheme } from './themefx.js';
+import { setCurrentMascot } from './mascot.js';
 
 const listeners = new Set();
 export const store = { state: null };
@@ -14,6 +15,7 @@ export function onState(fn) {
 export function setState(state) {
   store.state = state;
   applyTheme(state.user.theme || 'classic');
+  setCurrentMascot(state.user.mascot, state.user.accessory);
   for (const fn of listeners) {
     try { fn(state); } catch (e) { console.error(e); }
   }

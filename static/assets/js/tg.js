@@ -3,6 +3,7 @@
 export const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
 
 export function initTelegram() {
+  lockZoom();
   if (!tg) return;
   try {
     tg.ready();
@@ -13,6 +14,16 @@ export function initTelegram() {
     if (tg.setBottomBarColor) tg.setBottomBarColor('#FDF7DE');
     if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
   } catch (e) { /* старые клиенты без части методов */ }
+}
+
+// Приложение не масштабируется: ни щипком, ни двойным тапом (iOS игнорирует
+// user-scalable=no в метатеге, поэтому гасим жесты и здесь; двойной тап
+// отключён через touch-action: manipulation в CSS). Свои щипки —
+// например, в календаре — слушают touch-события и продолжают работать.
+export function lockZoom() {
+  const stop = e => e.preventDefault();
+  for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, stop, { passive: false });
+  document.addEventListener('touchmove', e => { if (e.scale !== undefined && e.scale !== 1) e.preventDefault(); }, { passive: false });
 }
 
 export const initData = () => (tg && tg.initData) || '';

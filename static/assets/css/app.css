@@ -77,7 +77,8 @@
 /* ---------- База ---------- */
 *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; padding: 0; }
-html { background: var(--cream); -webkit-text-size-adjust: 100%; }
+html { background: var(--cream); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; touch-action: manipulation; overflow-x: hidden; }
+body { overflow-x: hidden; }
 body {
   background: var(--cream);
   color: var(--ink);
@@ -417,15 +418,16 @@ p { margin: 0; }
 .quest-card .tag { background: var(--white); color: var(--ink); box-shadow: none; }
 
 /* ---------- Карта недели ---------- */
-.board-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; background: var(--blue); padding: 10px; border-radius: var(--r-lg); box-shadow: 0 5px 0 var(--blue-deep); }
+.board-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; background: var(--blue); padding: 10px; border-radius: var(--r-lg); box-shadow: 0 5px 0 var(--blue-deep); }
 .board-cell {
-  aspect-ratio: 1 / 1.08; background: var(--white); border-radius: 16px; padding: 8px 8px 6px; position: relative;
+  aspect-ratio: 1 / 1.08; background: var(--white); border-radius: 16px; padding: 8px 8px 6px; position: relative; min-width: 0;
   display: flex; flex-direction: column; transition: background .2s, transform .2s;
   box-shadow: inset 0 -4px 0 color-mix(in srgb, var(--c) 55%, transparent);
 }
-.board-cell .cell-label { font-weight: 800; font-size: 9.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--c-deep); margin-bottom: 2px; padding-right: 26px; }
+.board-cell .cell-label { font-weight: 800; font-size: 9.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--c-deep); margin-bottom: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 13px; }
 .board-cell textarea {
-  width: 100%; flex: 1; border: 0; background: transparent; resize: none; outline: none; padding: 0;
+  width: 100%; min-width: 0; flex: 1; margin-bottom: 26px; border: 0; background: transparent; resize: none; outline: none; padding: 0;
   font-weight: 700; font-size: 11.5px; line-height: 1.25; color: var(--ink);
 }
 .board-cell textarea::placeholder { color: #B7AF8E; font-weight: 600; }
@@ -439,7 +441,7 @@ p { margin: 0; }
 .board-cell.is-center.done .cell-label, .board-cell.is-center.done textarea { color: var(--ink); }
 .board-cell.in-line { box-shadow: 0 0 0 3px var(--ink); }
 .cell-check {
-  position: absolute; top: 4px; right: 4px; width: 30px; height: 30px; border-radius: 10px; border: 0;
+  position: absolute; bottom: 6px; right: 6px; width: 28px; height: 28px; border-radius: 9px; border: 0;
   background: var(--cream-2); color: var(--ink); font-weight: 900; font-size: 16px; display: grid; place-items: center;
   box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c-deep) 40%, transparent);
 }

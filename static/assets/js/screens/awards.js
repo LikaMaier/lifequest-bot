@@ -4,7 +4,7 @@
 import { h, clear, fmtDay } from '../dom.js';
 import { haptic } from '../tg.js';
 import { api } from '../api.js';
-import { mascot, mascotSVG } from '../mascot.js';
+import { mascot, mascotSVG, myMascot } from '../mascot.js';
 import { skeleton, sectionTitle, progressBar, modal } from '../ui.js';
 
 let cache = null;
@@ -12,7 +12,7 @@ const filter = { mode: 'all' };
 
 export async function render(el, ctx) {
   clear(el);
-  el.append(h('header', { class: 'page-head' }, mascot('star', 'love', { size: 56 }),
+  el.append(h('header', { class: 'page-head' }, myMascot('love', { size: 56 }),
     h('div', null, h('h1', null, 'Награды'), h('p', null, 'Каждое приключение приближает новую ачивку'))));
   const body = h('div');
   el.append(body);
@@ -22,7 +22,7 @@ export async function render(el, ctx) {
       clear(body);
       const retry = h('button', { type: 'button', class: 'btn' }, 'Повторить');
       retry.addEventListener('click', () => render(el, ctx));
-      body.append(h('div', { class: 'empty' }, mascot('cat-blue', 'sad', { size: 84 }), h('p', null, e.message), retry));
+      body.append(h('div', { class: 'empty' }, myMascot('sad', { size: 84 }), h('p', null, e.message), retry));
       return;
     }
   }

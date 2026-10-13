@@ -3,7 +3,7 @@
 import { h, clear } from './dom.js';
 import { initTelegram, isTelegram, haptic, pushBack, hideMainButton } from './tg.js';
 import { ICONS } from './icons.js';
-import { mascot } from './mascot.js';
+import { myMascot } from './mascot.js';
 import { skeleton } from './ui.js';
 import { store, onState, refreshState } from './store.js';
 import { initKeyboard } from './keyboard.js';
@@ -113,7 +113,7 @@ onState(() => {
 function fullscreen(kind, expr, title, text, action) {
   clear(root);
   if (tabbar) tabbar.hidden = true;
-  root.append(h('div', { class: 'fullscreen-msg' }, mascot(kind, expr, { size: 120, cls: expr === 'sad' ? 'wiggle' : '' }),
+  root.append(h('div', { class: 'fullscreen-msg' }, myMascot(expr, { size: 120, cls: expr === 'sad' ? 'wiggle' : '' }),
     h('h2', null, title), h('p', { class: 'muted bold' }, text), action || null));
 }
 

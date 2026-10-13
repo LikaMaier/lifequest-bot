@@ -4,7 +4,7 @@
 import { h, clear, plural, fmtDay, fmtMonth } from '../dom.js';
 import { haptic } from '../tg.js';
 import { api } from '../api.js';
-import { mascot } from '../mascot.js';
+import { myMascot } from '../mascot.js';
 import { skeleton, sectionTitle, emptyState, busy, toast, toastError, SPHERE_INFO, MODE_INFO, colorOf } from '../ui.js';
 import { buildRecapCard } from '../share.js';
 import { handlePremiumError } from '../premium.js';
@@ -16,7 +16,7 @@ const RANGES = [['7', '7 дн.'], ['14', '14 дн.'], ['30', '30 дн.'], ['all'
 
 export async function render(el, ctx) {
   clear(el);
-  el.append(h('header', { class: 'page-head' }, mascot('cat-blue', 'happy', { size: 56 }),
+  el.append(h('header', { class: 'page-head' }, myMascot('happy', { size: 56 }),
     h('div', null, h('h1', null, 'Прогресс'), h('p', null, 'Следи за своими приключениями и находи закономерности'))));
   const awardsBtn = h('button', { type: 'button', class: 'quest-item c-yellow' }, h('span', { class: 'q-emoji', 'aria-hidden': 'true' }, '🏆'),
     h('span', { class: 'grow' }, h('span', { class: 'q-title', style: { display: 'block' } }, 'Награды'),
@@ -62,7 +62,7 @@ export async function render(el, ctx) {
       clear(body);
       const retry = h('button', { type: 'button', class: 'btn' }, 'Повторить');
       retry.addEventListener('click', () => render(el, ctx));
-      body.append(h('div', { class: 'empty' }, mascot('cat-blue', 'sad', { size: 84 }), h('p', null, e.message), retry));
+      body.append(h('div', { class: 'empty' }, myMascot('sad', { size: 84 }), h('p', null, e.message), retry));
       return;
     }
   }

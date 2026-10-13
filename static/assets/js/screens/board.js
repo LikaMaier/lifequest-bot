@@ -4,7 +4,7 @@
 import { h, clear } from '../dom.js';
 import { haptic } from '../tg.js';
 import { api } from '../api.js';
-import { mascot, jump, stickerEl } from '../mascot.js';
+import { mascot, jump, stickerEl, myMascot } from '../mascot.js';
 import { skeleton, toast, toastError, confetti, sectionTitle, sheet } from '../ui.js';
 import { openPlanEditor, todayIso } from '../planui.js';
 import { photoStrip, photosEnabled } from '../photoui.js';
@@ -40,7 +40,7 @@ export async function render(el) {
     clear(el);
     const retry = h('button', { type: 'button', class: 'btn' }, 'Повторить');
     retry.addEventListener('click', () => render(el));
-    el.append(h('div', { class: 'empty' }, mascot('cat-blue', 'sad', { size: 90 }), h('p', null, e.message), retry));
+    el.append(h('div', { class: 'empty' }, myMascot('sad', { size: 90 }), h('p', null, e.message), retry));
     return;
   }
   draw(el);
@@ -62,7 +62,7 @@ function draw(el) {
   const doneCount = ok.filter(Boolean).length;
   const full = doneCount === 9;
 
-  petEl = mascot(full ? 'star' : 'cat-purple', full ? 'love' : doneCount ? 'happy' : 'wink', { size: 56 });
+  petEl = myMascot(full ? 'love' : doneCount ? 'happy' : 'wink', { size: 56 });
   el.append(h('header', { class: 'page-head' }, petEl,
     h('div', null, h('h1', null, 'Карта недели'), h('p', null, data.week_range))));
 

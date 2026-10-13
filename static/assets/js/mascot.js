@@ -134,7 +134,49 @@ export const ACCESSORIES = {
     + '<ellipse cx="50" cy="19" rx="22" ry="11" fill="#FF8A2A"/><ellipse cx="38" cy="19" rx="9" ry="10.5" fill="#FF9B45"/>'
     + '<ellipse cx="62" cy="19" rx="9" ry="10.5" fill="#FF9B45"/><ellipse cx="50" cy="19" rx="8" ry="11" fill="#FFA65A"/>'
     + '<path d="M42 17 l3 -3 l3 3 Z M52 17 l3 -3 l3 3 Z M43 23 q7 5 14 0 l-3 1 l-2 -2 l-2 2 l-2 -2 l-2 2 Z" fill="#5A2A0E"/>',
+  santa: '<path d="M24 26 Q28 0 56 2 Q76 4 86 22 L80 26 Z" fill="#E0322B"/>'
+    + '<rect x="22" y="21" width="58" height="9" rx="4.5" fill="#F7F3EA"/><circle cx="86" cy="23" r="5.5" fill="#F7F3EA"/>',
+  // ---- За XP ----
+  bowtie: '<g transform="translate(50 88)"><path d="M0 0 L-13 -8 L-13 8 Z" fill="#4E7BFF"/><path d="M0 0 L13 -8 L13 8 Z" fill="#4E7BFF"/>'
+    + '<circle r="3.5" fill="#2D4FC4"/></g>',
+  beanie: '<path d="M25 28 Q25 4 50 4 Q75 4 75 28 Z" fill="#3FB6A8"/><path d="M36 8 L36 24 M50 4 L50 24 M64 8 L64 24" stroke="#2A8C80" stroke-width="2"/>'
+    + '<rect x="23" y="21" width="54" height="9" rx="4.5" fill="#2A8C80"/><circle cx="50" cy="2" r="6.5" fill="#F7F3EA"/>',
+  beret: '<ellipse cx="46" cy="19" rx="28" ry="9" fill="#C8102E" transform="rotate(-10 46 19)"/>'
+    + '<path d="M48 10 l3 -7" stroke="#8A0B20" stroke-width="3" stroke-linecap="round"/>',
+  sunglasses: '<path d="M22 38 h24 v7 q0 9 -12 9 q-12 0 -12 -9 z" fill="#241F1A"/><path d="M54 38 h24 v7 q0 9 -12 9 q-12 0 -12 -9 z" fill="#241F1A"/>'
+    + '<path d="M46 40 h8 M22 39 L14 36 M78 39 L86 36" stroke="#241F1A" stroke-width="3" stroke-linecap="round"/>'
+    + '<path d="M27 42 l7 -2.5 M59 42 l7 -2.5" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".55"/>',
+  chef: '<g fill="#FFFFFF" stroke="#D8D2C2" stroke-width="1.5"><circle cx="37" cy="9" r="9.5"/><circle cx="63" cy="9" r="9.5"/>'
+    + '<circle cx="50" cy="3" r="11"/><rect x="31" y="12" width="38" height="16" rx="3"/></g>'
+    + '<path d="M38 16 L38 26 M50 16 L50 26 M62 16 L62 26" stroke="#E8E2D2" stroke-width="1.5"/>',
+  cowboy: '<path d="M34 24 Q33 4 44 6 Q50 11 56 6 Q67 4 66 24 Z" fill="#A0652D"/><rect x="34" y="17" width="32" height="5" fill="#5A3714"/>'
+    + '<path d="M10 22 Q50 34 90 22 Q88 30 50 33 Q12 30 10 22 Z" fill="#8B5524"/>',
+  graduate: '<path d="M32 16 L32 27 Q50 34 68 27 L68 16 Z" fill="#3A332B"/><path d="M50 2 L88 14 L50 26 L12 14 Z" fill="#241F1A"/>'
+    + '<path d="M50 14 L80 18 L80 31" stroke="#FFC83D" stroke-width="2" fill="none"/><circle cx="80" cy="32" r="3" fill="#FFC83D"/>'
+    + '<circle cx="50" cy="14" r="2.5" fill="#FFC83D"/>',
+  tophat: '<rect x="34" y="-8" width="32" height="31" rx="2" fill="#241F1A"/><rect x="34" y="12" width="32" height="5" fill="#B23C6C"/>'
+    + '<ellipse cx="50" cy="23" rx="26" ry="5" fill="#241F1A"/><path d="M38 -4 L38 10" stroke="#fff" stroke-width="2" opacity=".2"/>',
   // ---- Premium-коллекция ----
+  unicorn: '<path d="M44 23 L50 -9 L56 23 Z" fill="#FFE46B" stroke="#E0B300" stroke-width="1.5" stroke-linejoin="round"/>'
+    + '<path d="M45 16 L55 13 M46.5 8 L53.5 5.5 M48 1 L52 -0.5" stroke="#E0B300" stroke-width="1.5"/>'
+    + '<circle cx="37" cy="23" r="4.5" fill="#FF8FC2"/><circle cx="63" cy="23" r="4.5" fill="#B494F8"/>'
+    + '<circle cx="37" cy="23" r="1.6" fill="#FFE46B"/><circle cx="63" cy="23" r="1.6" fill="#FFE46B"/>',
+  viking: '<path d="M27 22 Q8 18 9 -1 Q16 12 31 14 Z" fill="#F7F3EA" stroke="#C9C0A8" stroke-width="1.5"/>'
+    + '<path d="M73 22 Q92 18 91 -1 Q84 12 69 14 Z" fill="#F7F3EA" stroke="#C9C0A8" stroke-width="1.5"/>'
+    + '<path d="M26 28 Q26 4 50 4 Q74 4 74 28 Z" fill="#9AA3B5"/><path d="M50 5 L50 22" stroke="#6B7385" stroke-width="3"/>'
+    + '<rect x="24" y="22" width="52" height="7" rx="3" fill="#6B7385"/>'
+    + '<circle cx="34" cy="25.5" r="1.5" fill="#C9CEDA"/><circle cx="50" cy="25.5" r="1.5" fill="#C9CEDA"/><circle cx="66" cy="25.5" r="1.5" fill="#C9CEDA"/>',
+  flowercrown: '<path d="M22 27 Q50 13 78 27" stroke="#3F7A2A" stroke-width="3" fill="none"/>'
+    + '<ellipse cx="33" cy="21" rx="4" ry="2" fill="#5FA83A" transform="rotate(-30 33 21)"/><ellipse cx="67" cy="21" rx="4" ry="2" fill="#5FA83A" transform="rotate(30 67 21)"/>'
+    + '<circle cx="26" cy="25" r="5" fill="#FF8FC2"/><circle cx="39" cy="19" r="5.5" fill="#FFD23F"/><circle cx="50" cy="17" r="6" fill="#B494F8"/>'
+    + '<circle cx="61" cy="19" r="5.5" fill="#FF8FC2"/><circle cx="74" cy="25" r="5" fill="#FFD23F"/>'
+    + '<g fill="#fff"><circle cx="26" cy="25" r="1.8"/><circle cx="39" cy="19" r="2"/><circle cx="50" cy="17" r="2.2"/><circle cx="61" cy="19" r="2"/><circle cx="74" cy="25" r="1.8"/></g>',
+  mushroom: '<path d="M17 26 Q17 -1 50 -1 Q83 -1 83 26 Q50 33 17 26 Z" fill="#E8483F"/>'
+    + '<g fill="#fff"><circle cx="35" cy="9" r="4.5"/><circle cx="56" cy="6" r="3.5"/><circle cx="69" cy="16" r="4"/><circle cx="46" cy="19" r="3"/><circle cx="27" cy="20" r="2.5"/></g>',
+  bunny: '<ellipse cx="38" cy="2" rx="7.5" ry="20" fill="#F7F3EA" transform="rotate(-12 38 2)"/><ellipse cx="38" cy="4" rx="3.5" ry="14" fill="#FFB3CF" transform="rotate(-12 38 4)"/>'
+    + '<ellipse cx="62" cy="2" rx="7.5" ry="20" fill="#F7F3EA" transform="rotate(12 62 2)"/><ellipse cx="62" cy="4" rx="3.5" ry="14" fill="#FFB3CF" transform="rotate(12 62 4)"/>'
+    + '<path d="M26 26 Q50 12 74 26" stroke="#F3619C" stroke-width="5" fill="none" stroke-linecap="round"/>',
+  // ---- Premium-коллекция (первые) ----
   wizard: '<path d="M26 26 Q50 32 74 26 L66 22 Q60 6 56 -10 Q46 -2 40 4 Q36 14 34 22 Z" fill="#5B3FD9"/>'
     + '<path d="M56 -10 Q64 -6 66 0" fill="none" stroke="#5B3FD9" stroke-width="5" stroke-linecap="round"/>'
     + '<ellipse cx="50" cy="25" rx="27" ry="5" fill="#3E2A9E"/>'
@@ -189,6 +231,17 @@ function baseSVG(kind, expr) {
     + `<ellipse cx="50" cy="53" rx="3.2" ry="2.4" fill="${INK}"/>`
     + mouth + extra
     + '</svg>';
+}
+
+// Маскот, выбранный в профиле: на всех экранах показываем только его.
+const current = { kind: 'cat-purple', acc: null };
+export function setCurrentMascot(kind, acc) {
+  current.kind = kind || 'cat-purple';
+  current.acc = acc || null;
+}
+/** Выбранный маскот (с надетым аксессуаром) — для шапок экранов, пустых состояний и праздников. */
+export function myMascot(expr = 'happy', opts = {}) {
+  return mascot(current.kind, expr, { acc: current.acc, ...opts });
 }
 
 /** DOM-элемент маскота. */
@@ -268,7 +321,6 @@ function dayWord(n) {
 }
 
 export function stickerEl(seed = Math.random()) {
-  const kind = MASCOT_KINDS[Math.floor(seed * 997) % MASCOT_KINDS.length];
   const expr = ['happy', 'wink', 'silly', 'love'][Math.floor(seed * 131) % 4];
-  return h('div', { class: 'mascot', style: { width: '100%', height: '100%' }, html: mascotSVG(kind, expr), 'aria-hidden': 'true' });
+  return h('div', { class: 'mascot', style: { width: '100%', height: '100%' }, html: mascotSVG(current.kind, expr, current.acc), 'aria-hidden': 'true' });
 }

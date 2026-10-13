@@ -1065,20 +1065,37 @@ ACCESSORIES = [  # id, название, цена
     ("headphones", "Наушники", 140),
     ("crown", "Корона", 200),
     ("halo", "Нимб", 250),
+    ("bowtie", "Бабочка", 70),
+    ("beanie", "Шапка с помпоном", 90),
+    ("beret", "Берет", 110),
+    ("sunglasses", "Тёмные очки", 120),
+    ("chef", "Колпак шефа", 130),
+    ("cowboy", "Ковбойская шляпа", 150),
+    ("graduate", "Шапочка выпускника", 160),
+    ("tophat", "Цилиндр", 180),
 ]
 # Сезонные: продаются только в свой сезон, купленные остаются навсегда.
 SEASONAL_ACCESSORIES = [  # id, название, цена, с (месяц, день), по (месяц, день)
     ("pumpkin", "Тыква", 90, (10, 1), (11, 2)),
+    ("santa", "Новогодняя шапка", 100, (12, 1), (1, 14)),
 ]
 ACCESSORY_IDS = {a[0] for a in ACCESSORIES} | {a[0] for a in SEASONAL_ACCESSORIES}
 
 
 def _in_season(start, end, today: date) -> bool:
-    return start <= (today.month, today.day) <= end
+    md = (today.month, today.day)
+    if start <= end:
+        return start <= md <= end
+    return md >= start or md <= end  # сезон через Новый год
 PREMIUM_ACCESSORIES = [  # бесплатно для Premium
     ("wizard", "Шляпа волшебника"),
     ("tiara", "Диадема"),
     ("pirate", "Треуголка"),
+    ("unicorn", "Рог единорога"),
+    ("viking", "Шлем викинга"),
+    ("flowercrown", "Венок"),
+    ("mushroom", "Шляпка мухомора"),
+    ("bunny", "Заячьи ушки"),
 ]
 PREMIUM_ACCESSORY_IDS = {a[0] for a in PREMIUM_ACCESSORIES}
 
