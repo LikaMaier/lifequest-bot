@@ -295,6 +295,17 @@ def init_db():
     _ensure_column(c, "users", "freeze_tokens", "INTEGER DEFAULT 0")
     _ensure_column(c, "users", "accessory", "TEXT")
     _ensure_column(c, "users", "premium_interest_at", "TEXT")
+    # Premium и оплата звёздами Telegram
+    _ensure_column(c, "users", "premium_until", "TEXT")
+    _ensure_column(c, "users", "trial_used", "INTEGER DEFAULT 0")
+    _ensure_column(c, "users", "premium_notice", "TEXT")
+    _ensure_column(c, "users", "freeze_week_count", "INTEGER DEFAULT 0")
+    _ensure_column(c, "users", "streak_push_date", "TEXT")
+    c.execute("""CREATE TABLE IF NOT EXISTS payments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, product TEXT NOT NULL,
+        stars INTEGER NOT NULL, charge_id TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL,
+        refunded INTEGER DEFAULT 0)""")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_id)")
     c.execute("""CREATE TABLE IF NOT EXISTS purchases (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, item TEXT NOT NULL,
         price INTEGER NOT NULL, created_at TEXT NOT NULL)""")

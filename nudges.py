@@ -141,9 +141,7 @@ def context(user_id: int) -> dict:
     """Всё, что нужно для подстановки в фразы."""
     user = storage.get_user(user_id)
     today = game.local_today(user)
-    streak = game.streak_view(user.get("streak_current"), user.get("streak_best"),
-                              user.get("streak_last_date"), user.get("freeze_week"), today,
-                              user.get("freeze_tokens"))
+    streak = game.user_streak(user, today)
     return {
         "user": user, "today": today, "m": mascot_name(user),
         "hours": hours_to_midnight(user), "streak": streak, "away": days_away(user, today),

@@ -3,9 +3,10 @@
 import { initData } from './tg.js';
 
 export class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, code = null) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -37,7 +38,7 @@ async function request(method, path, body) {
   try { data = await resp.json(); } catch (e) { /* не JSON */ }
   if (!resp.ok) {
     const msg = (data && data.error) || (resp.status >= 500 ? 'Сервер приуныл. Попробуй через минутку.' : 'Что-то пошло не так.');
-    throw new ApiError(msg, resp.status);
+    throw new ApiError(msg, resp.status, (data && data.code) || null);
   }
   return data;
 }
@@ -56,6 +57,8 @@ export const api = {
   settings: data => request('POST', 'api/settings', data),
   shop: () => request('GET', 'api/shop'),
   premiumInterest: () => request('POST', 'api/premium/interest'),
+  premiumInvoice: product => request('POST', 'api/premium/invoice', { product }),
+  premiumTrial: () => request('POST', 'api/premium/trial'),
   notes: (params = {}) => request('GET', `api/notes?${new URLSearchParams(Object.entries(params).filter(([, v]) => v !== null && v !== undefined && v !== ''))}`),
   createNote: data => request('POST', 'api/notes', data),
   updateNote: (id, data) => request('PATCH', `api/notes/${id}`, data),

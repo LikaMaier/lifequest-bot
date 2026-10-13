@@ -129,6 +129,19 @@ export const ACCESSORIES = {
     + '<circle cx="50" cy="16" r="3" fill="#FB4645"/><circle cx="40" cy="18" r="2" fill="#4E7BFF"/><circle cx="60" cy="18" r="2" fill="#4E7BFF"/>',
   halo: '<ellipse cx="50" cy="-3" rx="24" ry="6.5" fill="none" stroke="#FFE46B" stroke-width="7" opacity=".45"/>'
     + '<ellipse cx="50" cy="-3" rx="24" ry="6.5" fill="none" stroke="#FFC83D" stroke-width="3.5"/>',
+  // ---- Premium-коллекция ----
+  wizard: '<path d="M26 26 Q50 32 74 26 L66 22 Q60 6 56 -10 Q46 -2 40 4 Q36 14 34 22 Z" fill="#5B3FD9"/>'
+    + '<path d="M56 -10 Q64 -6 66 0" fill="none" stroke="#5B3FD9" stroke-width="5" stroke-linecap="round"/>'
+    + '<ellipse cx="50" cy="25" rx="27" ry="5" fill="#3E2A9E"/>'
+    + '<path d="M44 10 l1.6 3.4 3.7.5-2.7 2.6.7 3.7-3.3-1.8-3.3 1.8.7-3.7-2.7-2.6 3.7-.5z" fill="#FFD23F"/>'
+    + '<circle cx="58" cy="16" r="1.8" fill="#FFE46B"/><circle cx="38" cy="19" r="1.4" fill="#FFE46B"/>',
+  tiara: '<path d="M30 24 Q50 14 70 24 L66 26 Q50 19 34 26 Z" fill="#E6E9F5" stroke="#9AA3C7" stroke-width="1.2"/>'
+    + '<path d="M38 22 L41 12 L45 20 L50 6 L55 20 L59 12 L62 22" fill="none" stroke="#C6CCE6" stroke-width="2.6" stroke-linejoin="round"/>'
+    + '<path d="M50 9 L53 14 L50 19 L47 14 Z" fill="#F3619C"/><circle cx="41" cy="14" r="2" fill="#7FD6FF"/><circle cx="59" cy="14" r="2" fill="#7FD6FF"/>',
+  pirate: '<path d="M18 26 Q24 4 50 6 Q76 4 82 26 Q66 18 50 22 Q34 18 18 26 Z" fill="#241F1A"/>'
+    + '<path d="M18 26 Q34 18 50 22 Q66 18 82 26" fill="none" stroke="#FFC83D" stroke-width="2.5"/>'
+    + '<path d="M44 20 L56 9 M56 20 L44 9" stroke="#F7F3EA" stroke-width="1.6" stroke-linecap="round"/>'
+    + '<circle cx="50" cy="13" r="4.5" fill="#F7F3EA"/><path d="M47.5 12.5 h1.5 M51 12.5 h1.5 M48 16 h4" stroke="#241F1A" stroke-width="1.2"/>',
 };
 
 function withAccessory(svg, acc) {

@@ -17,7 +17,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, 
     InlineKeyboardButton, BotCommand, KeyboardButton, ReplyKeyboardMarkup,
-    WebAppInfo, MenuButtonWebApp
+    WebAppInfo, MenuButtonWebApp, LabeledPrice, PreCheckoutQuery
 )
 from apscheduler.events import EVENT_JOB_ERROR
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -26,6 +26,7 @@ from dotenv import load_dotenv
 load_dotenv()  # до импорта storage: он читает DB_PATH при загрузке
 
 import api
+import billing
 import game
 import habits
 import nudges
@@ -551,6 +552,12 @@ def build_morning_message(user_id: int):
         text += f"\n\nВ «Моих квестах» ждут {len(quests)} — самое время закрыть хотя бы один."
 
     rows = []
+    lost = billing.restore_offer(user, today) if game.PAYMENTS_ENABLED else 0
+    if lost:
+        text += (f"\n\n💔 Серия {lost} {plural_ru(lost, 'день', 'дня', 'дней')} прервалась. "
+                 "Её ещё можно вернуть — пока не начата новая.")
+        rows.append([InlineKeyboardButton(text=f"🔥 Вернуть серию за {billing.price(user_id, 'streak_restore')}⭐",
+                                          callback_data="pay_streak_restore")])
     if status is None:
         rows.append([InlineKeyboardButton(text="✅ Принять задание дня", callback_data=f"daily_accept_{daily_id}")])
     rows.append([InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")] if quests
@@ -823,6 +830,7 @@ async def admin_stats(message: Message):
     blocked_count = c.fetchone()[0]
     c.execute("SELECT COUNT(*) FROM users WHERE premium_interest_at IS NOT NULL")
     premium_interest = c.fetchone()[0]
+    prem = billing.stats()
     conn.close()
 
     await message.answer(
@@ -831,7 +839,10 @@ async def admin_stats(message: Message):
         f"Выполнено заданий: {tasks_count}\n"
         f"Средняя неделя: {avg_week:.1f}\n"
         f"Средний стрик: {avg_streak:.1f} дней\n"
-        f"Нажали «Хочу Premium»: {premium_interest}",
+        f"Нажали «Хочу Premium»: {premium_interest}\n"
+        f"Premium сейчас: {prem['active']} · пробных недель: {prem['trials']}\n"
+        f"Оплат: {prem['payments']} на {prem['stars']}⭐ (за 30 дней: {prem['stars_30d']}⭐)\n"
+        f"Оплата: {'включена' if game.PAYMENTS_ENABLED else 'выключена'}",
         parse_mode="HTML"
     )
 
@@ -840,6 +851,214 @@ async def admin_backup(message: Message):
     await message.answer("💾 Делаю копию базы…")
     if not await ops.send_backup(message.chat.id):
         await message.answer("Не получилось — подробности придут отдельным сообщением или есть в логах.")
+
+
+# ==================== PREMIUM ====================
+STREAK_PUSH_HOUR = 22  # по местному времени: за 2 часа до полуночи
+STREAK_PUSH_MIN = 3    # тревожим, только если серия уже чего-то стоит
+
+
+def build_streak_alarm(user_id: int):
+    """«Серия сгорит в полночь» — только когда её правда нечем спасти:
+    сегодня ещё ничего, а недельные и купленные заморозки закончились."""
+    user = storage.get_user(user_id)
+    today = game.local_today(user)
+    s = game.user_streak(user, today)
+    if s["status"] != "at_risk" or s["current"] < STREAK_PUSH_MIN:
+        return None, None
+    if s["freeze_weekly_left"] or s["freeze_tokens"]:
+        return None, None
+    if user.get("streak_push_date") == today.isoformat():
+        return None, None
+    n = s["current"]
+    text = (f"🔥 <b>Серия {n} {plural_ru(n, 'день', 'дня', 'дней')} сгорит в полночь!</b>\n\n"
+            "Заморозок не осталось — спасёт только одно маленькое дело сегодня. "
+            "Хватит самого лёгкого квеста или задания дня.")
+    rows = [[InlineKeyboardButton(text="🎯 Дай лёгкий квест", callback_data="menu_solo")]]
+    if game.PAYMENTS_ENABLED:
+        rows.append([InlineKeyboardButton(text=f"🧊 Заморозка за {billing.price(user_id, 'freeze')}⭐",
+                                          callback_data="pay_freeze")])
+    elif game.balance(user) >= game.FREEZE_PRICE:
+        rows.append([InlineKeyboardButton(text=f"🧊 Заморозка за {game.FREEZE_PRICE} XP",
+                                          callback_data="xp_freeze")])
+    rows += app_row()
+    return text, InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+async def send_streak_alarms():
+    for user_id in users_at_local_hour(f"{STREAK_PUSH_HOUR}", STREAK_PUSH_HOUR):
+        try:
+            text, kb = build_streak_alarm(user_id)
+            if text:
+                today = game.local_today(storage.get_user(user_id)).isoformat()
+                storage.update_user(user_id, streak_push_date=today)
+                await ops.safe_send(user_id, text, parse_mode="HTML", reply_markup=kb)
+        except Exception as e:
+            await ops.alert("streak alarm", e, f"user {user_id}")
+
+
+@dp.callback_query(F.data == "xp_freeze")
+async def xp_freeze(callback: CallbackQuery):
+    try:
+        game.buy(callback.from_user.id, "freeze")
+    except game.QuestError as e:
+        await callback.answer(str(e), show_alert=True)
+        return
+    await callback.answer("🧊 Заморозка в запасе — серия спасена!", show_alert=True)
+
+
+def premium_text(user_id: int) -> str:
+    user = storage.get_user(user_id)
+    view = billing.premium_view(user)
+    perks = ("🎲 Безлимит «Другое»\n📸 Больше фото на доске воспоминаний\n"
+             "❄️ +1 бесплатная заморозка в неделю\n🎩 Эксклюзивные аксессуары и стиль «Космос»\n"
+             "🗂️ Тематические наборы квестов")
+    if view["forever"]:
+        head = "👑 <b>Premium навсегда.</b> Спасибо, что ты с нами!"
+    elif view["active"]:
+        head = f"👑 <b>Premium активен</b> до {view['until'][:10]} (UTC)."
+    else:
+        head = "👑 <b>LifeQuest Premium</b>"
+    return f"{head}\n\n{perks}"
+
+
+def premium_keyboard(user_id: int) -> InlineKeyboardMarkup:
+    user = storage.get_user(user_id)
+    view = billing.premium_view(user)
+    rows = []
+    if view["trial_available"]:
+        rows.append([InlineKeyboardButton(text=f"🎁 {view['trial_days']} дней бесплатно", callback_data="premium_trial")])
+    if game.PAYMENTS_ENABLED and not view["forever"]:
+        p = view["prices"]
+        month = f"{p['premium_month']}⭐" + (" (−50%)" if p["premium_month"] < view["full_prices"]["premium_month"] else "")
+        rows.append([InlineKeyboardButton(text=f"30 дней — {month}", callback_data="pay_premium_month")])
+        rows.append([InlineKeyboardButton(text=f"Год — {p['premium_year']}⭐", callback_data="pay_premium_year")])
+    rows += app_row("premium")
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+@dp.message(Command("premium"))
+async def cmd_premium(message: Message):
+    ensure_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
+    text = premium_text(message.from_user.id)
+    if not game.PAYMENTS_ENABLED and not game.is_premium(storage.get_user(message.from_user.id)):
+        text += "\n\n<i>Оплата скоро появится.</i>"
+    await message.answer(text, parse_mode="HTML", reply_markup=premium_keyboard(message.from_user.id))
+
+
+@dp.callback_query(F.data == "premium_trial")
+async def premium_trial(callback: CallbackQuery):
+    try:
+        until = billing.start_trial(callback.from_user.id)
+    except game.QuestError as e:
+        await callback.answer(str(e), show_alert=True)
+        return
+    await callback.answer()
+    await callback.message.answer(f"🎁 <b>Premium включён на {billing.TRIAL_DAYS} дней</b> — до {until[:10]}.\n"
+                                  "Загляни в магазин: там тебя ждут новые аксессуары и стиль «Космос» ✨",
+                                  parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=app_row("shop")))
+
+
+@dp.callback_query(F.data.startswith("pay_"))
+async def pay_product(callback: CallbackQuery):
+    product = callback.data[len("pay_"):]
+    try:
+        p = billing.invoice_params(callback.from_user.id, product)
+    except game.QuestError as e:
+        await callback.answer(str(e), show_alert=True)
+        return
+    await callback.answer()
+    await bot.send_invoice(callback.from_user.id, title=p["title"], description=p["description"],
+                           payload=p["payload"], provider_token="", currency=p["currency"],
+                           prices=[LabeledPrice(label=p["title"], amount=p["stars"])])
+
+
+@dp.pre_checkout_query()
+async def on_pre_checkout(query: PreCheckoutQuery):
+    try:
+        billing.validate_checkout(query.from_user.id, query.invoice_payload, query.total_amount, query.currency)
+    except game.QuestError as e:
+        await query.answer(ok=False, error_message=str(e))
+        return
+    await query.answer(ok=True)
+
+
+PAID_TEXT = {
+    "premium_month": "👑 <b>Premium активен</b> до {until}. Спасибо, что поддерживаешь LifeQuest! 💛",
+    "premium_year": "👑 <b>Premium на год</b> — до {until}. Спасибо, что ты с нами 💛",
+    "freeze": "🧊 <b>Заморозка в запасе</b> — серия под защитой.",
+    "streak_restore": "🔥 <b>Серия возвращена: {streak} дн.</b> Сделай сегодня одно дело, чтобы она продолжилась!",
+}
+
+
+@dp.message(F.successful_payment)
+async def on_successful_payment(message: Message):
+    sp = message.successful_payment
+    try:
+        res = billing.apply_payment(message.from_user.id, sp.invoice_payload,
+                                    sp.telegram_payment_charge_id, sp.total_amount)
+    except Exception as e:
+        await ops.alert("payment", e, f"user {message.from_user.id} charge {sp.telegram_payment_charge_id}")
+        await message.answer("Оплата прошла, но что-то пошло не так при начислении — мы уже разбираемся. "
+                             "Напиши /paysupport, если не дождёшься.")
+        return
+    if res["duplicate"]:
+        return
+    if res.get("compensation"):
+        text = "Серию успели начать заново, поэтому вместо возврата — 🧊🧊 две заморозки в запас."
+    else:
+        text = PAID_TEXT[res["product"]].format(until=(res.get("until") or "")[:10], streak=res.get("streak"))
+    await message.answer(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=app_row()))
+
+
+@dp.message(Command("paysupport"))
+async def cmd_paysupport(message: Message):
+    await message.answer("💬 Вопрос по оплате? Опиши, что случилось, одним сообщением после команды "
+                         "<code>/paysupport</code> — ответим и, если нужно, вернём звёзды.", parse_mode="HTML")
+    text = (message.text or "").partition(" ")[2].strip()
+    if text and ADMIN_ID:
+        await ops.safe_send(ADMIN_ID, f"💬 paysupport от {message.from_user.id} (@{message.from_user.username}):\n"
+                                      f"{html.escape(text)}")
+
+
+PREMIUM_NOTICE = {
+    "soon": "⏳ <b>Premium закончится через 2 дня.</b> Безлимит, заморозки и «Космос» пропадут — продлим?",
+    "ended": "🌙 <b>Premium закончился.</b> Всё сделанное остаётся с тобой. Вернуть Premium можно в любой момент.",
+}
+
+
+async def send_premium_notices():
+    for user_id, kind, until in billing.users_for_premium_notice():
+        try:
+            billing.mark_notice(user_id, kind, until)
+            await ops.safe_send(user_id, PREMIUM_NOTICE[kind], parse_mode="HTML", reply_markup=premium_keyboard(user_id))
+        except Exception as e:
+            await ops.alert("premium notice", e, f"user {user_id}")
+
+
+@dp.message(Command("grant"), F.from_user.id == ADMIN_ID)
+async def admin_grant(message: Message):
+    parts = (message.text or "").split()
+    if len(parts) != 3 or not parts[1].isdigit() or not parts[2].isdigit():
+        await message.answer("Формат: <code>/grant user_id дней</code>", parse_mode="HTML")
+        return
+    until = billing.grant(int(parts[1]), int(parts[2]))
+    await message.answer(f"👑 Premium для {parts[1]} до {until[:10]}")
+
+
+@dp.message(Command("refund"), F.from_user.id == ADMIN_ID)
+async def admin_refund(message: Message):
+    parts = (message.text or "").split()
+    if len(parts) != 2:
+        await message.answer("Формат: <code>/refund charge_id</code>", parse_mode="HTML")
+        return
+    try:
+        row = billing.mark_refunded(parts[1])
+        await bot.refund_star_payment(user_id=row["user_id"], telegram_payment_charge_id=parts[1])
+    except Exception as e:
+        await message.answer(f"Не получилось: {html.escape(str(e))}")
+        return
+    await message.answer(f"↩️ Возвращено {row['stars']}⭐ пользователю {row['user_id']}")
 
 
 def _on_job_error(event):
@@ -865,6 +1084,7 @@ async def main():
             BotCommand(command="company", description="👥 Квест на компанию"),
             BotCommand(command="remind", description="⏰ Настроить утреннее напоминание"),
             BotCommand(command="evening", description="🌙 Настроить вечернее напоминание"),
+            BotCommand(command="premium", description="👑 LifeQuest Premium"),
         ])
     except Exception as e:
         print(f"Failed to set bot commands: {e}")
@@ -883,6 +1103,8 @@ async def main():
     scheduler.add_job(send_evening_reminders, "cron", minute=0)
     scheduler.add_job(send_monthly_recap, "cron", day=1, hour=10, minute=0)
     scheduler.add_job(send_plan_reminders, "interval", minutes=1)
+    scheduler.add_job(send_streak_alarms, "cron", minute=1)
+    scheduler.add_job(send_premium_notices, "cron", minute=7)
     scheduler.add_job(cleanup_photos, "cron", hour=4, minute=17)
     scheduler.add_job(ops.send_backup, "cron", hour=3, minute=33, id="backup")  # ночная копия базы админу
     scheduler.add_listener(_on_job_error, EVENT_JOB_ERROR)

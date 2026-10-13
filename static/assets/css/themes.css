@@ -188,3 +188,29 @@
 :root:is([data-theme="halloween"], [data-theme="matrix"]) .tab[aria-current="page"] svg { color: var(--accent); }
 :root:is([data-theme="halloween"], [data-theme="matrix"]) :is(.section-title .link, .avatar-btn) { color: var(--accent); }
 :root:is([data-theme="halloween"], [data-theme="matrix"]) .tab[aria-current="page"] { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+
+/* ---------- Космос (Premium): глубокая ночь, неоновая туманность, мерцающие
+   звёзды и редкие кометы на холсте (themefx.js) ---------- */
+:root[data-theme="space"] {
+  --cream: #0B0820; --cream-2: #15103A; --white: #17113F;
+  --ink: #EEE9FF; --ink-soft: #C9C0F2; --muted: #9488C9; --line: #2C2463;
+  --blue: #1A2556; --blue-deep: #6FD3FF; --pink: #3D1748; --pink-deep: #FF6FD8; --yellow: #3A3216; --yellow-deep: #FFD84D;
+  --lav: #2A1F5E; --lav-deep: #B9A6FF; --red: #43162A; --red-deep: #FF6A8B; --orange: #40250F; --orange-deep: #FFA24D;
+  --purple: #2C1B5A; --purple-deep: #C08BFF; --lime: #123A3A; --lime-deep: #5FFFD9; --paleyellow: #2B2541;
+  --accent: #FF5FD2; --accent-deep: #8A2BE2; --accent-ink: #0B0820;
+  color-scheme: dark;
+}
+[data-theme="space"] body {
+  background-color: transparent;
+  background-image: radial-gradient(ellipse at 15% -5%, #4B2390 0%, transparent 50%),
+    radial-gradient(ellipse at 100% 60%, #1C3B8A 0%, transparent 45%);
+}
+.space-sky { position: fixed; inset: 0; z-index: -1; pointer-events: none; }
+[data-theme="space"] :is(h1, .section-title h2, .onb-title) { text-shadow: 0 0 14px #FF5FD266; }
+[data-theme="space"] :is(.card, .quest-item, .plan-row, .habit-card, .feed-item, .speech, .metric, .mode-btn) {
+  box-shadow: 0 0 0 1px #2C2463, 0 8px 24px #05031466 !important;
+}
+[data-theme="space"] .btn { box-shadow: 0 0 0 1px var(--b-deep), 0 0 16px color-mix(in srgb, var(--b) 50%, transparent); margin-bottom: 0; }
+[data-theme="space"] .btn:active:not(:disabled) { transform: scale(.97); }
+[data-theme="space"] .tabbar { background: #0B0820ee; border-top-color: #2C2463; }
+.shop-item.premium { background: linear-gradient(160deg, color-mix(in srgb, var(--yellow) 60%, var(--white)), var(--white)); }

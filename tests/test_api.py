@@ -86,6 +86,8 @@ class ApiTest(TempDBTestCase, AioHTTPTestCase):
 
     async def test_rate_limit(self):
         h = headers(42)
+        await self.client.get("/api/state", headers=h)
+        storage.update_user(42, is_premium=1)  # лимит частоты выше бесплатного дневного лимита
         codes = [(await self.client.post("/api/quest/random", headers=h, json={"mode": "solo"})).status for _ in range(25)]
         self.assertEqual(codes.count(200), api.RATE_LIMITS["random"][0])
         self.assertIn(429, codes)
@@ -201,7 +203,7 @@ class ThemesAndMascotsTest(TempDBTestCase, AioHTTPTestCase):
         state = await (await self.client.get("/api/state", headers=headers(42))).json()
         self.assertEqual([m["id"] for m in state["unlocks"]["mascots"]],
                          ["cat-purple", "star", "frog", "puppy", "bear", "leopard", "panda", "pig"])
-        self.assertEqual(len(state["unlocks"]["themes"]), 6)
+        self.assertEqual(len(state["unlocks"]["themes"]), 7)
 
 
 class ShopApiTest(TempDBTestCase, AioHTTPTestCase):
