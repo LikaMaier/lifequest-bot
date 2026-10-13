@@ -70,6 +70,14 @@ class PremiumTest(TempDBTestCase):
             self.assertTrue(billing.premium_view(user)["forever"])
             self.assertFalse(billing.trial_available(user))
 
+    def test_premium_unlocks_all_mascots(self):
+        with self.assertRaises(game.QuestError):
+            game.update_settings(1, {"mascot": "pig"})  # свинка — с 7 уровня
+        self.assertFalse(all(m["unlocked"] for m in game.get_state(1)["unlocks"]["mascots"]))
+        with mock.patch.object(game, "PREMIUM_USER_IDS", {1}):
+            game.update_settings(1, {"mascot": "pig"})
+            self.assertTrue(all(m["unlocked"] for m in game.get_state(1)["unlocks"]["mascots"]))
+
     def test_payments_disabled_blocks_invoice(self):
         with mock.patch.object(game, "PAYMENTS_ENABLED", False):
             with self.assertRaises(game.QuestError) as err:

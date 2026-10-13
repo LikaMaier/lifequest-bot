@@ -116,9 +116,10 @@ def level_info(xp: int) -> dict:
     }
 
 
-def unlocks(level: int) -> dict:
+def unlocks(level: int, premium: bool = False) -> dict:
+    """С Premium все маскоты открыты сразу, без ожидания уровня."""
     return {
-        "mascots": [{"id": k, "name": n, "level": lv, "unlocked": level >= lv} for k, n, lv in MASCOTS],
+        "mascots": [{"id": k, "name": n, "level": lv, "unlocked": premium or level >= lv} for k, n, lv in MASCOTS],
         "themes": [{"id": k, "name": n, "description": d, "premium": k in PREMIUM_THEMES} for k, n, d in THEMES],
     }
 
@@ -908,7 +909,7 @@ def get_state(user_id: int) -> dict:
             "onboarded": bool(user.get("onboarded")),
         },
         "level": lv,
-        "unlocks": unlocks(lv["level"]),
+        "unlocks": unlocks(lv["level"], is_premium(user)),
         "streak": user_streak(user, today),
         "today": {"date": today.isoformat(), "hour": now.hour, "done": week.get(today.isoformat(), 0),
                   "goal": user.get("daily_goal") or 1},
@@ -1201,7 +1202,7 @@ def update_settings(user_id: int, data: dict) -> dict:
             raise QuestError("Не знаю такой часовой пояс")
         fields["tz"] = data["tz"]
     if "mascot" in data:
-        allowed = {k for k, _n, lv in MASCOTS if level >= lv}
+        allowed = {k for k, _n, lv in MASCOTS if level >= lv or is_premium(user)}
         if data["mascot"] not in allowed:
             raise QuestError("Этот маскот откроется на более высоком уровне")
         fields["mascot"] = data["mascot"]
