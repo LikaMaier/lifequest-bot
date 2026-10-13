@@ -10,6 +10,7 @@ import binascii
 import json
 import os
 import time
+from datetime import datetime, timezone
 from collections import defaultdict, deque
 
 from aiohttp import web
@@ -230,6 +231,19 @@ async def post_settings(request):
     data = await _body(request)
     game.update_settings(request["user_id"], data)
     return web.json_response(_state(request))
+
+
+async def premium_interest(request):
+    """«Хочу Premium»: запоминаем интерес, чтобы понимать спрос до запуска оплаты."""
+    _limit(request, "write")
+    conn = storage.connect()
+    conn.execute(
+        "UPDATE users SET premium_interest_at = COALESCE(premium_interest_at, ?) WHERE user_id = ?",
+        (datetime.now(timezone.utc).isoformat(timespec="seconds"), request["user_id"]),
+    )
+    conn.commit()
+    conn.close()
+    return web.json_response({"ok": True})
 
 
 async def get_shop(request):
@@ -535,6 +549,7 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_post("/api/board", post_board)
     app.router.add_post("/api/settings", post_settings)
     app.router.add_post("/api/share", post_share)
+    app.router.add_post("/api/premium/interest", premium_interest)
     app.router.add_get("/api/shop", get_shop)
     app.router.add_post("/api/shop/buy", shop_buy)
     app.router.add_post("/api/shop/equip", shop_equip)

@@ -186,8 +186,9 @@ export function render(el, { state, go }) {
 
 const PERKS = [
   ['🎲', 'Безлимит «Другое»', 'Крути задания сколько хочешь — без дневного лимита'],
-  ['🐱', 'Эксклюзивные маскоты', 'Котики, которых нет в обычной версии'],
-  ['❄️', 'Две заморозки в неделю', 'Серия переживёт даже насыщенную неделю'],
+  ['📸', 'Больше фото на доске', 'Полароидов в календаре — в разы больше'],
+  ['🎩', 'Эксклюзивные аксессуары и темы', 'Наряды для маскота и оформления, которых нет в магазине'],
+  ['❄️', '+1 заморозка в неделю', 'Серия переживёт даже насыщенную неделю'],
   ['🗂️', 'Тематические подборки', 'Свидания, выходные, путешествия — наборы заданий по теме'],
   ['📈', 'Подробная статистика', 'Итоги месяца и года с красивыми карточками'],
 ];
@@ -199,7 +200,7 @@ export function renderPremium(el, { state }) {
     mascot('star', 'love', { size: 110, cls: 'jump' }),
     h('h1', { style: { marginTop: '10px' } }, 'LifeQuest Premium'),
     h('p', { class: 'bold', style: { marginTop: '8px', color: 'var(--ink-soft)' } },
-      isPremium ? 'Подписка активна. Спасибо, что поддерживаешь LifeQuest! 💛' : 'Больше приключений, больше котиков, больше тебя.')));
+      isPremium ? 'Подписка активна. Спасибо, что поддерживаешь LifeQuest! 💛' : 'Больше приключений, больше стиля, больше тебя.')));
   el.append(h('div', { class: 'stack-sm', style: { marginTop: '16px' } }, PERKS.map(([emoji, title, text]) =>
     h('div', { class: 'quest-item c-yellow' }, h('div', { class: 'q-emoji', 'aria-hidden': 'true' }, emoji),
       h('div', { class: 'grow' }, h('div', { class: 'q-title' }, title), h('div', { class: 'q-meta' }, text))))));
@@ -207,7 +208,11 @@ export function renderPremium(el, { state }) {
     el.append(h('div', { class: 'card center', style: { marginTop: '16px' } },
       h('div', { class: 'num', style: { fontSize: '22px' } }, 'Скоро'),
       h('p', { class: 'small bold muted', style: { marginTop: '6px' } }, 'Подписка ещё в разработке — оплата появится через Telegram Stars. Сейчас всё в LifeQuest бесплатно.')));
-    const want = () => { haptic.success(); toast('💛 Спасибо! Premium уже в работе — анонс будет в боте.', 'good', 3200); };
+    const want = () => {
+      haptic.success();
+      api.premiumInterest().catch(() => {});
+      toast('💛 Записали! Premium уже в работе — ты узнаешь о запуске первым.', 'good', 3200);
+    };
     if (!showMainButton('Хочу Premium', want, '#F3619C')) {
       el.append(h('div', { style: { marginTop: '14px' } }, button('Хочу Premium', { cls: 'block', onClick: want })));
     }

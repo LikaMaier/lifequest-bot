@@ -55,6 +55,7 @@ export const api = {
   saveBoard: board => request('POST', 'api/board', { board }),
   settings: data => request('POST', 'api/settings', data),
   shop: () => request('GET', 'api/shop'),
+  premiumInterest: () => request('POST', 'api/premium/interest'),
   notes: (params = {}) => request('GET', `api/notes?${new URLSearchParams(Object.entries(params).filter(([, v]) => v !== null && v !== undefined && v !== ''))}`),
   createNote: data => request('POST', 'api/notes', data),
   updateNote: (id, data) => request('PATCH', `api/notes/${id}`, data),
