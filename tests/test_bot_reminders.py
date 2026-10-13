@@ -246,3 +246,24 @@ class WeeklySummaryTest(TempDBTestCase, unittest.IsolatedAsyncioTestCase):
              mock.patch.object(game, "local_today", return_value=sunday - timedelta(days=1)):
             await lifequest_bot.send_evening_reminders()
         self.assertFalse(any("Итоги недели" in t for _, t, _ in self.sent))
+
+
+class EditMessageTest(unittest.IsolatedAsyncioTestCase):
+    async def test_not_modified_is_ignored_other_errors_raise(self):
+        from aiogram.exceptions import TelegramBadRequest
+        from aiogram.methods import EditMessageText
+        method = EditMessageText(text="x")
+        msg = mock.MagicMock()
+        msg.edit_text = mock.AsyncMock(side_effect=TelegramBadRequest(method=method, message="Bad Request: message is not modified: same"))
+        self.assertIsNone(await lifequest_bot.safe_edit(msg, "x"))
+        msg.edit_text = mock.AsyncMock(side_effect=TelegramBadRequest(method=method, message="Bad Request: message to edit not found"))
+        with self.assertRaises(TelegramBadRequest):
+            await lifequest_bot.safe_edit(msg, "x")
+
+    def test_reroll_gives_a_different_task(self):
+        shown_text, shown_kb = lifequest_bot.build_solo_quest_message(*lifequest_bot.get_random_solo_task())
+        msg = mock.MagicMock()
+        msg.reply_markup = shown_kb
+        for _ in range(30):
+            _text, kb = lifequest_bot.fresh_variant(lambda: lifequest_bot.build_solo_quest_message(*lifequest_bot.get_random_solo_task()), msg)
+            self.assertNotEqual(kb.inline_keyboard[0][0].callback_data, shown_kb.inline_keyboard[0][0].callback_data)
