@@ -4,13 +4,13 @@
 import { h, clear, fmtMonth } from '../dom.js';
 import { api } from '../api.js';
 import { haptic } from '../tg.js';
-import { mascot } from '../mascot.js';
+import { myMascot } from '../mascot.js';
 import { skeleton, emptyState, sectionTitle } from '../ui.js';
 import { memoryBoard } from '../photoui.js';
 
 export async function render(el, ctx) {
   clear(el);
-  el.append(h('header', { class: 'page-head' }, mascot('heart', 'love', { size: 56 }),
+  el.append(h('header', { class: 'page-head' }, myMascot('love', { size: 56 }),
     h('div', null, h('h1', null, 'Альбом'), h('p', null, 'Фото-воспоминания твоих приключений. Видишь их только ты.'))));
   const st = ctx.state.photos;
   if (!st.enabled) {

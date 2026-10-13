@@ -5,7 +5,7 @@
 import { h, clear } from './dom.js';
 import { api } from './api.js';
 import { haptic, pushBack } from './tg.js';
-import { mascot } from './mascot.js';
+import { myMascot } from './mascot.js';
 import { setState } from './store.js';
 import { MODE_INFO } from './ui.js';
 
@@ -83,7 +83,7 @@ export function showOnboarding({ onDone } = {}) {
   const draw = (dir = 0) => {
     const s = SLIDES[i];
     clear(slideHost).append(h('section', { class: `onb-slide c-${s.color} ${dir > 0 ? 'from-right' : dir < 0 ? 'from-left' : ''}`, 'aria-live': 'polite' },
-      h('div', { class: 'onb-hero' }, mascot(s.kind, s.expr, { size: 110, cls: 'jump' })),
+      h('div', { class: 'onb-hero' }, myMascot(s.expr, { size: 110, cls: 'jump' })),
       h('h1', { class: 'onb-title' }, s.title),
       h('p', { class: 'onb-lead' }, s.lead),
       h('div', { class: 'stack-sm' }, s.body())));

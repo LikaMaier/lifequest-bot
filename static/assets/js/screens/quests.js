@@ -4,7 +4,7 @@
 import { h, clear, plural, fmtDay } from '../dom.js';
 import { haptic } from '../tg.js';
 import { api } from '../api.js';
-import { mascot } from '../mascot.js';
+import { myMascot } from '../mascot.js';
 import { emptyState, sectionTitle, skeleton, busy, toastError, sheet, SPHERE_INFO } from '../ui.js';
 import { modeButtons, openQuest, questItem, completeQuest, sphereChips, openMoodQuest } from '../questflow.js';
 import { openPaywall } from '../premium.js';
@@ -17,7 +17,7 @@ export function render(el, ctx) {
   const chBtn = h('button', { type: 'button', class: 'btn small colored c-lime', style: { flexShrink: 0 } },
     state.challenge ? `${state.challenge.emoji} ${state.challenge.done}/${state.challenge.days}` : '🏆 Челленджи');
   chBtn.addEventListener('click', () => { haptic.tap(); ctx.go('challenges'); });
-  el.append(h('header', { class: 'page-head' }, mascot('cat-orange', 'silly', { size: 56 }),
+  el.append(h('header', { class: 'page-head' }, myMascot('silly', { size: 56 }),
     h('div', { class: 'grow' }, h('h1', null, 'Квесты'), h('p', null, 'Выбери формат — я подкину задание. Не понравится — возьмём другое.')), chBtn));
 
   // Генератор

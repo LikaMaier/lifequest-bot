@@ -2,7 +2,7 @@
 
 import { h } from './dom.js';
 import { haptic } from './tg.js';
-import { mascot, MASCOT_KINDS } from './mascot.js';
+import { myMascot } from './mascot.js';
 import { toast, modal, confetti } from './ui.js';
 
 function closeBtn(text, m) {
@@ -15,7 +15,7 @@ export async function showLevelUp(level) {
   haptic.success();
   confetti(160);
   const body = h('div', null,
-    mascot('star', 'love', { size: 110, cls: 'jump' }),
+    myMascot('love', { size: 110, cls: 'jump' }),
     h('p', { class: 'small bold muted', style: { marginTop: '8px' } }, 'НОВЫЙ УРОВЕНЬ'),
     h('h1', { style: { margin: '6px 0 4px', color: 'var(--accent-deep)' } }, `${level.level}`),
     h('h2', null, level.name),
@@ -28,13 +28,12 @@ export async function showLevelUp(level) {
 export async function showAchievement(a) {
   haptic.success();
   confetti(110);
-  const kind = MASCOT_KINDS[Math.abs([...a.code].reduce((s, c) => s + c.charCodeAt(0), 0)) % MASCOT_KINDS.length];
   const body = h('div', null,
     h('p', { class: 'small bold', style: { color: 'var(--pink-deep)' } }, 'НОВАЯ АЧИВКА!'),
     h('div', { class: `badge-big c-${a.color}`, 'aria-hidden': 'true' }, a.icon),
     h('h2', { style: { marginTop: '12px' } }, a.title),
     h('p', { class: 'muted', style: { marginTop: '6px', fontWeight: 700 } }, a.how),
-    h('div', { style: { marginTop: '10px' } }, mascot(kind, 'love', { size: 64, cls: 'jump' })));
+    h('div', { style: { marginTop: '10px' } }, myMascot('love', { size: 64, cls: 'jump' })));
   const m = modal(body, { label: 'Новая ачивка' });
   body.append(closeBtn('Забрать', m));
   await m.done;

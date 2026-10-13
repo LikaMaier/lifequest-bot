@@ -8,7 +8,7 @@ import { dayPlanField } from './dayplan.js';
 import { noteCard, noteComposer } from './noteui.js';
 import { store, refreshState } from './store.js';
 import { celebrate } from './celebrate.js';
-import { mascot } from './mascot.js';
+import { myMascot } from './mascot.js';
 import { MODE_INFO, SPHERE_INFO, sheet, toast, toastError, busy, confetti, emptyState } from './ui.js';
 import { questCard } from './questflow.js';
 import { photoStrip, photosEnabled } from './photoui.js';
@@ -122,7 +122,7 @@ export function openPlanSheet(o, { onChange } = {}) {
 
   if (o.overdue) {
     body.append(h('div', { class: 'card soft c-paleyellow row', style: { alignItems: 'flex-start' } },
-      mascot('cat-orange', 'wink', { size: 48 }),
+      myMascot('wink', { size: 48 }),
       h('div', { class: 'grow stack-sm' }, h('div', { class: 'bold' }, 'Не успелось? Бывает!'),
         h('div', { class: 'small', style: { fontWeight: 600 } }, 'Можно перенести на завтра или просто отпустить — без чувства вины.'),
         h('div', { class: 'row-wrap' },

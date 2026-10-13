@@ -2,7 +2,7 @@
 
 import { h, svgEl, clear } from './dom.js';
 import { haptic, pushBack } from './tg.js';
-import { mascot } from './mascot.js';
+import { myMascot } from './mascot.js';
 import { ICONS } from './icons.js';
 
 // ---------- Цвета сфер и режимов (одни и те же везде) ----------
@@ -151,7 +151,7 @@ export function progressBar(frac, color) {
 
 // ---------- Пустые состояния и скелетоны ----------
 export function emptyState(text, { kind = 'cat-lav', expr = 'wink', action } = {}) {
-  return h('div', { class: 'empty' }, mascot(kind, expr, { size: 84 }), h('p', null, text), action || null);
+  return h('div', { class: 'empty' }, myMascot(expr, { size: 84 }), h('p', null, text), action || null);
 }
 export function skeleton(height = 80, extra = {}) {
   return h('div', { class: 'skeleton', style: { height: `${height}px`, ...extra }, 'aria-hidden': 'true' });

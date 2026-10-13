@@ -2,14 +2,14 @@
 
 import { h, clear } from '../dom.js';
 import { haptic } from '../tg.js';
-import { mascot } from '../mascot.js';
+import { myMascot } from '../mascot.js';
 import { ring, emptyState, sectionTitle } from '../ui.js';
 import { habitCard, openHabitEditor, TEMPLATES, habitsSummaryText } from '../habitui.js';
 
 export function render(el, ctx) {
   clear(el);
   const sum = ctx.state.habits;
-  el.append(h('header', { class: 'page-head' }, mascot('cat-lime', sum.total && sum.done === sum.total ? 'love' : 'happy', { size: 56 }),
+  el.append(h('header', { class: 'page-head' }, myMascot(sum.total && sum.done === sum.total ? 'love' : 'happy', { size: 56 }),
     h('div', null, h('h1', null, 'Привычки'), h('p', null, 'Свои маленькие ритуалы — отмечай каждый день'))));
 
   const add = h('button', { type: 'button', class: 'btn block' }, '＋ Добавить привычку');
