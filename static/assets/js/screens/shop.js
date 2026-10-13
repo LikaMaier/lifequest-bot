@@ -68,12 +68,13 @@ function draw(body, el, ctx) {
     h('div', { style: { marginTop: '10px' } }, freezeBtn, starsFreeze(ctx, full, el))));
 
   // Аксессуары
-  const grid = h('div', { class: 'shop-grid' }, shop.items.filter(i => i.kind === 'accessory').map(item => {
+  const grid = h('div', { class: 'shop-grid' }, [...shop.items.filter(i => i.kind === 'seasonal'), ...shop.items.filter(i => i.kind === 'accessory')].map(item => {
     const state = item.equipped ? 'Снять' : item.owned ? 'Надеть' : `${item.price} XP`;
     const card = h('div', { class: `shop-item ${item.equipped ? 'on' : ''} ${worn === item.id ? 'trying' : ''}` },
       h('button', { type: 'button', class: 'shop-try', 'aria-label': `Примерить: ${item.name}` },
         h('span', { class: 'shop-img', html: mascotSVG(u.mascot, 'happy', item.id) }),
-        h('span', { class: 'bold small' }, item.name)),
+        h('span', { class: 'bold small' }, item.name),
+        item.until && !item.owned ? h('span', { class: 'tag c-orange', style: { marginTop: '4px' } }, `🎃 до ${item.until}`) : null),
       h('button', { type: 'button', class: `btn small ${item.owned ? 'ghost' : ''}`,
         disabled: !item.owned && shop.balance < item.price }, state));
     const [tryBtn, actBtn] = card.querySelectorAll('button');

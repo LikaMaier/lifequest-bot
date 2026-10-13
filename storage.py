@@ -306,6 +306,10 @@ def init_db():
         stars INTEGER NOT NULL, charge_id TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL,
         refunded INTEGER DEFAULT 0)""")
     c.execute("CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_id)")
+    c.execute("""CREATE TABLE IF NOT EXISTS user_challenges (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, challenge_id TEXT NOT NULL,
+        start_date TEXT NOT NULL, status TEXT NOT NULL, started_at TEXT, finished_at TEXT)""")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_challenges_user ON user_challenges(user_id, status)")
     c.execute("""CREATE TABLE IF NOT EXISTS purchases (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, item TEXT NOT NULL,
         price INTEGER NOT NULL, created_at TEXT NOT NULL)""")
@@ -380,7 +384,7 @@ def _sync_titles(conn):
         q = CATALOG.get(key)
         if not q:
             continue
-        if q["mode"] == "solo":
+        if q["mode"] == "solo" and not q.get("pack"):
             raw = KEY_TO_TASK.get(key, {})
             fresh = raw.get(tier) or raw.get("medium")
             # у старых записей уровень не сохранён — берём тот, что совпадает по тексту
@@ -732,7 +736,7 @@ def delete_user_data(user_id: int):
         q = ",".join("?" * len(plan_ids))
         conn.execute(f"DELETE FROM plan_exceptions WHERE plan_id IN ({q})", plan_ids)
         conn.execute(f"DELETE FROM plan_reminders WHERE plan_id IN ({q})", plan_ids)
-    for table in ("notes", "purchases", "plans", "photos", "habit_logs", "habits", "quest_history", "quest_offers", "favorites",
+    for table in ("user_challenges", "notes", "purchases", "plans", "photos", "habit_logs", "habits", "quest_history", "quest_offers", "favorites",
                   "achievements_unlocked", "board_awards", "xp_log", "weekly_boards", "active_quests",
                   "completed_tasks", "survey_answers", "users"):
         conn.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))

@@ -22,6 +22,7 @@ const REASONS = {
   premium_item: ['🎩', 'Это вещь из Premium', 'Все Premium-аксессуары — сразу и бесплатно.'],
   premium_theme: ['🚀', 'Стиль «Космос» — в Premium', 'Звёзды, планеты и неоновая туманность.'],
   pack: ['🗂️', 'Набор целиком — в Premium', 'Первые квесты набора бесплатные, остальные — с Premium.'],
+  challenge: ['🚀', '30 дней — в Premium', 'Самый большой челлендж и самая большая награда.'],
   freeze: ['🧊', 'Защити серию', 'С Premium — две бесплатные заморозки каждую неделю.'],
 };
 
@@ -111,7 +112,7 @@ export function openPaywall(reason) {
 
 /** Ошибка с кодом лимита/Premium → окно-предложение, иначе обычный тост. */
 export function handlePremiumError(e) {
-  if (e && ['roll_limit', 'photo_limit', 'premium_item', 'premium_theme'].includes(e.code)) {
+  if (e && ['roll_limit', 'photo_limit', 'premium_item', 'premium_theme', 'pack', 'challenge'].includes(e.code)) {
     openPaywall(e.code);
     return true;
   }

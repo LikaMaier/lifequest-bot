@@ -129,6 +129,11 @@ export const ACCESSORIES = {
     + '<circle cx="50" cy="16" r="3" fill="#FB4645"/><circle cx="40" cy="18" r="2" fill="#4E7BFF"/><circle cx="60" cy="18" r="2" fill="#4E7BFF"/>',
   halo: '<ellipse cx="50" cy="-3" rx="24" ry="6.5" fill="none" stroke="#FFE46B" stroke-width="7" opacity=".45"/>'
     + '<ellipse cx="50" cy="-3" rx="24" ry="6.5" fill="none" stroke="#FFC83D" stroke-width="3.5"/>',
+  // ---- Сезонные ----
+  pumpkin: '<path d="M50 10 q2 -8 8 -10" fill="none" stroke="#3F7A2A" stroke-width="3.5" stroke-linecap="round"/>'
+    + '<ellipse cx="50" cy="19" rx="22" ry="11" fill="#FF8A2A"/><ellipse cx="38" cy="19" rx="9" ry="10.5" fill="#FF9B45"/>'
+    + '<ellipse cx="62" cy="19" rx="9" ry="10.5" fill="#FF9B45"/><ellipse cx="50" cy="19" rx="8" ry="11" fill="#FFA65A"/>'
+    + '<path d="M42 17 l3 -3 l3 3 Z M52 17 l3 -3 l3 3 Z M43 23 q7 5 14 0 l-3 1 l-2 -2 l-2 2 l-2 -2 l-2 2 Z" fill="#5A2A0E"/>',
   // ---- Premium-коллекция ----
   wizard: '<path d="M26 26 Q50 32 74 26 L66 22 Q60 6 56 -10 Q46 -2 40 4 Q36 14 34 22 Z" fill="#5B3FD9"/>'
     + '<path d="M56 -10 Q64 -6 66 0" fill="none" stroke="#5B3FD9" stroke-width="5" stroke-linecap="round"/>'

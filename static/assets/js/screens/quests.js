@@ -5,16 +5,20 @@ import { h, clear, plural, fmtDay } from '../dom.js';
 import { haptic } from '../tg.js';
 import { api } from '../api.js';
 import { mascot } from '../mascot.js';
-import { emptyState, sectionTitle, skeleton, busy, toastError, SPHERE_INFO } from '../ui.js';
+import { emptyState, sectionTitle, skeleton, busy, toastError, sheet, SPHERE_INFO } from '../ui.js';
 import { modeButtons, openQuest, questItem, completeQuest, sphereChips } from '../questflow.js';
+import { openPaywall } from '../premium.js';
 
-const view = { tab: 'active', query: '', soloSphere: null, history: null, historyLoading: false };
+const view = { packs: null, tab: 'active', query: '', soloSphere: null, history: null, historyLoading: false };
 
 export function render(el, ctx) {
   clear(el);
   const { state } = ctx;
+  const chBtn = h('button', { type: 'button', class: 'btn small colored c-lime', style: { flexShrink: 0 } },
+    state.challenge ? `${state.challenge.emoji} ${state.challenge.done}/${state.challenge.days}` : '🏆 Челленджи');
+  chBtn.addEventListener('click', () => { haptic.tap(); ctx.go('challenges'); });
   el.append(h('header', { class: 'page-head' }, mascot('cat-orange', 'silly', { size: 56 }),
-    h('div', null, h('h1', null, 'Квесты'), h('p', null, 'Выбери формат — я подкину задание. Не понравится — возьмём другое.'))));
+    h('div', { class: 'grow' }, h('h1', null, 'Квесты'), h('p', null, 'Выбери формат — я подкину задание. Не понравится — возьмём другое.')), chBtn));
 
   // Генератор
   el.append(h('div', { class: 'small bold muted', style: { margin: '0 2px 8px' } }, 'Сфера задания «Для себя»'),
@@ -22,6 +26,11 @@ export function render(el, ctx) {
     modeButtons(() => view.soloSphere),
     h('p', { class: 'center tiny muted bold', style: { marginTop: '4px' } },
       `Сегодня ещё ${state.rolls_left} ${plural(state.rolls_left, 'попытка', 'попытки', 'попыток')} — заданий без повторов хватит надолго`));
+
+  // Тематические наборы
+  const packsHost = h('div', { class: 'pack-row', role: 'list', 'aria-label': 'Наборы квестов' });
+  el.append(sectionTitle('Наборы квестов'), packsHost);
+  drawPacks(packsHost, ctx);
 
   // Переключатель списков
   const seg = h('div', { class: 'segmented', role: 'tablist', 'aria-label': 'Списки заданий', style: { marginTop: '22px' } },
@@ -40,7 +49,42 @@ export function render(el, ctx) {
   drawList(listHost, ctx);
 }
 
+async function drawPacks(host, ctx) {
+  if (!view.packs) {
+    host.append(skeleton(96, { width: '100%' }));
+    try { view.packs = (await api.packs()).packs; } catch (e) { clear(host); return; }
+  }
+  clear(host);
+  for (const p of view.packs) {
+    const card = h('button', { type: 'button', class: 'pack-card', role: 'listitem', 'aria-label': p.name },
+      h('span', { class: 'pack-emoji', 'aria-hidden': 'true' }, p.emoji),
+      h('span', { class: 'bold' }, p.name),
+      h('span', { class: 'tiny bold muted' }, p.until ? `🎃 до ${p.until}` : `${p.done}/${p.quests.length} выполнено`));
+    card.addEventListener('click', () => { haptic.tap(); openPack(p, ctx); });
+    host.append(card);
+  }
+}
+
+function openPack(p, ctx) {
+  const s = sheet(h('div', null,
+    h('div', { class: 'center' }, h('div', { style: { fontSize: '48px' }, 'aria-hidden': 'true' }, p.emoji),
+      h('h2', null, p.name), h('p', { class: 'muted bold small', style: { margin: '4px 0 14px' } }, p.about)),
+    h('div', { class: 'stack-sm' }, p.quests.map(q => {
+      const active = ctx.state.active.find(a => a.id === q.id);
+      const trailing = q.status === 'done' ? h('span', { class: 'tag c-lime' }, '✓')
+        : q.locked ? h('span', { class: 'tag c-yellow' }, '🔒') : active ? h('span', { class: 'tag c-blue' }, 'в работе') : null;
+      return questItem(q, () => {
+        if (q.locked) { s.close(); openPaywall('pack'); return; }
+        s.close();
+        openQuest(active || q);
+      }, trailing);
+    })),
+    p.quests.some(q => q.locked) ? h('p', { class: 'tiny muted bold center', style: { marginTop: '12px' } },
+      `Первые ${p.free} задания — бесплатно, остальные — с Premium`) : null), { label: p.name });
+}
+
 export function update(el, ctx) {
+  view.packs = null;
   view.history = null; // выполненные могли измениться
   render(el, ctx);
 }

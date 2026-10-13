@@ -18,6 +18,7 @@ from aiohttp import web
 import re
 
 import billing
+import challenges
 import game
 import ops
 import habits
@@ -161,6 +162,7 @@ def _state(request) -> dict:
     user = storage.get_user(request["user_id"])
     data["user"]["morning_plans"] = bool(user.get("morning_plans", 1))
     data["premium"] = billing.premium_view(user)
+    data["challenge"] = challenges.summary(request["user_id"])
     return data
 
 
@@ -190,6 +192,7 @@ async def quest_complete(request):
         return _error(404, "Это задание уже закрыто")
     user = storage.get_user(request["user_id"])
     # после 3-го выполненного квеста — один раз предлагаем пробную неделю Premium
+    result["challenge"] = challenges.check(request["user_id"])
     result["trial_offer"] = (billing.trial_available(user)
                              and billing.done_count(request["user_id"]) == billing.TRIAL_AFTER_QUESTS)
     return web.json_response(result)
@@ -275,6 +278,25 @@ async def premium_trial(request):
     _limit(request, "write")
     billing.start_trial(request["user_id"])
     return web.json_response(_state(request))
+
+
+async def get_challenges(request):
+    return web.json_response(challenges.view(request["user_id"]))
+
+
+async def challenge_start(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(challenges.start(request["user_id"], str(data.get("id") or "")))
+
+
+async def challenge_quit(request):
+    _limit(request, "write")
+    return web.json_response(challenges.quit_active(request["user_id"]))
+
+
+async def get_packs(request):
+    return web.json_response({"packs": game.packs_view(request["user_id"])})
 
 
 async def get_shop(request):
@@ -475,6 +497,8 @@ async def search_quests(request):
     sphere = request.query.get("sphere")
     items = []
     for q in CATALOG.values():
+        if q.get("pack"):
+            continue
         if mode in game.MODES and q["mode"] != mode:
             continue
         if sphere and q["sphere"] != sphere:
@@ -583,6 +607,10 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_post("/api/premium/interest", premium_interest)
     app.router.add_post("/api/premium/invoice", premium_invoice)
     app.router.add_post("/api/premium/trial", premium_trial)
+    app.router.add_get("/api/challenges", get_challenges)
+    app.router.add_post("/api/challenges/start", challenge_start)
+    app.router.add_post("/api/challenges/quit", challenge_quit)
+    app.router.add_get("/api/packs", get_packs)
     app.router.add_get("/api/shop", get_shop)
     app.router.add_post("/api/shop/buy", shop_buy)
     app.router.add_post("/api/shop/equip", shop_equip)

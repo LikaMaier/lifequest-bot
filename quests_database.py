@@ -1257,3 +1257,7 @@ def build_catalog() -> dict:
 
 
 CATALOG = build_catalog()
+
+# Задания тематических наборов (packs.py): в каталоге, но не в случайной выдаче.
+import packs as _packs  # noqa: E402
+CATALOG.update(_packs.catalog_entries())
