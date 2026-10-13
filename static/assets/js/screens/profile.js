@@ -56,11 +56,7 @@ export function render(el, { state, go }) {
       toast('📬 Карточка уже в чате с ботом — перешли её друзьям!', 'good', 3600);
     } catch (e) { toastError(e); }
   } });
-  const invite = button('Позвать друга', { cls: 'block ghost', onClick: () => {
-    const link = state.bot_username ? `https://t.me/${state.bot_username}` : '';
-    const text = 'Я играю в LifeQuest — бот подкидывает странные и классные задания. Давай со мной?';
-    openTgLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`);
-  } });
+  const invite = button('👯 Друзья и приглашения', { cls: 'block ghost', onClick: () => go('friends') });
   const shopBtn = button(`🛍️ Магазин · ${u.balance} XP`, { cls: 'block', color: 'pink', onClick: () => go('shop') });
   el.append(h('div', { class: 'stack-sm', style: { marginTop: '16px' } }, shopBtn, shareBtn, invite));
 

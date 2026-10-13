@@ -5,7 +5,9 @@ import { h, clear, plural, fmtDay, fmtMonth } from '../dom.js';
 import { haptic } from '../tg.js';
 import { api } from '../api.js';
 import { mascot } from '../mascot.js';
-import { skeleton, sectionTitle, emptyState, SPHERE_INFO, MODE_INFO, colorOf } from '../ui.js';
+import { skeleton, sectionTitle, emptyState, busy, toast, toastError, SPHERE_INFO, MODE_INFO, colorOf } from '../ui.js';
+import { buildRecapCard } from '../share.js';
+import { handlePremiumError } from '../premium.js';
 import { barChart, lineChart, hbars, heatmap } from '../charts.js';
 import { openPhotoReport } from '../photoui.js';
 
@@ -25,6 +27,22 @@ export async function render(el, ctx) {
       h('span', { class: 'q-meta', style: { display: 'block' } }, ctx.state.photos.enabled ? `${ctx.state.photos.count} фото-воспоминаний` : 'Фото пока недоступны')));
   albumBtn.addEventListener('click', () => { haptic.tap(); ctx.go('album'); });
   el.append(h('div', { class: 'metrics', style: { marginBottom: '14px' } }, awardsBtn, albumBtn));
+  const recapBtn = (period, label) => {
+    const b = h('button', { type: 'button', class: `btn small ${period === 'year' ? 'colored c-purple' : 'ghost'}` }, label);
+    b.addEventListener('click', busy(b, async () => {
+      try {
+        const r = await api.recap(period);
+        const image = await buildRecapCard(r, ctx.state);
+        await api.share(image);
+        haptic.success();
+        toast('📬 Карточка уже в чате с ботом — выкладывай в сторис!', 'good', 3600);
+      } catch (e) { if (!handlePremiumError(e)) toastError(e); }
+    }));
+    return b;
+  };
+  el.append(h('div', { class: 'row', style: { gap: '8px', marginBottom: '14px' } },
+    recapBtn('month', '📸 Карточка месяца'),
+    recapBtn('year', `🏆 Итоги года${ctx.state.user.is_premium ? '' : ' 🔒'}`)));
 
   const seg = h('div', { class: 'segmented', role: 'group', 'aria-label': 'Период' },
     RANGES.map(([key, label]) => {

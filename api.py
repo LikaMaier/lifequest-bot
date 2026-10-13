@@ -17,8 +17,10 @@ from aiohttp import web
 
 import re
 
+import aiquest
 import billing
 import challenges
+import friends
 import game
 import ops
 import habits
@@ -297,6 +299,37 @@ async def challenge_quit(request):
 
 async def get_packs(request):
     return web.json_response({"packs": game.packs_view(request["user_id"])})
+
+
+async def get_friends(request):
+    return web.json_response(friends.list_view(request["user_id"]))
+
+
+async def friend_remove(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(friends.remove(request["user_id"], _int(data.get("id"))))
+
+
+async def ai_options(request):
+    user = storage.get_user(request["user_id"])
+    data = aiquest.options()
+    data["limit"] = aiquest.limit_for(user)
+    return web.json_response(data)
+
+
+async def ai_quest(request):
+    _limit(request, "random")
+    data = await _body(request)
+    return web.json_response(await aiquest.generate(request["user_id"], str(data.get("mood") or ""),
+                                                    str(data.get("time") or ""), str(data.get("place") or "")))
+
+
+async def get_recap(request):
+    period = request.query.get("period", "month")
+    if period == "year" and not game.is_premium(storage.get_user(request["user_id"])):
+        raise game.QuestError("Итоги года — в Premium 💛", code="premium_recap")
+    return web.json_response(game.recap(request["user_id"], period))
 
 
 async def get_shop(request):
@@ -611,6 +644,11 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_post("/api/challenges/start", challenge_start)
     app.router.add_post("/api/challenges/quit", challenge_quit)
     app.router.add_get("/api/packs", get_packs)
+    app.router.add_get("/api/friends", get_friends)
+    app.router.add_post("/api/friends/remove", friend_remove)
+    app.router.add_get("/api/ai/options", ai_options)
+    app.router.add_post("/api/ai/quest", ai_quest)
+    app.router.add_get("/api/recap", get_recap)
     app.router.add_get("/api/shop", get_shop)
     app.router.add_post("/api/shop/buy", shop_buy)
     app.router.add_post("/api/shop/equip", shop_equip)
