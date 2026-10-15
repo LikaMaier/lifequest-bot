@@ -303,6 +303,10 @@ class CalendarApiTest(TempDBTestCase, AioHTTPTestCase):
         self.assertEqual((await self.client.get(f"/api/photos/{ph['id']}/full", headers=headers(1))).status, 200)
         tampered = ph["thumb"].replace("u=1", "u=2")
         self.assertEqual((await self.client.get("/" + tampered)).status, 403)
+        r = await self.client.patch(f"/api/photos/{ph['id']}", headers=headers(1), json={"caption": "  лучший   день  "})
+        self.assertEqual(r.status, 200)
+        self.assertEqual((await r.json())["photo"]["caption"], "лучший день")
+        self.assertEqual((await self.client.patch(f"/api/photos/{ph['id']}", headers=headers(2), json={"caption": "x"})).status, 400)
         self.assertEqual((await self.client.delete(f"/api/photos/{ph['id']}", headers=headers(2))).status, 400)
         self.assertEqual((await self.client.delete(f"/api/photos/{ph['id']}", headers=headers(1))).status, 200)
 

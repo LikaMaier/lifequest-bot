@@ -9,7 +9,7 @@ import { myMascot } from '../mascot.js';
 import { skeleton, emptyState, sheet, toast, toastError } from '../ui.js';
 import { lazyThumb, openViewer, yearShareCard } from '../photoui.js';
 import { openDaySheet, todayIso } from '../planui.js';
-import { playStories, monthPalette, monthCollageCard, onThisDay, longestStreak } from '../memofun.js';
+import { playStories, monthCollageCard, onThisDay, longestStreak } from '../memofun.js';
 
 const MONTH_COLORS = ['lav', 'blue', 'pink', 'lime', 'yellow', 'orange'];
 const SHORT_MONTHS = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
@@ -65,7 +65,7 @@ export async function render(el, ctx) {
 
   const random = iconBtn('shuffle', 'Случайное фото');
   random.disabled = !all.length;
-  random.addEventListener('click', () => { haptic.tap('medium'); openViewer(all, Math.floor(Math.random() * all.length), { onDelete: reload }); });
+  random.addEventListener('click', () => { haptic.tap('medium'); openViewer(all, Math.floor(Math.random() * all.length), { onDelete: reload, onChange: reload }); });
   const add = iconBtn('plus', 'Добавить фото дня', true);
   add.addEventListener('click', () => { haptic.tap(); openDaySheet(selected || today, { onChange: reload }); });
 
@@ -160,13 +160,8 @@ export async function render(el, ctx) {
     if (!inMonth.length) return;
 
     const hero = pickHero(inMonth);
-    const heroBtn = h('button', { type: 'button', class: 'memo-hero-photo', style: { aspectRatio: String(ratio(hero, 0.8, 1.5)) }, 'aria-label': `Фото месяца: ${hero.label || fmtDay(hero.day)}` },
-      h('img', { src: hero.url, alt: '', decoding: 'async' }),
-      h('span', { class: 'memo-pill' }, 'Фото месяца'),
-      h('span', { class: 'memo-hero-cap' },
-        h('span', { class: 'memo-hero-kicker' }, `${MONTHS[m - 1]} ${y}`),
-        h('span', { class: 'memo-hero-title' }, hero.label || fmtDay(hero.day))));
-    heroBtn.addEventListener('click', () => { haptic.tap(); openViewer(inMonth, inMonth.indexOf(hero), { onDelete: reload }); });
+    const heroBtn = snap(hero, { r: ratio(hero, 0.8, 1.5), big: true, sticker: 'Фото месяца' });
+    heroBtn.addEventListener('click', () => { haptic.tap(); openViewer(inMonth, inMonth.indexOf(hero), { onDelete: reload, onChange: reload }); });
 
     // Две колонки «кирпичиками»: каждое фото в своих пропорциях, без обрезки
     // лиц; очередное фото уходит в более короткую колонку.
@@ -174,12 +169,11 @@ export async function render(el, ctx) {
     const heights = [0, 0];
     inMonth.forEach((p, i) => {
       const r = ratio(p);
-      const t = h('button', { type: 'button', class: 'memo-tile', style: { aspectRatio: String(r) }, 'aria-label': p.label || fmtDay(p.day) },
-        lazyThumb(p), p.label ? h('span', { class: 'memo-pill small' }, p.label) : null);
-      t.addEventListener('click', () => { haptic.tap(); openViewer(inMonth, i, { onDelete: reload }); });
+      const t = snap(p, { r });
+      t.addEventListener('click', () => { haptic.tap(); openViewer(inMonth, i, { onDelete: reload, onChange: reload }); });
       const c = heights[0] <= heights[1] ? 0 : 1;
       cols[c].append(t);
-      heights[c] += 1 / r;
+      heights[c] += 1 / r + 0.3; // + рамка и подпись полароида
     });
     const tiles = h('div', { class: 'memo-grid' }, cols);
     const stories = h('button', { type: 'button', class: 'memo-fun c-pink' }, icon('play'), h('span', null, h('b', null, 'Сторис'), h('small', null, 'весь месяц подряд')));
@@ -197,7 +191,7 @@ export async function render(el, ctx) {
     });
     view.append(h('div', { class: 'memo-fun-row' }, stories, collage), heroBtn,
       h('div', { class: 'memo-sec-head' }, h('h2', null, MONTHS[m - 1]), h('span', null, `${inMonth.length} ${plural(inMonth.length, 'фото', 'фото', 'фото')}`)),
-      tiles, monthPalette(inMonth, m - 1));
+      tiles);
   };
 
   const chips = h('div', { class: 'memo-chips', role: 'tablist', 'aria-label': 'Фильтр фото' });
@@ -229,15 +223,30 @@ function dayPanel(day, photos, reload) {
   const head = h('div', { class: 'memo-sec-head' }, h('h2', null, fmtDay(day)), add);
   if (!photos.length) return h('section', { class: 'memo-day' }, head, h('p', { class: 'memo-day-empty' }, 'В этот день фото нет'));
   const pics = h('div', { class: `memo-day-pics ${photos.length === 1 ? 'one' : ''}` }, photos.map((p, i) => {
-    const b = h('button', { type: 'button', class: 'memo-tile', style: { aspectRatio: String(ratio(p, photos.length === 1 ? 0.8 : 0.6, 1.6)) },
-      'aria-label': p.label || 'Фото' }, lazyThumb(p));
-    b.addEventListener('click', () => { haptic.tap(); openViewer(photos, i, { onDelete: reload }); });
+    const b = snap(p, { r: ratio(p, photos.length === 1 ? 0.8 : 0.6, 1.6) });
+    b.addEventListener('click', () => { haptic.tap(); openViewer(photos, i, { onDelete: reload, onChange: reload }); });
     return b;
   }));
   const labels = [...new Map(photos.filter(p => p.label).map(p => [p.label, p])).values()].slice(0, 3);
   return h('section', { class: 'memo-day' }, head, pics, labels.map(p => h('div', { class: 'memo-day-item' },
     h('span', { class: `memo-day-ico k-${p.target}`, 'aria-hidden': 'true' }, p.target === 'quest' ? '✓' : '•'),
     h('div', { class: 'grow' }, h('div', { class: 'bold' }, p.label), h('div', { class: 'tiny muted bold' }, KIND[p.target] || 'Фото')))));
+}
+
+/** Полароид: белая рамка, фото в своих пропорциях и подпись от руки
+ *  (своя подпись, иначе дата). Лёгкий наклон у каждого фото свой. */
+function snap(p, { r = 1, big = false, sticker = null } = {}) {
+  let n = 0;
+  for (const ch of String(p.id)) n = (n * 31 + ch.charCodeAt(0)) | 0;
+  n = Math.abs(n);
+  const tilt = big ? -1.2 : ((n % 7) - 3) * 0.7;
+  const text = p.caption || fmtDay(p.day);
+  return h('button', { type: 'button', class: `memo-snap ${big ? 'big' : ''} pc-${n % 4}`, style: { '--tilt': `${tilt}deg` },
+    'aria-label': `${p.caption || p.label || 'Фото'}, ${fmtDay(p.day)}` },
+    sticker ? h('span', { class: 'memo-snap-sticker' }, sticker) : null,
+    h('span', { class: 'memo-snap-img', style: { aspectRatio: String(r) } },
+      big ? h('img', { src: p.url, alt: '', decoding: 'async' }) : lazyThumb(p)),
+    h('span', { class: `memo-snap-cap ${p.caption ? '' : 'date'}` }, text));
 }
 
 /** Пропорции фото (ширина / высота), чтобы показывать его без обрезки;

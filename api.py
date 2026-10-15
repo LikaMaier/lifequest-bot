@@ -625,6 +625,12 @@ async def get_photo_file(request):
     return resp
 
 
+async def patch_photo(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(photos.set_caption(request["user_id"], request.match_info["id"], data.get("caption")))
+
+
 async def delete_photo(request):
     _limit(request, "write")
     return web.json_response(photos.delete_photo(request["user_id"], request.match_info["id"]))
@@ -718,6 +724,7 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_post("/api/photos", upload_photo)
     app.router.add_get("/api/photos", list_photos)
     app.router.add_get("/api/photos/{id:[0-9a-f]{32}}/{kind:(full|thumb)}", get_photo_file)
+    app.router.add_patch("/api/photos/{id:[0-9a-f]{32}}", patch_photo)
     app.router.add_delete("/api/photos/{id:[0-9a-f]{32}}", delete_photo)
     app.router.add_post("/api/me/delete-photos", delete_my_photos)
     app.router.add_post("/api/me/delete-all", delete_my_data)

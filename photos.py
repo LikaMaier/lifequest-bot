@@ -226,7 +226,8 @@ def _row_view(user_id: int, r: dict) -> dict:
     return {
         "id": r["id"], "target": r["target_type"], "quest_history_id": r["quest_history_id"],
         "plan_id": r["plan_id"], "plan_date": r["plan_date"], "day": r["day"] or r["plan_date"] or r["created_at"][:10],
-        "board_cell": r["board_cell"], "w": r["w"], "h": r["h"], "label": label, "created_at": r["created_at"],
+        "board_cell": r["board_cell"], "w": r["w"], "h": r["h"], "label": label, "caption": r.get("caption") or "",
+        "created_at": r["created_at"],
         "thumb": sign(user_id, r["id"], "thumb"), "url": sign(user_id, r["id"], "full"),
     }
 
@@ -285,6 +286,18 @@ def stats(user_id: int) -> dict:
     total = conn.execute("SELECT COUNT(*) FROM photos WHERE user_id = ?", (user_id,)).fetchone()[0]
     conn.close()
     return {"enabled": enabled(), "count": total, "limit": limit_for(storage.get_user(user_id)), "per_item": PER_ITEM}
+
+
+def set_caption(user_id: int, photo_id: str, caption) -> dict:
+    """Подпись к фото (как на полароиде); пустая строка убирает подпись."""
+    text = " ".join(str(caption or "").split())[:120]
+    conn = storage.connect()
+    cur = conn.execute("UPDATE photos SET caption = ? WHERE id = ? AND user_id = ?", (text, photo_id, user_id))
+    conn.commit()
+    conn.close()
+    if not cur.rowcount:
+        raise game.QuestError("Фото не найдено")
+    return {"photo": view(user_id, photo_id)}
 
 
 # ==================== УДАЛЕНИЕ ====================

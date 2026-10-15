@@ -68,7 +68,7 @@ export function planRow(o, { onChange, compact = false, onOpen = null } = {}) {
   const done = o.status === 'done';
   const skipped = o.status === 'skipped';
   const row = h('div', { class: `plan-row c-${planColor(o)} ${done ? 'done' : ''} ${skipped ? 'skipped' : ''}` });
-  const meta = [o.time, o.sphere && SPHERE_INFO[o.sphere] ? `${SPHERE_INFO[o.sphere].emoji} ${o.sphere}` : mode.label, o.repeat_rule !== 'none' ? '🔁' : null, o.photos ? `📷 ${o.photos}` : null].filter(Boolean).join(' · ');
+  const meta = [o.time, o.sphere && SPHERE_INFO[o.sphere] ? `${SPHERE_INFO[o.sphere].emoji} ${o.sphere}` : null, o.repeat_rule !== 'none' ? '🔁' : null, o.photos ? `📷 ${o.photos}` : null].filter(Boolean).join(' · ');
   const info = h('button', { type: 'button', class: 'plan-info', 'aria-label': `${o.title}${o.time ? `, ${o.time}` : ''}. Открыть` },
     h('span', { class: 'plan-emoji', 'aria-hidden': 'true' }, o.quest ? o.quest.emoji : mode.emoji),
     h('span', { class: 'grow' }, h('span', { class: 'plan-title' }, o.title),
