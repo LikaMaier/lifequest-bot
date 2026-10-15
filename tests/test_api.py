@@ -182,7 +182,7 @@ class ThemesAndMascotsTest(TempDBTestCase, AioHTTPTestCase):
 
     async def test_any_theme_regardless_of_level(self):
         h = headers(42)
-        for theme in ("forest", "pixel", "halloween", "matrix", "ocean", "classic"):
+        for theme in ("forest", "halloween", "matrix", "ocean", "classic"):
             r = await self.client.post("/api/settings", headers=h, json={"theme": theme})
             self.assertEqual((await r.json())["user"]["theme"], theme)
         self.assertEqual((await self.client.post("/api/settings", headers=h, json={"theme": "neon"})).status, 400)
@@ -203,7 +203,11 @@ class ThemesAndMascotsTest(TempDBTestCase, AioHTTPTestCase):
         state = await (await self.client.get("/api/state", headers=headers(42))).json()
         self.assertEqual([m["id"] for m in state["unlocks"]["mascots"]],
                          ["cat-purple", "star", "frog", "puppy", "bear", "leopard", "panda", "pig"])
-        self.assertEqual(len(state["unlocks"]["themes"]), 7)
+        self.assertEqual(len(state["unlocks"]["themes"]), 6)
+        self.assertNotIn("pixel", [t["id"] for t in state["unlocks"]["themes"]])
+        storage.update_user(42, theme="pixel")  # стиль 8-bit убран — у кого он был, видят классику
+        state = await (await self.client.get("/api/state", headers=headers(42))).json()
+        self.assertEqual(state["user"]["theme"], "classic")
 
 
 class ShopApiTest(TempDBTestCase, AioHTTPTestCase):

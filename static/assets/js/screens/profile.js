@@ -76,7 +76,6 @@ export function render(el, { state, go }) {
   // Стиль приложения — все доступны сразу
   const PREVIEW = {
     classic: { bg: '#FDF7DE', cells: ['#F3619C', '#93ABD8', '#DBFA40'], mark: '🐱', radius: '8px' },
-    pixel: { bg: '#FFF8EC', cells: ['#FF2E84', '#FFA21F', '#3DEBF2'], mark: '👾', radius: '0' },
     halloween: { bg: '#160D1E', cells: ['#FF8A2A', '#B98CFF', '#9BFF4F'], mark: '🎃', radius: '8px' },
     matrix: { bg: '#020A04', cells: ['#00FF66', '#2CF2C8', '#D6FF3D'], mark: '⌨️', radius: '3px' },
     forest: { bg: 'linear-gradient(180deg, #EDE383, #B9CC74)', cells: ['#365004', '#8DA432', '#925E06'], mark: '🍃', radius: '10px' },
