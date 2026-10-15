@@ -98,7 +98,7 @@ button { cursor: pointer; }
 #app { max-width: 440px; margin: 0 auto; position: relative; }
 
 .screen {
-  padding: calc(16px + var(--safe-top)) 16px calc(var(--tabbar-h) + 28px + var(--safe-bottom));
+  padding: calc(16px + var(--safe-top)) 16px calc(var(--tabbar-h) + 40px + var(--safe-bottom));
   animation: screen-in .28s ease both;
   overflow-x: clip;
 }
@@ -245,20 +245,23 @@ p { margin: 0; }
 
 /* ---------- Таб-бар ---------- */
 .tabbar {
-  position: fixed; left: 50%; bottom: 0; transform: translateX(-50%);
-  width: 100%; max-width: 440px; z-index: 30;
-  padding: 8px 10px calc(8px + var(--safe-bottom));
-  background: color-mix(in srgb, var(--cream) 88%, transparent);
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  border-top: 2px solid var(--line);
-  display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px;
+  position: fixed; left: 50%; bottom: calc(10px + var(--safe-bottom)); transform: translateX(-50%);
+  width: calc(100% - 24px); max-width: 420px; z-index: 30;
+  padding: 6px;
+  background: color-mix(in srgb, var(--white) 92%, transparent);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border: 2px solid var(--line); border-radius: 26px;
+  box-shadow: 0 10px 28px rgba(44, 42, 34, .14), 0 3px 0 var(--line);
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; align-items: stretch;
 }
 .tab {
-  border: 0; background: transparent; border-radius: 16px; min-height: 52px;
+  border: 0; background: transparent; border-radius: 20px; min-height: 54px; padding: 6px 1px;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-  font-weight: 800; font-size: 10px; color: var(--muted); min-width: 0;
+  font-weight: 800; font-size: clamp(9.5px, 2.75vw, 10.5px); letter-spacing: -0.01em; color: var(--muted); min-width: 0; text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   transition: color .2s, background .2s;
 }
+.tab span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .tab svg { width: 24px; height: 24px; transition: transform .25s cubic-bezier(.34,1.56,.64,1); }
 .tab[aria-current="page"] { color: var(--ink); background: color-mix(in srgb, var(--accent) 28%, transparent); }
 .tab[aria-current="page"] svg { transform: translateY(-2px) scale(1.08); color: var(--accent-deep); }
