@@ -8,7 +8,7 @@
 import { h } from './dom.js';
 import { api } from './api.js';
 import { haptic } from './tg.js';
-import { toastError } from './ui.js';
+import { toastError, sheet, SPHERE_INFO } from './ui.js';
 import { refreshState } from './store.js';
 import { completePlan } from './planui.js';
 
@@ -39,10 +39,29 @@ export function dayPlanField(plans, date, { onChange, canComplete = true, placeh
       'aria-label': plan ? `План: ${plan.title}` : 'Новый план', readonly: plan ? true : null });
     const edit = h('button', { type: 'button', class: 'dp-edit', 'aria-label': 'Изменить план' }, '✏️');
     const del = h('button', { type: 'button', class: 'dp-del', 'aria-label': 'Удалить план' }, '✕');
+    const tag = h('button', { type: 'button', class: 'dp-tag', 'aria-label': 'Категория плана' });
     const line = h('div', { class: `dp-line ${done ? 'done' : ''} ${plan ? '' : 'new'} ${plan && plan.quest ? 'quest' : ''}`, role: 'listitem' },
-      check, input, edit, del);
+      check, input, tag, edit, del);
+    const drawTag = () => {
+      const sp = line._plan && line._plan.sphere;
+      tag.textContent = sp && SPHERE_INFO[sp] ? SPHERE_INFO[sp].emoji : '🏷️';
+      tag.classList.toggle('empty', !sp);
+      tag.setAttribute('aria-label', sp ? `Категория: ${sp}` : 'Выбрать категорию');
+    };
+    tag.addEventListener('click', () => {
+      if (!line._plan) return;
+      haptic.tap();
+      pickSphere(line._plan.sphere, async sp => {
+        const p = line._plan;
+        line._plan = { ...p, sphere: sp };
+        drawTag();
+        try { await api.patchPlan(p.id, { sphere: sp }); dirty = true; scheduleRefresh(); }
+        catch (e) { line._plan = p; drawTag(); toastError(e); }
+      });
+    });
     line._plan = plan;
     input.value = plan ? lineText(plan) : draft.text;
+    drawTag();
 
     del.addEventListener('click', () => { haptic.tap(); remove(line); });
     edit.addEventListener('click', () => {
@@ -129,6 +148,7 @@ export function dayPlanField(plans, date, { onChange, canComplete = true, placeh
       line.classList.remove('new');
       job = api.createPlan({ title, date, ...(time ? { time } : {}) }).then(res => {
         line._plan = res.plan;
+        drawTag();
         line.querySelector('.dp-check').disabled = !canComplete;
         input.setAttribute('aria-label', `План: ${res.plan.title}`);
         if (!box.querySelector('.dp-line.new')) box.append(makeLine(null)); // всегда есть пустая строка
@@ -183,4 +203,20 @@ export function dayPlanField(plans, date, { onChange, canComplete = true, placeh
     if (e.target === box) { const last = box.lastElementChild.querySelector('.dp-text'); last.focus(); }
   });
   return box;
+}
+
+/** Выбор категории (сферы) плана: она попадает в ползунки статистики. */
+export function pickSphere(current, onPick) {
+  const s = sheet(h('div', null,
+    h('h2', { class: 'center' }, 'Категория плана'),
+    h('p', { class: 'center small bold muted', style: { margin: '4px 0 14px' } }, 'Выполненные планы попадут в статистику по сферам'),
+    h('div', { class: 'stack-sm' }, [...Object.entries(SPHERE_INFO), [null, { emoji: '✖️', color: 'paleyellow' }]].map(([sp, info]) => {
+      const b = h('button', { type: 'button', class: `quest-item c-${info.color}`, 'aria-pressed': String(sp === (current || null)) },
+        h('span', { class: 'q-emoji', 'aria-hidden': 'true' }, info.emoji),
+        h('span', { class: 'grow q-title' }, sp || 'Без категории'),
+        sp === (current || null) ? h('span', { class: 'bold' }, '✓') : null);
+      b.addEventListener('click', () => { haptic.select(); s.close(); if (sp !== (current || null)) onPick(sp); });
+      return b;
+    }))), { label: 'Категория плана' });
+  return s;
 }

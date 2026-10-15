@@ -13,7 +13,7 @@ from datetime import date, datetime, timedelta
 
 import game
 import storage
-from quests_database import CATALOG
+from quests_database import BINGO_SPHERES, CATALOG
 
 MODES = ("solo", "pair", "company", "free")
 COLORS = ("lime", "blue", "pink", "yellow", "lav", "orange", "purple", "red")
@@ -62,6 +62,8 @@ def _clean(data: dict, today: date, partial: bool) -> dict:
         f["tier"] = tier if tier in q["tiers"] else ("medium" if "medium" in q["tiers"] else next(iter(q["tiers"])))
         if not _text(data.get("title"), TITLE_MAX):
             f["title"] = q["title"]
+        if q.get("sphere") and "sphere" not in data:
+            f["sphere"] = q["sphere"]
     elif not partial:
         f["mode"] = "free"
         f["quest_key"] = None
@@ -71,6 +73,10 @@ def _clean(data: dict, today: date, partial: bool) -> dict:
             f["title"] = title
         elif "title" not in f:
             raise game.QuestError("Напиши, что планируешь")
+    if not partial or "sphere" in data:
+        sp = data.get("sphere")
+        if sp or "sphere" not in f:
+            f["sphere"] = sp if sp in BINGO_SPHERES else None
     if not partial or "note" in data:
         f["note"] = str(data.get("note") or "").strip()[:NOTE_MAX]
     if not partial or "date" in data:
@@ -203,9 +209,21 @@ def _occurrence(plan: dict, d: date, exc: dict, today: date, photos: dict) -> di
         "quest": game.public_quest(q, plan["tier"]) if q else None,
         "color": plan["color"], "repeat_rule": plan["repeat_rule"] or "none", "remind": plan["remind"] or "none",
         "board_cell": plan["board_cell"], "status": status,
+        "sphere": plan.get("sphere") or (q["sphere"] if q else None),
         "overdue": status == "planned" and d < today,
         "photos": photos.get((plan["id"], iso), 0),
     }
+
+
+def done_by_sphere(user_id: int, start: date, end: date) -> dict:
+    """Сколько своих планов (не заданий из банка — они уже в квестах)
+    выполнено по каждой сфере за период: для ползунков статистики."""
+    start = max(start, end - timedelta(days=RANGE_MAX_DAYS))
+    counts = {}
+    for o in occurrences(user_id, start, end):
+        if o["status"] == "done" and o["sphere"] and not o["quest_key"]:
+            counts[o["sphere"]] = counts.get(o["sphere"], 0) + 1
+    return counts
 
 
 def occurrences(user_id: int, start: date, end: date) -> list:
@@ -257,6 +275,8 @@ def month_summary(user_id: int, month: str) -> dict:
     quest_days = dict(conn.execute("""SELECT local_date, COUNT(*) FROM quest_history WHERE user_id = ? AND status = 'done'
                                       AND local_date BETWEEN ? AND ? GROUP BY local_date""",
                                    (user_id, first.isoformat(), last.isoformat())).fetchall())
+    note_days = dict(conn.execute("""SELECT day, COUNT(*) FROM notes WHERE user_id = ? AND day BETWEEN ? AND ?
+                                     GROUP BY day""", (user_id, first.isoformat(), last.isoformat())).fetchall())
     conn.close()
     days = {}
     for o in items:
@@ -275,6 +295,7 @@ def month_summary(user_id: int, month: str) -> dict:
         dd = days.get(iso, {"modes": [], "planned": 0, "done": 0, "overdue": 0})
         total = dd["planned"] + dd["done"]
         result.append({**dd, "date": iso, "photo": iso in photo_days, "quests_done": quest_days.get(iso, 0),
+                       "notes": note_days.get(iso, 0),
                        "complete": total > 0 and dd["planned"] == 0})
         d += timedelta(days=1)
     return {"month": month, "days": result, "today": _today(user_id).isoformat()}

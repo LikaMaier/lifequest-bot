@@ -307,8 +307,8 @@ export function moodFor(state) {
   if (hour >= 23 || hour < 6) return { expr: 'sleepy', line: 'Ночь на дворе… Приключения подождут до утра. Сладких снов 💤' };
   if (state.streak.status === 'lost') return { expr: 'sad', line: `Серия в ${state.streak.lost_value} ${dayWord(state.streak.lost_value)} прервалась… Ничего, начнём новую прямо сегодня?` };
   if (state.today.done >= state.today.goal) return { expr: 'love', line: 'Цель дня выполнена! Ты просто огонь 🔥' };
-  if (state.streak.status === 'at_risk') return { expr: 'surprised', line: `Серия ${state.streak.current} ${dayWord(state.streak.current)} ждёт тебя — одно задание, и она растёт!` };
-  if (state.streak.status === 'freeze') return { expr: 'wink', line: 'Вчера был пропуск, но заморозка спасёт серию — выполни задание сегодня ❄️' };
+  if (state.streak.status === 'at_risk') return { expr: 'surprised', line: `Серия ${state.streak.current} ${dayWord(state.streak.current)} ждёт тебя — отметь привычку, и она растёт!` };
+  if (state.streak.status === 'freeze') return { expr: 'wink', line: 'Вчера был пропуск, но заморозка спасёт серию — отметь привычку сегодня ❄️' };
   if (state.today.done > 0) return { expr: 'happy', line: 'Отличное начало! Ещё немного до цели дня.' };
   return { expr: 'wink', line: state.greeting };
 }

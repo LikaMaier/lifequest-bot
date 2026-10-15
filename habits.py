@@ -144,8 +144,17 @@ def log_habit(user_id: int, habit_id: int, delta: int = None, count: int = None,
         xp_total = (user.get("xp") or 0) + xp
         if game.level_for_xp(xp_total) > level_before:
             level_up = game.level_info(xp_total)
+    # Серия дней — по привычкам: хотя бы одна выполненная привычка за день.
+    conn = storage.connect()
+    any_done = conn.execute("SELECT 1 FROM habit_logs WHERE user_id = ? AND local_date = ? AND done = 1 LIMIT 1",
+                            (user_id, d)).fetchone()
+    conn.close()
+    streak = game.habit_streak_tick(user_id, target_day) if any_done else None
+    if not any_done:
+        game.habit_streak_untick(user_id, target_day)
     return {"habit": habit_view(user_id, habit_id), "xp": xp, "level_up": level_up,
             "just_done": bool(done and not (current >= habit["target"])),
+            "streak": streak,
             "new_achievements": game.check_achievements(user_id) if done else []}
 
 

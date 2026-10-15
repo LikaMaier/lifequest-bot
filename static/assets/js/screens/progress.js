@@ -115,8 +115,9 @@ function draw(body, s, ctx) {
   const modes = s.modes.map(x => ({ label: MODE_INFO[x.mode].label, value: x.count,
     tag: h('span', { class: `tag c-${MODE_INFO[x.mode].color}` }, `${MODE_INFO[x.mode].emoji} ${MODE_INFO[x.mode].short}`) }));
   body.append(sectionTitle('Сферы'),
-    h('section', { class: 'card' }, s.total_in_range ? hbars(spheres, { label: 'Задания по сферам' })
-      : h('p', { class: 'muted bold small' }, 'За этот период пока пусто — сферы появятся после первых заданий «Для себя».')),
+    h('section', { class: 'card' }, s.spheres.some(x => x.count) ? hbars(spheres, { label: 'Квесты и планы по сферам' })
+      : h('p', { class: 'muted bold small' }, 'За этот период пока пусто — сферы появятся после первых квестов «Для себя» или планов с категорией 🏷️.'),
+      s.spheres.some(x => x.plans) ? h('p', { class: 'tiny muted bold', style: { marginTop: '8px' } }, 'Считаются выполненные квесты и планы с категорией') : null),
     sectionTitle('Форматы'),
     h('section', { class: 'card' }, hbars(modes, { label: 'Задания по форматам' })));
 

@@ -315,8 +315,10 @@ export function openPhotoReport(historyId, title, { intro = false } = {}) {
   if (!photosEnabled() || !historyId) return null;
   const close = h('button', { type: 'button', class: 'btn ghost block' }, intro ? 'Не сейчас' : 'Готово');
   const s = sheet(h('div', { class: 'stack' },
-    h('h2', null, intro ? '📷 Сохраним воспоминание?' : '📷 Фото-отчёт'),
-    h('p', { class: 'muted bold' }, intro ? `«${title}» выполнено! Добавь фото — оно появится в альбоме.` : title),
+    h('h2', null, intro ? '📷 Добавим фото в календарь?' : '📷 Фото-отчёт'),
+    h('p', { class: 'muted bold' }, intro
+      ? `«${title}» выполнено! Сфотографируй момент — фото появится в календаре на этот день и на доске воспоминаний.`
+      : title),
     photoStrip({ target: 'quest', quest_history_id: historyId }, { title: 'Фото-отчёт' }), close), { label: 'Фото-отчёт' });
   close.addEventListener('click', () => s.close());
   return s;

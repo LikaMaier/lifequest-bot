@@ -42,6 +42,10 @@ async function applyLog(hb, opts, onUpdate) {
     } else {
       haptic.tap();
     }
+    if (res.streak && res.streak.streak) {
+      const n = res.streak.streak;
+      setTimeout(() => toast(`🔥 Серия ${n} ${plural(n, 'день', 'дня', 'дней')}${res.streak.used_freeze ? ' — заморозка спасла пропуск ❄️' : '!'}`, 'good', 2600), 900);
+    }
     onUpdate && onUpdate(res.habit);
     refreshState().catch(() => {});
     if (res.level_up || (res.new_achievements || []).length) await celebrate({ level_up: res.level_up, new_achievements: res.new_achievements });
