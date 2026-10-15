@@ -26,7 +26,7 @@ export const TEMPLATE_PACKS = [
 export const TEMPLATES = [
   { pack: ['popular', 'health'], emoji: '💧', title: 'Пить воду', sphere: 'Энергия', target: 8, unit: 'стаканов', color: 'blue', time_of_day: 'any', hint: '8 стаканов в день' },
   { pack: ['popular', 'morning'], emoji: '💪', title: 'Зарядка', sphere: 'Энергия', target: 1, color: 'lime', time_of_day: 'morning', remind_time: '08:00', hint: 'каждое утро · 10 мин' },
-  { pack: ['popular', 'study'], emoji: '📖', title: 'Чтение 20 минут', sphere: 'Саморазвитие', target: 1, color: 'lav', time_of_day: 'evening', hint: '20 минут вечером' },
+  { pack: ['popular', 'study'], emoji: '📖', title: 'Чтение 20 минут', sphere: 'Саморазвитие', target: 1, color: 'lav', time_of_day: 'evening', hint: 'каждый вечер' },
   { pack: ['popular', 'health'], emoji: '🧘', title: 'Медитация', sphere: 'Дисциплина', target: 1, color: 'purple', time_of_day: 'morning', hint: '5 минут' },
   { pack: ['popular', 'health'], emoji: '🚶', title: 'Прогулка', sphere: 'Энергия', target: 1, color: 'yellow', schedule: 'weekly', per_week: 3, time_of_day: 'day', hint: '30 минут · 3 раза в неделю' },
   { pack: ['popular', 'quit'], emoji: '🍬', title: 'Без сахара', kind: 'quit', color: 'pink', hint: 'бросить' },
@@ -88,6 +88,11 @@ async function applyLog(hb, opts, onUpdate) {
     refreshState().catch(() => {});
     if (res.milestone) setTimeout(() => openMilestone(res.milestone), 1200);
     if (res.level_up || (res.new_achievements || []).length) await celebrate({ level_up: res.level_up, new_achievements: res.new_achievements });
+    if (res.trial_offer) {
+      const { offerTrial } = await import('./premium.js');
+      await refreshState().catch(() => {});
+      offerTrial('habits');
+    }
     return res;
   } catch (e) { toastError(e); return null; }
 }
@@ -327,7 +332,8 @@ export function templatePicker({ max = 3, onDone, title = 'С чего начн�
         if ((res.new_achievements || []).length) await celebrate(res);
       } catch (e) { toastError(e); }
     }));
-    root.append(title ? h('h2', null, title) : null, tabs, grid, go);
+    if (title) root.append(h('h2', null, title));
+    root.append(tabs, grid, go);
   };
   draw();
   return root;

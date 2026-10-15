@@ -28,7 +28,8 @@ PRODUCTS = {
 PREMIUM_PRODUCTS = {"premium_month", "premium_year"}
 FIRST_PURCHASE_PRICE = {"premium_month": 75}  # −50% на первую покупку
 TRIAL_DAYS = 7
-TRIAL_AFTER_QUESTS = 3  # пробная неделя открывается после 3 выполненных квестов
+TRIAL_AFTER_QUESTS = 3  # пробная неделя открывается после 3 выполненных квестов…
+TRIAL_AFTER_HABIT_DAYS = 3  # …или после 3 дней с выполненными привычками — главное действие
 RESTORE_MIN_STREAK = 3
 RESTORE_MAX_MISSED = 3  # вернуть серию можно, пока пропущено не больше 3 дней
 
@@ -56,9 +57,21 @@ def done_count(user_id: int) -> int:
     return n
 
 
+def habit_days(user_id: int) -> int:
+    """В скольких днях выполнена хотя бы одна привычка."""
+    conn = storage.connect()
+    n = conn.execute("SELECT COUNT(DISTINCT local_date) FROM habit_logs WHERE user_id = ? AND done = 1",
+                     (user_id,)).fetchone()[0]
+    conn.close()
+    return n
+
+
+def trial_earned(user_id: int) -> bool:
+    return done_count(user_id) >= TRIAL_AFTER_QUESTS or habit_days(user_id) >= TRIAL_AFTER_HABIT_DAYS
+
+
 def trial_available(user: dict) -> bool:
-    return (not user.get("trial_used") and not game.is_premium(user)
-            and done_count(user["user_id"]) >= TRIAL_AFTER_QUESTS)
+    return not user.get("trial_used") and not game.is_premium(user) and trial_earned(user["user_id"])
 
 
 def price(user_id: int, product: str) -> int:
@@ -89,6 +102,7 @@ def premium_view(user: dict) -> dict:
         "trial_used": bool(user.get("trial_used")),
         "trial_days": TRIAL_DAYS,
         "trial_after": TRIAL_AFTER_QUESTS,
+        "trial_after_habit_days": TRIAL_AFTER_HABIT_DAYS,
         "prices": {p: price(uid, p) for p in PRODUCTS},
         "full_prices": {p: PRODUCTS[p]["stars"] for p in PRODUCTS},
         "restore": restore_offer(user) if game.PAYMENTS_ENABLED else 0,
@@ -188,8 +202,8 @@ def start_trial(user_id: int) -> str:
         raise game.QuestError("Пробная неделя уже была 🙂")
     if game.is_premium(user):
         raise game.QuestError("Premium уже активен")
-    if done_count(user_id) < TRIAL_AFTER_QUESTS:
-        raise game.QuestError(f"Пробная неделя откроется после {TRIAL_AFTER_QUESTS} выполненных квестов")
+    if not trial_earned(user_id):
+        raise game.QuestError(f"Пробная неделя откроется после {TRIAL_AFTER_HABIT_DAYS} дней с привычками")
     until = _fmt(_now() + timedelta(days=TRIAL_DAYS))
     storage.update_user(user_id, premium_until=until, trial_used=1, premium_notice=None)
     return until
