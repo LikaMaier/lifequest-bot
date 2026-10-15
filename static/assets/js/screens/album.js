@@ -9,6 +9,7 @@ import { myMascot } from '../mascot.js';
 import { skeleton, emptyState, sheet, toast, toastError } from '../ui.js';
 import { lazyThumb, openViewer, yearShareCard } from '../photoui.js';
 import { openDaySheet, todayIso } from '../planui.js';
+import { feedDecor, cornerSticker } from '../decor.js';
 import { playStories, monthCollageCard, onThisDay, longestStreak } from '../memofun.js';
 
 const MONTH_COLORS = ['lav', 'blue', 'pink', 'lime', 'yellow', 'orange'];
@@ -189,9 +190,12 @@ export async function render(el, ctx) {
       } catch (e) { toastError(e); }
       collage.disabled = false;
     });
-    view.append(h('div', { class: 'memo-fun-row' }, stories, collage), heroBtn,
-      h('div', { class: 'memo-sec-head' }, h('h2', null, MONTHS[m - 1]), h('span', null, `${inMonth.length} ${plural(inMonth.length, 'фото', 'фото', 'фото')}`)),
-      tiles);
+    // наклейки под цвет стиля выглядывают из-за полароидов
+    const rows = Math.max(...heights) * 1.25 + 3.5;
+    view.append(h('div', { class: 'memo-fun-row' }, stories, collage),
+      h('div', { class: 'memo-feed' }, feedDecor(rows), heroBtn,
+        h('div', { class: 'memo-sec-head' }, h('h2', null, MONTHS[m - 1]), h('span', null, `${inMonth.length} ${plural(inMonth.length, 'фото', 'фото', 'фото')}`)),
+        tiles));
   };
 
   const chips = h('div', { class: 'memo-chips', role: 'tablist', 'aria-label': 'Фильтр фото' });
@@ -244,6 +248,7 @@ function snap(p, { r = 1, big = false, sticker = null } = {}) {
   return h('button', { type: 'button', class: `memo-snap ${big ? 'big' : ''} pc-${n % 4}`, style: { '--tilt': `${tilt}deg` },
     'aria-label': `${p.caption || p.label || 'Фото'}, ${fmtDay(p.day)}` },
     sticker ? h('span', { class: 'memo-snap-sticker' }, sticker) : null,
+    big || n % 5 < 3 ? cornerSticker(big ? n | 1 : n) : null,
     h('span', { class: 'memo-snap-img', style: { aspectRatio: String(r) } },
       big ? h('img', { src: p.url, alt: '', decoding: 'async' }) : lazyThumb(p)),
     h('span', { class: `memo-snap-cap ${p.caption ? '' : 'date'}` }, text));
