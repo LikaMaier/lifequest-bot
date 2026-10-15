@@ -11,7 +11,7 @@ import { celebrate } from './celebrate.js';
 import { myMascot } from './mascot.js';
 import { MODE_INFO, SPHERE_INFO, sheet, toast, toastError, busy, confetti, emptyState } from './ui.js';
 import { questCard } from './questflow.js';
-import { photoStrip, photosEnabled } from './photoui.js';
+import { photoStrip, photosEnabled, openPhotoReport, memoryBoard } from './photoui.js';
 
 export const PLAN_MODES = {
   ...MODE_INFO,
@@ -43,6 +43,8 @@ export async function completePlan(o, onChange) {
   confetti(90);
   changed(onChange);
   await celebrate(res, { xpText: '🎉 Выполнено!' });
+  // Задание из банка выполнено — предлагаем сохранить момент на календаре.
+  if (o.quest_key && res.history_id) openPhotoReport(res.history_id, res.title || o.title, { intro: true });
   return res;
 }
 
@@ -66,7 +68,7 @@ export function planRow(o, { onChange, compact = false, onOpen = null } = {}) {
   const done = o.status === 'done';
   const skipped = o.status === 'skipped';
   const row = h('div', { class: `plan-row c-${planColor(o)} ${done ? 'done' : ''} ${skipped ? 'skipped' : ''}` });
-  const meta = [o.time, mode.label, o.repeat_rule !== 'none' ? '🔁' : null, o.photos ? `📷 ${o.photos}` : null].filter(Boolean).join(' · ');
+  const meta = [o.time, o.sphere && SPHERE_INFO[o.sphere] ? `${SPHERE_INFO[o.sphere].emoji} ${o.sphere}` : mode.label, o.repeat_rule !== 'none' ? '🔁' : null, o.photos ? `📷 ${o.photos}` : null].filter(Boolean).join(' · ');
   const info = h('button', { type: 'button', class: 'plan-info', 'aria-label': `${o.title}${o.time ? `, ${o.time}` : ''}. Открыть` },
     h('span', { class: 'plan-emoji', 'aria-hidden': 'true' }, o.quest ? o.quest.emoji : mode.emoji),
     h('span', { class: 'grow' }, h('span', { class: 'plan-title' }, o.title),
@@ -329,7 +331,14 @@ export function openDaySheet(date, { onChange } = {}) {
         placeholder: date <= today ? 'Пара слов о дне: что получилось, что запомнилось…' : 'Мысли и идеи к этому дню…' }),
       notesHost));
   if (photosEnabled() && date <= today) {
-    body.append(h('div', null, h('h3', { style: { marginBottom: '8px' } }, '📷 Фото дня'),
+    // Фото с квестов и планов этого дня — доской полароидов над «Фото дня».
+    const memories = h('div');
+    api.photos({ from: date, to: date }).then(res => {
+      const list = (res.photos || []).filter(p => p.target !== 'day');
+      if (list.length) memories.replaceChildren(h('h3', { style: { marginBottom: '8px' } }, '✨ Воспоминания дня'),
+        memoryBoard(list, { small: true, onDelete: () => onChange && onChange() }));
+    }).catch(() => {});
+    body.append(memories, h('div', null, h('h3', { style: { marginBottom: '8px' } }, '📷 Фото дня'),
       photoStrip({ target: 'day', day: date }, { onChange: () => onChange && onChange() })));
   }
   s.setContent(body);

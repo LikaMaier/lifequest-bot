@@ -102,3 +102,42 @@ class EveningTextTest(TempDBTestCase):
         habits.log_habit(3, tricky["id"], delta=1)
         habits.log_habit(3, water["id"], count=8)
         self.assertIn("Все привычки на сегодня выполнены", habits.evening_text(3))
+
+
+class HabitStreakTest(TempDBTestCase):
+    """Серия дней считается по привычкам, а не по квестам."""
+
+    def setUp(self):
+        super().setUp()
+        import habits as hb
+        self.hb = hb
+        storage.ensure_user(3)
+        self.today = game.local_today(storage.get_user(3))
+        self.h1 = hb.create_habit(3, {"title": "Вода", "target": 1})["habit"]["id"]
+        self.h2 = hb.create_habit(3, {"title": "Чтение", "target": 1})["habit"]["id"]
+
+    def test_habit_extends_streak_once_per_day_and_untick_restores(self):
+        yesterday = (self.today - timedelta(days=1)).isoformat()
+        storage.update_user(3, streak_current=4, streak_best=4, streak_last_date=yesterday)
+        r = self.hb.log_habit(3, self.h1, delta=1)
+        self.assertEqual(r["streak"]["streak"], 5)
+        self.assertIsNone(self.hb.log_habit(3, self.h2, delta=1)["streak"])  # второй раз за день — без изменений
+        self.assertEqual(storage.get_user(3)["streak_current"], 5)
+        self.hb.log_habit(3, self.h2, delta=-1)
+        self.assertEqual(storage.get_user(3)["streak_current"], 5)  # одна привычка ещё выполнена
+        self.hb.log_habit(3, self.h1, delta=-1)
+        u = storage.get_user(3)
+        self.assertEqual((u["streak_current"], u["streak_last_date"]), (4, yesterday))
+
+    def test_quest_does_not_move_streak(self):
+        res = game.accept_quest(3, "two_truths")
+        game.complete_quest(3, res["active_id"])
+        self.assertEqual(storage.get_user(3)["streak_current"] or 0, 0)
+
+    def test_backfilling_yesterday_keeps_streak(self):
+        two_ago = (self.today - timedelta(days=2)).isoformat()
+        storage.update_user(3, streak_current=3, streak_best=3, streak_last_date=two_ago)
+        self.hb.log_habit(3, self.h1, delta=1, day=(self.today - timedelta(days=1)).isoformat())
+        self.assertEqual(storage.get_user(3)["streak_current"], 4)
+        self.hb.log_habit(3, self.h1, delta=1)
+        self.assertEqual(storage.get_user(3)["streak_current"], 5)

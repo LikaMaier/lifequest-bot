@@ -218,7 +218,18 @@ async def get_stats(request):
     rng = request.query.get("range", "7")
     if rng not in ("7", "14", "30", "all"):
         rng = "7"
-    return web.json_response(game.get_stats(request["user_id"], rng))
+    data = game.get_stats(request["user_id"], rng)
+    # Ползунки сфер: квесты + свои планы с категорией.
+    series = data["series"]
+    if series:
+        from datetime import date as _date
+        by_plan = plans.done_by_sphere(request["user_id"], _date.fromisoformat(series[0]["date"]),
+                                       _date.fromisoformat(series[-1]["date"]))
+        for item in data["spheres"]:
+            item["plans"] = by_plan.get(item["sphere"], 0)
+            item["quests"] = item["count"]
+            item["count"] += item["plans"]
+    return web.json_response(data)
 
 
 async def get_achievements(request):
@@ -404,7 +415,8 @@ async def get_notes(request):
         limit, offset = int(q.get("limit", 50)), int(q.get("offset", 0))
     except ValueError:
         return _error(400, "Некорректный запрос")
-    return web.json_response(notes.list_notes(request["user_id"], q.get("day"), q.get("q"), limit, offset))
+    return web.json_response(notes.list_notes(request["user_id"], q.get("day"), q.get("q"), limit, offset,
+                                              q.get("from"), q.get("to")))
 
 
 async def create_note(request):

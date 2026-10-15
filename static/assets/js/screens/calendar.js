@@ -8,6 +8,7 @@ import { haptic, tg } from '../tg.js';
 import { myMascot } from '../mascot.js';
 import { skeleton, toastError, sectionTitle, emptyState } from '../ui.js';
 import { memoryBoard, photosEnabled } from '../photoui.js';
+import { noteCard } from '../noteui.js';
 import { PLAN_MODES, planRow, openDaySheet, todayIso, addDays, dayTitle } from '../planui.js';
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -112,12 +113,14 @@ async function drawWeek(body, el, ctx) {
   const host = h('div', { class: 'week-list' });
   body.append(host, h('p', { class: 'tiny muted bold center', style: { marginTop: '12px' } }, 'Сведи два пальца — вернёшься к месяцу'));
   host.append(skeleton(110), h('div', { style: { height: '10px' } }), skeleton(110));
-  let plans, photos = [];
+  let plans, photos = [], notes = [];
   try {
-    const [p, ph] = await Promise.all([api.plans(from, to),
-      photosEnabled() ? api.photos({ from, to }).catch(() => ({ photos: [] })) : Promise.resolve({ photos: [] })]);
+    const [p, ph, nt] = await Promise.all([api.plans(from, to),
+      photosEnabled() ? api.photos({ from, to }).catch(() => ({ photos: [] })) : Promise.resolve({ photos: [] }),
+      api.notes({ from, to, limit: 100 }).catch(() => ({ notes: [] }))]);
     plans = p.plans;
     photos = ph.photos || [];
+    notes = nt.notes || [];
   } catch (e) {
     clear(host).append(h('p', { class: 'muted bold' }, e.message));
     return;
@@ -130,6 +133,7 @@ async function drawWeek(body, el, ctx) {
     const date = addDays(from, i);
     const dayPlans = plans.filter(o => o.date === date);
     const dayPhotos = photos.filter(p => p.day === date);
+    const dayNotes = notes.filter(n => n.day === date);
     const add = h('button', { type: 'button', class: 'icon-btn small', 'aria-label': `Добавить план на ${dayTitle(date)}` }, '＋');
     add.addEventListener('click', e => { e.stopPropagation(); haptic.tap(); openDaySheet(date, { onChange }); });
     const head = h('button', { type: 'button', class: 'week-day-head', 'aria-label': `Открыть день: ${dayTitle(date)}` },
@@ -141,6 +145,7 @@ async function drawWeek(body, el, ctx) {
     host.append(h('section', { class: `card week-day ${date === today ? 'today' : ''} ${date < today ? 'past' : ''}` },
       h('div', { class: 'row', style: { gap: '8px' } }, head, add),
       dayPlans.length ? h('div', { class: 'stack-sm', style: { marginTop: '10px' } }, dayPlans.map(o => planRow(o, { onChange, compact: true, onOpen: x => openDaySheet(x.date, { onChange }) }))) : null,
+      dayNotes.length ? h('div', { class: 'note-grid', style: { marginTop: '10px' } }, dayNotes.slice(0, 4).map(n => noteCard(n, { onChange }))) : null,
       dayPhotos.length ? memoryBoard(dayPhotos, { small: true, onDelete: onChange }) : null));
   }
   // свайп — соседняя неделя, щипок — назад к месяцу
@@ -224,13 +229,14 @@ async function drawMonth(body, el, ctx) {
 function dayCell(d, today, el, ctx) {
   const n = d.planned + d.done;
   const label = [dayTitle(d.date), n ? `${n} ${plural(n, 'план', 'плана', 'планов')}` : 'нет планов',
-    d.done ? `выполнено ${d.done}` : null, d.overdue ? 'есть просроченные' : null, d.photo ? 'есть фото' : null].filter(Boolean).join(', ');
+    d.done ? `выполнено ${d.done}` : null, d.overdue ? 'есть просроченные' : null, d.photo ? 'есть фото' : null,
+    d.notes ? 'есть заметки' : null].filter(Boolean).join(', ');
   const cell = h('button', { type: 'button', role: 'gridcell', dataset: { date: d.date },
     class: `cal-day ${d.date === today ? 'today' : ''} ${d.complete ? 'complete' : ''} ${d.date < today ? 'past' : ''} ${d.overdue ? 'overdue' : ''}`,
     'aria-label': label },
     h('span', { class: 'cal-num' }, String(parseDate(d.date).getDate())),
     h('span', { class: 'cal-dots', 'aria-hidden': 'true' }, d.modes.slice(0, 4).map(mode => h('i', { class: `c-${PLAN_MODES[mode].color}` }))),
-    d.photo ? h('span', { class: 'cal-photo', 'aria-hidden': 'true' }, '📷') : null);
+    d.photo || d.notes ? h('span', { class: 'cal-photo', 'aria-hidden': 'true' }, `${d.photo ? '📷' : ''}${d.notes ? '📝' : ''}`) : null);
   cell.addEventListener('click', () => { haptic.tap(); openDaySheet(d.date, { onChange: () => refresh(el, ctx) }); });
   return cell;
 }

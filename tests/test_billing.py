@@ -54,8 +54,7 @@ class PremiumTest(TempDBTestCase):
         billing.grant(1, 30)
         self.assertEqual(game.user_streak(storage.get_user(1), today)["status"], "freeze")
         with mock.patch.object(game, "local_now", return_value=datetime(2026, 10, 14, 12)):
-            res = game.accept_quest(1, "two_truths")
-            out = game.complete_quest(1, res["active_id"])
+            out = game.habit_streak_tick(1, today)
         self.assertEqual(out["streak"], 11)
         self.assertTrue(out["used_freeze"])
         user = storage.get_user(1)

@@ -7,6 +7,7 @@
 # ============================================================
 
 import hashlib
+import json
 import os
 import random
 from collections import Counter
@@ -230,6 +231,52 @@ def user_streak(user: dict, today: date) -> dict:
     return streak_view(user.get("streak_current"), user.get("streak_best"), user.get("streak_last_date"),
                        user.get("freeze_week"), today, user.get("freeze_tokens"),
                        weekly_left=weekly_freeze_left(user, today))
+
+
+def habit_streak_tick(user_id: int, day: date):
+    """Привычка выполнена за day — серия продлевается (раз в день). Отметка
+    за вчера (если вчера забыли) тоже продлевает серию, если день идёт следом."""
+    user = storage.get_user(user_id)
+    today = local_today(user)
+    last = user.get("streak_last_date")
+    if day != today:
+        try:
+            prev = date.fromisoformat(last) if last else None
+        except ValueError:
+            prev = None
+        if day >= today or prev is None or (day - prev).days != 1:
+            return None
+    elif last == today.isoformat():
+        return None
+    tokens = user.get("freeze_tokens") or 0
+    weekly_left = weekly_freeze_left(user, day)
+    streak, best, freeze_week, used_freeze, tokens_used = advance_streak(
+        user.get("streak_current"), user.get("streak_best"), last,
+        user.get("freeze_week"), day, tokens, weekly_left=weekly_left)
+    week_count = user.get("freeze_week_count") or 0
+    if used_freeze:
+        weekly_used = _missed_days(last, day) - tokens_used
+        if weekly_used > 0:
+            before = max(1, week_count) if user.get("freeze_week") == week_key(day) else 0
+            week_count = before + weekly_used
+    undo = json.dumps({k: user.get(k) for k in ("streak_current", "streak_best", "streak_last_date", "freeze_week",
+                                                 "freeze_week_count", "freeze_tokens")})
+    storage.update_user(user_id, streak_current=streak, streak_best=best, streak_last_date=day.isoformat(),
+                        freeze_week=freeze_week, freeze_week_count=week_count, freeze_tokens=tokens - tokens_used,
+                        streak_undo=f"{day.isoformat()}|{undo}")
+    return {"streak": streak, "used_freeze": used_freeze}
+
+
+def habit_streak_untick(user_id: int, day: date):
+    """Сняли последнюю выполненную привычку дня — возвращаем серию как было."""
+    user = storage.get_user(user_id)
+    raw = user.get("streak_undo") or ""
+    d, _, data = raw.partition("|")
+    if d != day.isoformat() or user.get("streak_last_date") != d:
+        return
+    prev = json.loads(data)
+    prev["streak_best"] = max(prev.get("streak_best") or 0, prev.get("streak_current") or 0)
+    storage.update_user(user_id, streak_undo=None, **prev)
 
 
 # ==================== XP ====================
@@ -476,20 +523,10 @@ def complete_quest(user_id: int, active_id: int):
     conn.commit()
     conn.close()
 
-    tokens = user.get("freeze_tokens") or 0
-    weekly_left = weekly_freeze_left(user, today)
-    streak, best, freeze_week, used_freeze, tokens_used = advance_streak(
-        user.get("streak_current"), user.get("streak_best"), user.get("streak_last_date"),
-        user.get("freeze_week"), today, tokens, weekly_left=weekly_left)
-    week_count = user.get("freeze_week_count") or 0
-    if used_freeze:
-        weekly_used = _missed_days(user.get("streak_last_date"), today) - tokens_used
-        if weekly_used > 0:
-            before = max(1, week_count) if user.get("freeze_week") == week_key(today) else 0
-            week_count = before + weekly_used
-    storage.update_user(user_id, streak_current=streak, streak_best=best,
-                        streak_last_date=today.isoformat(), freeze_week=freeze_week,
-                        freeze_week_count=week_count, freeze_tokens=tokens - tokens_used)
+    # Серия считается по привычкам (habit_streak_tick), квесты — для удовольствия:
+    # бонус за серию они получают, но саму серию не двигают.
+    view = user_streak(user, today)
+    streak, used_freeze = view["current"], False
 
     accepted_local = hist.get("local_date")
     same_day = accepted_local == today.isoformat()

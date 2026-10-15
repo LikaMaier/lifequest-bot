@@ -888,9 +888,9 @@ def build_streak_alarm(user_id: int):
         return None, None
     n = s["current"]
     text = (f"🔥 <b>Серия {n} {plural_ru(n, 'день', 'дня', 'дней')} сгорит в полночь!</b>\n\n"
-            "Заморозок не осталось — спасёт только одно маленькое дело сегодня. "
-            "Хватит самого лёгкого квеста или задания дня.")
-    rows = [[InlineKeyboardButton(text="🎯 Дай лёгкий квест", callback_data="menu_solo")]]
+            "Заморозок не осталось — спасёт только одна привычка, отмеченная сегодня. "
+            "Даже стакан воды считается 💧")
+    rows = [[build_miniapp_button("🌱 Отметить привычку", "habits")]] if MINIAPP_URL else []
     if game.PAYMENTS_ENABLED:
         rows.append([InlineKeyboardButton(text=f"🧊 Заморозка за {billing.price(user_id, 'freeze')}⭐",
                                           callback_data="pay_freeze")])

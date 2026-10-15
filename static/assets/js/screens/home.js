@@ -7,6 +7,8 @@ import { haptic } from '../tg.js';
 import { mascot, moodFor, jump } from '../mascot.js';
 import { ring, progressBar, sectionTitle, emptyState, busy, toastError } from '../ui.js';
 import { buyStars } from '../premium.js';
+import { api } from '../api.js';
+import { noteCard, noteComposer } from '../noteui.js';
 import { modeButtons, openQuest, questItem, completeQuest, openMoodQuest } from '../questflow.js';
 import { habitCard } from '../habitui.js';
 import { planRow, openAddChooser } from '../planui.js';
@@ -41,7 +43,7 @@ export function render(el, { state, go }) {
   if (done >= goal) r.classList.add('pulse');
   const streak = state.streak;
   const streakText = streak.status === 'done' ? 'засчитана сегодня'
-    : streak.status === 'at_risk' ? 'выполни задание, чтобы продлить'
+    : streak.status === 'at_risk' ? 'отметь привычку, чтобы продлить'
     : streak.status === 'freeze' ? 'заморозка спасёт пропуск ❄️'
     : streak.status === 'lost' ? 'начни новую сегодня' : 'начни сегодня';
   el.append(h('section', { class: 'card', 'aria-label': 'Прогресс дня' },
@@ -51,6 +53,7 @@ export function render(el, { state, go }) {
         h('div', { class: 'row', style: { gap: '6px' } }, h('span', { class: 'num', style: { fontSize: '34px' } }, String(streak.current)),
           h('span', { style: { fontSize: '26px' }, 'aria-hidden': 'true' }, streak.current ? '🔥' : '🌱')),
         h('div', { class: 'small bold' }, `${plural(streak.current, 'день', 'дня', 'дней')} подряд — ${streakText}`),
+        !state.habits.total ? h('div', { class: 'tiny bold', style: { color: 'var(--pink-deep)' } }, '🌱 Серия растёт от привычек — заведи первую') : null,
         h('div', { class: 'tiny muted bold' }, (streak.freeze_available
           ? `❄️ ${streak.freeze_weekly_left > 1 ? `${streak.freeze_weekly_left} заморозки` : 'Заморозка'} на неделю доступна`
           : '❄️ Недельная заморозка использована')
@@ -131,6 +134,18 @@ export function render(el, { state, go }) {
   } else {
     el.append(h('div', { class: 'stack-sm' }, state.habits.items.slice(0, 4).map(hb => habitCard(hb, { compact: true }))));
   }
+
+  // Заметки: быстрая запись и последние стикеры
+  const notesLink = h('button', { type: 'button', class: 'link' }, 'Все заметки');
+  notesLink.addEventListener('click', () => { haptic.tap(); go('notes'); });
+  const notesHost = h('div', { class: 'note-grid', style: { marginTop: '10px' } });
+  const loadNotes = () => api.notes({ limit: 4 }).then(({ notes }) => {
+    notesHost.replaceChildren(...notes.map(n => noteCard(n, { onChange: loadNotes, showDay: true })));
+  }).catch(() => {});
+  el.append(sectionTitle('📝 Заметки', notesLink),
+    noteComposer({ day: state.today.date, draftKey: 'home', onSaved: loadNotes, placeholder: 'Мысль, идея или итог дня…' }),
+    notesHost);
+  loadNotes();
 
   // Активные квесты
   const allLink = h('button', { type: 'button', class: 'link' }, 'Все квесты');

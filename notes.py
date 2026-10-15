@@ -85,11 +85,18 @@ def delete_note(user_id: int, note_id: int) -> dict:
     return {"ok": True}
 
 
-def list_notes(user_id: int, day: str = None, q: str = None, limit: int = 50, offset: int = 0) -> dict:
+def list_notes(user_id: int, day: str = None, q: str = None, limit: int = 50, offset: int = 0,
+               start: str = None, end: str = None) -> dict:
     where, args = ["user_id = ?"], [user_id]
     if day:
         where.append("day = ?")
         args.append(str(day)[:10])
+    if start:
+        where.append("day >= ?")
+        args.append(str(start)[:10])
+    if end:
+        where.append("day <= ?")
+        args.append(str(end)[:10])
     if q:
         where.append("text LIKE ? ESCAPE '\\'")
         args.append("%" + str(q)[:100].replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%")

@@ -46,6 +46,30 @@ class PlansServiceTest(PhotoDirMixin, TempDBTestCase):
         self.today = game.local_today(storage.get_user(1))
         self.monday = self.today - timedelta(days=self.today.weekday())
 
+    def test_plan_category_counts_in_spheres(self):
+        p = plans.create_plan(1, {"title": "Зарядка", "date": self.today.isoformat(), "sphere": "Энергия"})
+        self.assertEqual(p["sphere"], "Энергия")
+        bad = plans.create_plan(1, {"title": "Что-то", "date": self.today.isoformat(), "sphere": "Котики"})
+        self.assertIsNone(bad["sphere"])
+        q = plans.create_plan(1, {"quest_key": "no_list", "date": self.today.isoformat()})
+        self.assertEqual(q["sphere"], "Дисциплина")  # у задания из банка — его сфера
+        plans.complete_plan(1, p["id"])
+        plans.complete_plan(1, q["id"])  # уже считается в квестах — в планах не дублируется
+        self.assertEqual(plans.done_by_sphere(1, self.today, self.today), {"Энергия": 1})
+        upd = plans.update_plan(1, bad["id"], {"sphere": "Творчество"})
+        self.assertEqual(plans.occurrence(1, bad["id"], self.today)["sphere"], "Творчество")
+        plans.update_plan(1, bad["id"], {"sphere": None})
+        self.assertIsNone(plans.occurrence(1, bad["id"], self.today)["sphere"])
+
+    def test_notes_range_and_month_marks(self):
+        import notes
+        notes.create_note(1, {"text": "Итог дня", "day": self.today.isoformat()})
+        res = notes.list_notes(1, start=self.today.isoformat(), end=self.today.isoformat())
+        self.assertEqual(res["total"], 1)
+        self.assertEqual(notes.list_notes(1, start=(self.today + timedelta(days=1)).isoformat())["total"], 0)
+        summary = plans.month_summary(1, self.today.strftime("%Y-%m"))
+        self.assertEqual(next(d for d in summary["days"] if d["date"] == self.today.isoformat())["notes"], 1)
+
     def test_repeat_rules(self):
         p = plans.create_plan(1, {"title": "Будни", "date": self.monday.isoformat(), "repeat_rule": "weekdays"})
         w = plans.create_plan(1, {"title": "Раз в неделю", "date": self.monday.isoformat(), "repeat_rule": "weekly"})
@@ -76,7 +100,7 @@ class PlansServiceTest(PhotoDirMixin, TempDBTestCase):
         r = plans.complete_plan(1, p["id"])
         self.assertEqual(r["xp"], 10 + game.SAME_DAY_BONUS)
         self.assertEqual(game.get_state(1)["today"]["done"], 1)
-        self.assertEqual(storage.get_user(1)["streak_current"], 1)
+        self.assertEqual(storage.get_user(1)["streak_current"] or 0, 0)  # серия — только по привычкам
         with self.assertRaises(game.QuestError):
             plans.complete_plan(1, p["id"])
 
