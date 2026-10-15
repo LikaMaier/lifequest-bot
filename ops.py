@@ -55,6 +55,23 @@ async def safe_send(user_id: int, text: str, **kwargs):
     return None
 
 
+async def safe_send_photo(user_id: int, photo, **kwargs):
+    """Как safe_send, но с картинкой (утренняя карточка)."""
+    if storage.is_blocked(user_id):
+        return None
+    for attempt in range(2):
+        try:
+            return await _bot.send_photo(user_id, photo, **kwargs)
+        except TelegramForbiddenError:
+            storage.set_blocked(user_id)
+            return None
+        except TelegramRetryAfter as e:
+            if attempt:
+                raise
+            await asyncio.sleep(min(e.retry_after, 30))
+    return None
+
+
 async def alert(where: str, exc: BaseException = None, details: str = ""):
     """Сообщить админу об ошибке. Без ADMIN_ID — только лог."""
     tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)) if exc else ""

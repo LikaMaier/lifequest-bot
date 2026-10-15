@@ -53,8 +53,7 @@ export async function buildShareCard(state) {
   ctx.fillText(state.user.first_name || 'Я', 90, 280);
   ctx.font = '700 42px Nunito, sans-serif';
   ctx.fillStyle = '#6E6850';
-  ctx.fillText('выбирается из привычного', 90, 350);
-  ctx.fillText('сценария', 90, 400);
+  ctx.fillText('твой путь к победе', 90, 350);
 
   // уровень
   roundRect(ctx, 90, 500, 900, 230, 56, '#B494F8', '#6B4B9E');
