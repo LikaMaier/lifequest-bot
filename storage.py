@@ -304,6 +304,10 @@ def init_db():
     _ensure_column(c, "users", "streak_undo", "TEXT")
     _ensure_column(c, "plans", "sphere", "TEXT")
     _ensure_column(c, "habits", "sphere", "TEXT")  # сфера привычки: Дисциплина, Энергия… — для статистики
+    c.execute("""CREATE TABLE IF NOT EXISTS user_spheres (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, key TEXT NOT NULL,
+        name TEXT, emoji TEXT, color TEXT)""")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_user_spheres ON user_spheres(user_id, key)")
     c.execute("""CREATE TABLE IF NOT EXISTS payments (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, product TEXT NOT NULL,
         stars INTEGER NOT NULL, charge_id TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL,
@@ -749,7 +753,7 @@ def delete_user_data(user_id: int):
         conn.execute(f"DELETE FROM plan_exceptions WHERE plan_id IN ({q})", plan_ids)
         conn.execute(f"DELETE FROM plan_reminders WHERE plan_id IN ({q})", plan_ids)
     conn.execute("DELETE FROM friends WHERE friend_id = ?", (user_id,))
-    for table in ("friends", "ai_quests", "user_challenges", "notes", "purchases", "plans", "photos", "habit_logs", "habits", "quest_history", "quest_offers", "favorites",
+    for table in ("user_spheres", "friends", "ai_quests", "user_challenges", "notes", "purchases", "plans", "photos", "habit_logs", "habits", "quest_history", "quest_offers", "favorites",
                   "achievements_unlocked", "board_awards", "xp_log", "weekly_boards", "active_quests",
                   "completed_tasks", "survey_answers", "users"):
         conn.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))

@@ -19,6 +19,7 @@ import re
 
 import aiquest
 import billing
+import spheres
 import challenges
 import friends
 import game
@@ -164,6 +165,7 @@ def _state(request) -> dict:
     user = storage.get_user(request["user_id"])
     data["user"]["morning_plans"] = bool(user.get("morning_plans", 1))
     data["premium"] = billing.premium_view(user)
+    data["user_spheres"] = spheres.list_spheres(request["user_id"])
     data["challenge"] = challenges.summary(request["user_id"])
     return data
 
@@ -216,19 +218,20 @@ async def favorite(request):
 
 async def get_stats(request):
     rng = request.query.get("range", "7")
-    if rng not in ("7", "14", "30", "all"):
+    if rng not in ("1", "7", "14", "30", "all"):
         rng = "7"
     data = game.get_stats(request["user_id"], rng)
-    # Ползунки сфер: квесты + выполненные привычки со сферой.
+    # Ползунки сфер: квесты + выполненные привычки, по сферам пользователя (и своим тоже).
     series = data["series"]
+    by_quest = {x["sphere"]: x["count"] for x in data["spheres"]}
+    by_habit = {}
     if series:
         from datetime import date as _date
         by_habit = habits.done_by_sphere(request["user_id"], _date.fromisoformat(series[0]["date"]),
                                          _date.fromisoformat(series[-1]["date"]))
-        for item in data["spheres"]:
-            item["habits"] = by_habit.get(item["sphere"], 0)
-            item["quests"] = item["count"]
-            item["count"] += item["habits"]
+    data["spheres"] = [{**s, "sphere": s["key"], "quests": by_quest.get(s["key"], 0), "habits": by_habit.get(s["key"], 0),
+                        "count": by_quest.get(s["key"], 0) + by_habit.get(s["key"], 0)}
+                       for s in spheres.list_spheres(request["user_id"])]
     return web.json_response(data)
 
 
@@ -341,6 +344,29 @@ async def get_recap(request):
     if period == "year" and not game.is_premium(storage.get_user(request["user_id"])):
         raise game.QuestError("Итоги года — в Premium 💛", code="premium_recap")
     return web.json_response(game.recap(request["user_id"], period))
+
+
+async def get_spheres(request):
+    return web.json_response({"spheres": spheres.list_spheres(request["user_id"])})
+
+
+async def sphere_create(request):
+    _limit(request, "write")
+    return web.json_response({"spheres": spheres.create(request["user_id"], await _body(request))})
+
+
+async def sphere_update(request):
+    _limit(request, "write")
+    data = await _body(request)
+    key = request.match_info["key"]
+    if data.get("reset"):
+        return web.json_response({"spheres": spheres.reset(request["user_id"], key)})
+    return web.json_response({"spheres": spheres.update(request["user_id"], key, data)})
+
+
+async def sphere_delete(request):
+    _limit(request, "write")
+    return web.json_response({"spheres": spheres.delete(request["user_id"], request.match_info["key"])})
 
 
 async def get_shop(request):
@@ -661,6 +687,10 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_get("/api/ai/options", ai_options)
     app.router.add_post("/api/ai/quest", ai_quest)
     app.router.add_get("/api/recap", get_recap)
+    app.router.add_get("/api/spheres", get_spheres)
+    app.router.add_post("/api/spheres", sphere_create)
+    app.router.add_patch("/api/spheres/{key}", sphere_update)
+    app.router.add_delete("/api/spheres/{key}", sphere_delete)
     app.router.add_get("/api/shop", get_shop)
     app.router.add_post("/api/shop/buy", shop_buy)
     app.router.add_post("/api/shop/equip", shop_equip)

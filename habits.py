@@ -9,7 +9,7 @@ from datetime import date, timedelta
 
 import game
 import storage
-from quests_database import BINGO_SPHERES
+import spheres as user_spheres
 
 COLORS = ("blue", "pink", "yellow", "lav", "red", "orange", "purple", "lime")
 HABITS_LIMIT = 20
@@ -29,7 +29,7 @@ def _clean_text(value, limit: int, name: str, required: bool = False) -> str:
     return text
 
 
-def _clean_fields(data: dict, partial: bool) -> dict:
+def _clean_fields(data: dict, partial: bool, user_id: int = None) -> dict:
     fields = {}
     if not partial or "title" in data:
         fields["title"] = _clean_text(data.get("title"), TITLE_MAX, "название привычки", required=True)
@@ -42,7 +42,7 @@ def _clean_fields(data: dict, partial: bool) -> dict:
         fields["unit"] = _clean_text(data.get("unit"), UNIT_MAX, "единицу")
     if not partial or "sphere" in data:
         sp = data.get("sphere")
-        fields["sphere"] = sp if sp in BINGO_SPHERES else None
+        fields["sphere"] = sp if sp and user_id is not None and sp in user_spheres.keys(user_id) else None
     if not partial or "target" in data:
         try:
             fields["target"] = max(1, min(TARGET_MAX, int(data.get("target") or 1)))
@@ -62,7 +62,7 @@ def _get(user_id: int, habit_id: int) -> dict:
 
 
 def create_habit(user_id: int, data: dict) -> dict:
-    fields = _clean_fields(data, partial=False)
+    fields = _clean_fields(data, partial=False, user_id=user_id)
     conn = storage.connect()
     n = conn.execute("SELECT COUNT(*) FROM habits WHERE user_id = ? AND archived = 0", (user_id,)).fetchone()[0]
     if n >= HABITS_LIMIT:
@@ -80,7 +80,7 @@ def create_habit(user_id: int, data: dict) -> dict:
 
 def update_habit(user_id: int, habit_id: int, data: dict) -> dict:
     _get(user_id, habit_id)
-    fields = _clean_fields(data, partial=True)
+    fields = _clean_fields(data, partial=True, user_id=user_id)
     if fields:
         cols = ", ".join(f"{k} = ?" for k in fields)
         conn = storage.connect()
