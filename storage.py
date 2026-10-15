@@ -305,6 +305,18 @@ def init_db():
     _ensure_column(c, "plans", "sphere", "TEXT")
     _ensure_column(c, "users", "kb_cleared", "INTEGER DEFAULT 0")
     _ensure_column(c, "habits", "sphere", "TEXT")  # сфера привычки: Дисциплина, Энергия… — для статистики
+    # Расписание и виды привычек: build — делать, quit — бросить (отмечаются срывы).
+    _ensure_column(c, "habits", "kind", "TEXT DEFAULT 'build'")
+    _ensure_column(c, "habits", "schedule", "TEXT DEFAULT 'daily'")  # daily | days | weekly
+    _ensure_column(c, "habits", "days", "TEXT")  # '1010100' — пн…вс для schedule='days'
+    _ensure_column(c, "habits", "per_week", "INTEGER")  # для schedule='weekly'
+    _ensure_column(c, "habits", "time_of_day", "TEXT DEFAULT 'any'")  # morning | day | evening | any
+    _ensure_column(c, "habits", "remind_time", "TEXT")  # 'HH:MM' — личное напоминание
+    _ensure_column(c, "habits", "remind_sent", "TEXT")  # дата последнего отправленного напоминания
+    _ensure_column(c, "habit_logs", "skipped", "INTEGER DEFAULT 0")  # пропуск с причиной — не рвёт серию
+    _ensure_column(c, "habit_logs", "note", "TEXT")
+    c.execute("""CREATE TABLE IF NOT EXISTS habit_pauses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, start TEXT NOT NULL, end TEXT NOT NULL)""")
     c.execute("""CREATE TABLE IF NOT EXISTS user_spheres (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, key TEXT NOT NULL,
         name TEXT, emoji TEXT, color TEXT)""")
@@ -788,7 +800,7 @@ def delete_user_data(user_id: int):
         conn.execute(f"DELETE FROM plan_exceptions WHERE plan_id IN ({q})", plan_ids)
         conn.execute(f"DELETE FROM plan_reminders WHERE plan_id IN ({q})", plan_ids)
     conn.execute("DELETE FROM friends WHERE friend_id = ?", (user_id,))
-    for table in ("user_spheres", "friends", "ai_quests", "user_challenges", "notes", "purchases", "plans", "photos", "habit_logs", "habits", "quest_history", "quest_offers", "favorites",
+    for table in ("habit_pauses", "user_spheres", "friends", "ai_quests", "user_challenges", "notes", "purchases", "plans", "photos", "habit_logs", "habits", "quest_history", "quest_offers", "favorites",
                   "achievements_unlocked", "board_awards", "xp_log", "weekly_boards", "active_quests",
                   "completed_tasks", "survey_answers", "users"):
         conn.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))

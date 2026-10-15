@@ -422,6 +422,21 @@ async def send_plan_reminders():
             await ops.alert("plan reminder", e, f"user {user_id}")
 
 
+async def send_habit_reminders():
+    """Каждую минуту: личные напоминания привычек (по времени пользователя)."""
+    for user_id, h in habits.due_reminders():
+        habits.mark_reminded(h["id"], game.local_today(storage.get_user(user_id)).isoformat())
+        try:
+            progress = f" ({h['today']}/{h['target']}{(' ' + h['unit']) if h['unit'] else ''})" if h["target"] > 1 else ""
+            streak = f"\n🔥 Серия: {h['streak']} {plural_ru(h['streak'], 'день', 'дня', 'дней')} — не дай ей прерваться!" \
+                if h["streak"] >= 2 and h["streak_unit"] == "day" else ""
+            text = f"🌱 <b>Время привычки</b>\n{html.escape(h['emoji'])} {html.escape(h['title'])}{html.escape(progress)}{streak}"
+            markup = InlineKeyboardMarkup(inline_keyboard=app_row("habits")) if MINIAPP_URL else None
+            await ops.safe_send(user_id, text, parse_mode="HTML", reply_markup=markup)
+        except Exception as e:
+            await ops.alert("habit reminder", e, f"user {user_id}")
+
+
 async def cleanup_photos():
     try:
         result = photos.cleanup_orphans()
@@ -883,6 +898,7 @@ async def main():
     scheduler.add_job(send_evening_reminders, "cron", minute=0)
     scheduler.add_job(send_monthly_recap, "cron", day=1, hour=10, minute=0)
     scheduler.add_job(send_plan_reminders, "interval", minutes=1)
+    scheduler.add_job(send_habit_reminders, "interval", minutes=1)
     scheduler.add_job(send_streak_alarms, "cron", minute=1)
     scheduler.add_job(send_premium_notices, "cron", minute=7)
     scheduler.add_job(cleanup_photos, "cron", hour=4, minute=17)

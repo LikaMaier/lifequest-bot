@@ -415,7 +415,34 @@ async def post_share(request):
 
 async def get_habits(request):
     return web.json_response({"habits": habits.habits_view(request["user_id"]), "limit": habits.HABITS_LIMIT,
-                              "colors": list(habits.COLORS)})
+                              "colors": list(habits.COLORS), "pause": habits.current_pause(request["user_id"])})
+
+
+async def habit_create_many(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(habits.create_many(request["user_id"], data.get("items")))
+
+
+async def habit_stats(request):
+    return web.json_response(habits.stats(request["user_id"], _int(request.match_info["id"])))
+
+
+async def habit_skip(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(habits.skip_habit(request["user_id"], _int(data.get("id")), data.get("date"), data.get("note")))
+
+
+async def habit_pause(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(habits.set_pause(request["user_id"], data.get("days")))
+
+
+async def habit_unpause(request):
+    _limit(request, "write")
+    return web.json_response(habits.end_pause(request["user_id"]))
 
 
 async def habit_create(request):
@@ -703,6 +730,11 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_get("/api/habits", get_habits)
     app.router.add_post("/api/habits", habit_create)
     app.router.add_post("/api/habits/update", habit_update)
+    app.router.add_post("/api/habits/many", habit_create_many)
+    app.router.add_post("/api/habits/skip", habit_skip)
+    app.router.add_get("/api/habits/{id:[0-9]+}/stats", habit_stats)
+    app.router.add_post("/api/habits/pause", habit_pause)
+    app.router.add_delete("/api/habits/pause", habit_unpause)
     app.router.add_post("/api/habits/delete", habit_delete)
     app.router.add_post("/api/habits/log", habit_log)
     app.router.add_get("/api/notes", get_notes)

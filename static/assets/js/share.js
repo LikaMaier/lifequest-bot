@@ -168,3 +168,38 @@ function plural(n, one, few, many) {
   if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
   return many;
 }
+
+/** Карточка вехи «N дней подряд» — 1080×1350. */
+export async function milestoneCard(m) {
+  await document.fonts.ready;
+  const { store } = await import('./store.js');
+  const W = 1080, H = 1350;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  if (!ctx.roundRect) {
+    ctx.roundRect = function (x, y, w, hgt, r) { this.moveTo(x + r, y); this.arcTo(x + w, y, x + w, y + hgt, r); this.arcTo(x + w, y + hgt, x, y + hgt, r); this.arcTo(x, y + hgt, x, y, r); this.arcTo(x, y, x + w, y, r); this.closePath(); };
+  }
+  ctx.fillStyle = '#2C2A22'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#DBFA40'; ctx.font = '800 40px Nunito, sans-serif';
+  ctx.fillText('НОВАЯ ВЕХА', 90, 150);
+  ctx.fillStyle = '#FDF7DE';
+  ctx.font = '800 260px Unbounded, sans-serif';
+  ctx.fillText(String(m.days), 80, 450);
+  ctx.font = '800 72px Unbounded, sans-serif';
+  const word = m.days % 10 === 1 && m.days % 100 !== 11 ? 'день' : [2, 3, 4].includes(m.days % 10) && ![12, 13, 14].includes(m.days % 100) ? 'дня' : 'дней';
+  ctx.fillText(`${word} подряд`, 90, 560);
+  roundRect(ctx, 90, 640, 900, 170, 48, '#DBFA40', '#7C9414');
+  ctx.fillStyle = '#2C2A22';
+  fitText(ctx, `${m.emoji} ${m.title}`, 820, 64);
+  ctx.fillText(`${m.emoji} ${m.title}`, 130, 750);
+  const kind = (store.state && store.state.user.mascot) || 'cat-purple';
+  const pet = await loadSvg(mascotSVG(kind, 'love'));
+  ctx.drawImage(pet, 620, 880, 380, 360);
+  ctx.fillStyle = '#FDF7DE'; ctx.font = '700 44px Nunito, sans-serif';
+  ctx.fillText(m.days >= 30 ? 'Это уже часть меня.' : 'Маленькие шаги —', 90, 960);
+  ctx.fillText(m.days >= 30 ? 'Спасибо, LifeQuest!' : 'большие перемены.', 90, 1020);
+  ctx.fillStyle = '#F3619C'; ctx.font = '800 38px Nunito, sans-serif';
+  ctx.fillText('LIFEQUEST', 90, H - 70);
+  return canvas.toDataURL('image/jpeg', 0.9);
+}
