@@ -99,6 +99,19 @@ class AiQuestTest(TempDBTestCase, __import__("unittest").IsolatedAsyncioTestCase
         with self.assertRaises(game.QuestError):
             game.accept_quest(2, qid)  # чужой ИИ-квест не принять
 
+    async def test_bank_matches_mood_place_and_time(self):
+        import mood_bank
+        with mock.patch.dict(os.environ, {"GROQ_API_KEY": ""}):
+            for (mood, place), by_time in mood_bank.BANK.items():
+                for time, item in by_time.items():
+                    res = await aiquest.generate(1, mood, time, place)
+                    self.assertEqual(res["quest"]["title"], item[1])
+            with self.assertRaises(game.QuestError):
+                await aiquest.generate(1, "bored", "60", "work")  # «на работе» больше нет
+        acc = game.accept_quest(1, res["quest"]["id"])  # банк-квест принимается как обычный
+        self.assertFalse(acc["already"])
+        self.assertEqual(aiquest._today_count(1, game.local_today(storage.get_user(1)).isoformat()), 0)
+
     async def test_groq_error_falls_back(self):
         with mock.patch.dict(os.environ, {"GROQ_API_KEY": "x"}), \
                 mock.patch.object(aiquest, "_ask_groq", new=mock.AsyncMock(side_effect=RuntimeError("down"))):
