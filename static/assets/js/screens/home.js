@@ -1,78 +1,90 @@
-// ① Главная: приветствие с маскотом, кольцо дня и серия, уровень, три кнопки
-// случайных заданий, «Сегодня» (задание дня, планы, привычки), активные квесты.
-// Графики — на экране «Прогресс».
+// ① Главная: привычки и план дня в центре. Маскот радуется привычкам,
+// серия рядом; квест дня — бонус внизу; «+» добавляет что угодно.
 
 import { h, clear, plural } from '../dom.js';
 import { haptic } from '../tg.js';
 import { mascot, moodFor, jump } from '../mascot.js';
-import { ring, progressBar, sectionTitle, emptyState, busy, toastError } from '../ui.js';
+import { progressBar, busy, toastError } from '../ui.js';
 import { buyStars } from '../premium.js';
-import { api } from '../api.js';
-import { noteCard, noteComposer } from '../noteui.js';
-import { modeButtons, openQuest, questItem, completeQuest, openMoodQuest } from '../questflow.js';
-import { habitCard } from '../habitui.js';
-import { planRow, openAddChooser } from '../planui.js';
+import { openQuest } from '../questflow.js';
+import { habitRing, openTemplatePicker } from '../habitui.js';
+import { planRow } from '../planui.js';
+import { openPlus, plusFab } from '../plus.js';
 
 const DATE_FMT = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
 
-export function render(el, { state, go }) {
+export function render(el, ctx) {
+  const { state, go } = ctx;
   clear(el);
   const u = state.user;
   const mood = moodFor(state);
   const name = u.first_name || '';
+  const hs = state.habits;
+  const due = (hs.items || []).filter(x => x.kind === 'build' && (x.due_today || x.done_today));
+  const rerender = () => render(el, ctx);
 
-  // Шапка
+  // Шапка: дата и профиль
   const avatar = h('button', { type: 'button', class: 'avatar-btn', 'aria-label': 'Профиль и настройки' }, (name[0] || '★').toUpperCase());
   avatar.addEventListener('click', () => { haptic.tap(); go('profile'); });
   el.append(h('header', { class: 'topbar' },
     h('div', { class: 'grow' }, h('div', { class: 'brand' }, 'LIFEQUEST'),
       h('div', { class: 'small muted bold' }, capitalize(DATE_FMT.format(new Date())))), avatar));
 
-  // Приветствие + маскот с репликой
-  const pet = mascot(u.mascot, mood.expr, { size: 76, label: 'Твой маскот', acc: u.accessory });
+  // Маскот — его настроение зависит от привычек; серия рядом
+  const allDone = hs.total && hs.done === hs.total;
+  const expr = mood.expr === 'sleepy' || mood.expr === 'sad' ? mood.expr : allDone ? 'love' : hs.done ? 'happy' : mood.expr;
+  const pet = mascot(u.mascot, expr, { size: 72, label: 'Твой маскот', acc: u.accessory });
   pet.addEventListener('click', () => { haptic.tap('soft'); jump(pet); });
-  el.append(h('section', { class: 'row', style: { alignItems: 'flex-start', marginBottom: '16px' } }, pet,
-    h('div', { class: 'grow' }, h('h1', { style: { fontSize: '23px', marginBottom: '8px' } }, name ? `Привет, ${name}!` : 'Привет!'),
-      h('div', { class: 'speech' }, mood.line))));
-
-  // Кольцо дня + серия
-  const goal = state.today.goal;
-  const done = state.today.done;
-  const r = ring(done, goal, { color: done >= goal ? 'lime' : 'pink', size: 150, caption: 'цель дня',
-    label: `Сегодня выполнено ${done} из ${goal}` });
-  if (done >= goal) r.classList.add('pulse');
+  const petLine = !hs.total ? mood.line
+    : allDone ? 'Все привычки на сегодня сделаны — я счастлив! 🎉'
+    : hs.done ? `Уже ${hs.done} из ${hs.total} привычек — ещё чуть-чуть!`
+    : `Сегодня ${hs.total} ${plural(hs.total, 'привычка', 'привычки', 'привычек')} — начнём?`;
   const streak = state.streak;
-  const streakText = streak.status === 'done' ? 'засчитана сегодня'
-    : streak.status === 'at_risk' ? 'отметь привычку, чтобы продлить'
-    : streak.status === 'freeze' ? 'заморозка спасёт пропуск ❄️'
-    : streak.status === 'lost' ? 'начни новую сегодня' : 'начни сегодня';
-  el.append(h('section', { class: 'card', 'aria-label': 'Прогресс дня' },
-    h('div', { class: 'row', style: { gap: '16px' } }, r,
-      h('div', { class: 'grow stack-sm' },
-        h('div', { class: 'small bold muted' }, 'СЕРИЯ'),
-        h('div', { class: 'row', style: { gap: '6px' } }, h('span', { class: 'num', style: { fontSize: '34px' } }, String(streak.current)),
-          h('span', { style: { fontSize: '26px' }, 'aria-hidden': 'true' }, streak.current ? '🔥' : '🌱')),
-        h('div', { class: 'small bold' }, `${plural(streak.current, 'день', 'дня', 'дней')} подряд — ${streakText}`),
-        !state.habits.total ? h('div', { class: 'tiny bold', style: { color: 'var(--pink-deep)' } }, '🌱 Серия растёт от привычек — заведи первую') : null,
-        h('div', { class: 'tiny muted bold' }, (streak.freeze_available
-          ? `❄️ ${streak.freeze_weekly_left > 1 ? `${streak.freeze_weekly_left} заморозки` : 'Заморозка'} на неделю доступна`
-          : '❄️ Недельная заморозка использована')
-          + (streak.freeze_tokens ? ` · ещё ${streak.freeze_tokens} в запасе` : ''))))));
+  const streakBox = h('button', { type: 'button', class: 'home2-streak', 'aria-label': `Серия ${streak.current} ${plural(streak.current, 'день', 'дня', 'дней')}` },
+    h('b', null, String(streak.current)), h('span', null, `${plural(streak.current, 'день', 'дня', 'дней')} ${streak.current ? '🔥' : '🌱'}`));
+  streakBox.addEventListener('click', () => { haptic.tap(); go('progress'); });
+  el.append(h('section', { class: 'home2-hello' }, pet,
+    h('div', { class: 'grow' }, h('h1', null, name ? `Привет, ${name}!` : 'Привет!'), h('div', { class: 'home2-line' }, petLine)), streakBox));
   const banner = streakBanner(state, go);
   if (banner) el.append(banner);
 
-  // Уровень — одной карточкой; награды и магазин — ссылками в ней
-  const lv = state.level;
-  const linkStyle = { background: 'transparent', border: '0', padding: '0', font: 'inherit', fontWeight: '800', color: 'inherit', cursor: 'pointer' };
-  const awardsLink = h('button', { type: 'button', class: 'hint', style: linkStyle }, `🏅 Баджи ${state.badges.unlocked}/${state.badges.total} ›`);
-  awardsLink.addEventListener('click', () => { haptic.tap(); go('awards'); });
-  const shopLink = h('button', { type: 'button', class: 'hint', style: linkStyle }, `🛍️ ${state.user.balance} XP в магазин ›`);
-  shopLink.addEventListener('click', () => { haptic.tap(); go('shop'); });
-  el.append(h('section', { class: 'metric c-purple', style: { marginTop: '14px', minHeight: '0' }, 'aria-label': 'Уровень' },
-    h('div', { class: 'spread' }, h('span', { class: 'label' }, `Уровень ${lv.level}`), h('span', { class: 'hint' }, `${lv.xp} / ${lv.next} XP`)),
-    h('div', { class: 'value', style: { fontSize: '19px', margin: '2px 0 8px' } }, lv.name),
-    progressBar(lv.progress, 'yellow'),
-    h('div', { class: 'spread', style: { marginTop: '10px' } }, awardsLink, shopLink)));
+  // Привычки сегодня — кольцами
+  const habitsCard = h('section', { class: 'home2-card' });
+  const habitsLink = h('button', { type: 'button', class: 'home2-link' }, hs.items && hs.items.length ? 'Все' : 'Добавить');
+  habitsLink.addEventListener('click', () => { haptic.tap(); go('habits'); });
+  habitsCard.append(h('div', { class: 'home2-head' }, h('h2', null, 'Привычки сегодня'),
+    hs.total ? h('span', { class: 'home2-count' }, `${hs.done} из ${hs.total}`) : null, habitsLink));
+  if (!hs.items || !hs.items.length) {
+    const pick = h('button', { type: 'button', class: 'quest-item c-lime' }, h('span', { class: 'q-emoji', 'aria-hidden': 'true' }, '🌱'),
+      h('span', { class: 'grow' }, h('span', { class: 'q-title', style: { display: 'block' } }, 'Выбери первые привычки'),
+        h('span', { class: 'q-meta', style: { display: 'block' } }, 'Вода, зарядка, чтение — в пару касаний')));
+    pick.addEventListener('click', () => { haptic.tap(); openTemplatePicker({ onDone: rerender }); });
+    habitsCard.append(pick);
+  } else if (!due.length) {
+    habitsCard.append(h('p', { class: 'home2-empty' }, hs.pause ? '⏸ Пауза — отдыхай, серии не горят' : 'Сегодня по расписанию привычек нет — выходной 🌿'));
+  } else {
+    habitsCard.append(h('div', { class: 'hb2-rings' }, due.map(hb => habitRing(hb, { onChanged: () => {} }))));
+    const left = hs.total - hs.done;
+    habitsCard.append(h('div', { class: 'home2-hint' }, left
+      ? `Ещё ${left} ${plural(left, 'привычка', 'привычки', 'привычек')} — и день засчитан полностью`
+      : 'Все привычки сделаны — маскот доволен 🎉'));
+  }
+  el.append(habitsCard);
+
+  // План дня
+  const calLink = h('button', { type: 'button', class: 'home2-link' }, 'Календарь');
+  calLink.addEventListener('click', () => { haptic.tap(); go('calendar'); });
+  el.append(h('div', { class: 'home2-head', style: { marginTop: '18px' } }, h('h2', null, 'План дня'),
+    state.plans_today.length ? h('span', { class: 'home2-count' }, String(state.plans_today.length)) : null, calLink));
+  if (!state.plans_today.length) {
+    const plan = h('button', { type: 'button', class: 'quest-item c-blue' }, h('span', { class: 'q-emoji', 'aria-hidden': 'true' }, '🗓️'),
+      h('span', { class: 'grow' }, h('span', { class: 'q-title', style: { display: 'block' } }, 'На сегодня планов нет'),
+        h('span', { class: 'q-meta', style: { display: 'block' } }, state.plans_overdue ? `Есть ${state.plans_overdue} из прошлых дней — загляни в календарь` : 'Нажми «+» и напиши, что хочешь сделать')));
+    plan.addEventListener('click', () => { haptic.tap(); openPlus({ go, onChange: rerender }); });
+    el.append(plan);
+  } else {
+    el.append(h('div', { class: 'stack-sm' }, state.plans_today.slice(0, 4).map(o => planRow(o, { compact: true }))));
+  }
 
   // Активный челлендж
   const ch = state.challenge;
@@ -87,81 +99,31 @@ export function render(el, { state, go }) {
     el.append(chCard);
   }
 
-  // Три кнопки случайных заданий
-  const moodBtn = h('button', { type: 'button', class: 'btn block colored c-purple', style: { marginTop: '10px' } }, '✨ Квест под настроение');
-  moodBtn.addEventListener('click', () => { haptic.tap(); openMoodQuest(); });
-  el.append(sectionTitle('Получить задание'), modeButtons(), moodBtn);
-
-  // Задание дня
+  // Квест дня — бонус
   const daily = state.daily;
-  const dailyStatus = daily.status === 'done' ? '✅ Выполнено' : daily.status === 'active' ? 'В твоих квестах' : `+${daily.bonus_xp} XP бонус`;
-  const dailyCard = h('button', { type: 'button', class: 'card tinted c-yellow', style: { width: '100%', textAlign: 'left', border: '0', marginTop: '6px' },
-    'aria-label': `Задание дня: ${daily.title}` },
-    h('div', { class: 'spread' }, h('span', { class: 'card-title', style: { margin: 0 } }, '☀️ Задание дня'), h('span', { class: 'tag c-paleyellow' }, dailyStatus)),
-    h('div', { class: 'row', style: { marginTop: '10px' } }, h('span', { style: { fontSize: '30px' }, 'aria-hidden': 'true' }, daily.emoji),
-      h('div', { class: 'grow' }, h('div', { class: 'bold' }, daily.title), h('div', { class: 'small', style: { fontWeight: 600 } }, 'Одно на всех — сегодня его выполняют все в LifeQuest'))));
-  dailyCard.addEventListener('click', () => {
-    haptic.tap();
-    const active = state.active.find(q => q.id === daily.id);
-    openQuest(active || { ...daily, daily: true }, { daily: !active && daily.status !== 'done' });
-  });
-  el.append(sectionTitle('Сегодня'), dailyCard);
-
-  // Сегодня в планах (до 3 пунктов)
-  const calLink = h('button', { type: 'button', class: 'link' }, 'Календарь');
-  calLink.addEventListener('click', () => { haptic.tap(); go('calendar'); });
-  el.append(sectionTitle(`Сегодня в планах${state.plans_today.length ? ` · ${state.plans_today.length}` : ''}`, calLink));
-  if (!state.plans_today.length) {
-    const plan = h('button', { type: 'button', class: 'quest-item c-blue' }, h('span', { class: 'q-emoji', 'aria-hidden': 'true' }, '🗓️'),
-      h('span', { class: 'grow' }, h('span', { class: 'q-title', style: { display: 'block' } }, 'На сегодня планов нет'),
-        h('span', { class: 'q-meta', style: { display: 'block' } }, state.plans_overdue ? `Есть ${state.plans_overdue} из прошлых дней — загляни в календарь` : 'Запланируем что-нибудь приятное?')));
-    plan.addEventListener('click', () => { haptic.tap(); openAddChooser(state.today.date); });
-    el.append(plan);
-  } else {
-    el.append(h('div', { class: 'stack-sm' }, state.plans_today.slice(0, 3).map(o => planRow(o, { compact: true }))));
+  const active = state.active.find(q => q.id === daily.id);
+  const take = h('button', { type: 'button', class: 'cal2-pill lav' }, daily.status === 'done' ? 'Готово ✓' : active ? 'Открыть' : 'Взять');
+  const dailyCard = h('section', { class: 'home2-bonus' },
+    h('span', { class: 'home2-bonus-emoji', 'aria-hidden': 'true' }, daily.emoji),
+    h('div', { class: 'grow' }, h('div', { class: 'home2-kicker' }, `Квест дня · +${daily.bonus_xp} XP`), h('div', { class: 'bold' }, daily.title)), take);
+  take.addEventListener('click', () => { haptic.tap(); openQuest(active || { ...daily, daily: true }, { daily: !active && daily.status !== 'done' }); });
+  el.append(dailyCard);
+  if (state.active.length) {
+    const more = h('button', { type: 'button', class: 'home2-link-row' }, `🎯 Мои квесты: ${state.active.length}`, h('span', null, '›'));
+    more.addEventListener('click', () => { haptic.tap(); go('quests'); });
+    el.append(more);
   }
 
-  // Привычки на сегодня
-  const habitsLink = h('button', { type: 'button', class: 'link' }, state.habits.total ? 'Все привычки' : 'Добавить');
-  habitsLink.addEventListener('click', () => { haptic.tap(); go('habits'); });
-  el.append(sectionTitle(`Привычки${state.habits.total ? ` · ${state.habits.done}/${state.habits.total}` : ''}`, habitsLink));
-  if (!state.habits.total) {
-    const add = h('button', { type: 'button', class: 'quest-item c-lime' }, h('span', { class: 'q-emoji', 'aria-hidden': 'true' }, '🌱'),
-      h('span', { class: 'grow' }, h('span', { class: 'q-title' }, 'Заведи первую привычку'),
-        h('span', { class: 'q-meta', style: { display: 'block' } }, 'Вода, чтение, зарядка — или что-то своё')));
-    add.addEventListener('click', () => { haptic.tap(); go('habits'); });
-    el.append(add);
-  } else {
-    el.append(h('div', { class: 'stack-sm' }, state.habits.items.slice(0, 4).map(hb => habitCard(hb, { compact: true }))));
-  }
+  // Уровень одной строкой
+  const lv = state.level;
+  const level = h('button', { type: 'button', class: 'home2-level', 'aria-label': `Уровень ${lv.level}, ${lv.xp} из ${lv.next} XP` },
+    h('span', { class: 'home2-level-n' }, String(lv.level)),
+    h('span', { class: 'grow' }, h('span', { class: 'bold', style: { display: 'block' } }, lv.name), progressBar(lv.progress, 'yellow')),
+    h('span', { class: 'home2-count' }, `${lv.xp}/${lv.next} XP`));
+  level.addEventListener('click', () => { haptic.tap(); go('progress'); });
+  el.append(level);
 
-  // Заметки: быстрая запись и последние стикеры
-  const notesLink = h('button', { type: 'button', class: 'link' }, 'Все заметки');
-  notesLink.addEventListener('click', () => { haptic.tap(); go('notes'); });
-  const notesHost = h('div', { class: 'note-grid', style: { marginTop: '10px' } });
-  const loadNotes = () => api.notes({ limit: 4 }).then(({ notes }) => {
-    notesHost.replaceChildren(...notes.map(n => noteCard(n, { onChange: loadNotes, showDay: true })));
-  }).catch(() => {});
-  el.append(sectionTitle('📝 Заметки', notesLink),
-    noteComposer({ day: state.today.date, draftKey: 'home', onSaved: loadNotes, placeholder: 'Мысль, идея или итог дня…' }),
-    notesHost);
-  loadNotes();
-
-  // Активные квесты
-  const allLink = h('button', { type: 'button', class: 'link' }, 'Все квесты');
-  allLink.addEventListener('click', () => { haptic.tap(); go('quests'); });
-  el.append(sectionTitle(`Мои квесты${state.active.length ? ` · ${state.active.length}` : ''}`, allLink));
-  if (!state.active.length) {
-    el.append(h('div', { class: 'card' }, emptyState('Пока нет принятых заданий. Нажми любую кнопку выше — я подберу что-нибудь интересное!', { kind: u.mascot, expr: 'wink' })));
-  } else {
-    const list = h('div', { class: 'stack-sm' });
-    for (const q of state.active.slice(0, 3)) {
-      const doneBtn = h('button', { type: 'button', class: 'btn small colored c-lime', 'aria-label': `Выполнено: ${q.title}` }, 'Готово');
-      doneBtn.addEventListener('click', busy(doneBtn, async () => { haptic.tap(); await completeQuest(q.active_id); }));
-      list.append(questItem(q, () => openQuest(q), doneBtn));
-    }
-    el.append(list);
-  }
+  el.append(h('div', { style: { height: '72px' }, 'aria-hidden': 'true' }), plusFab({ go, onChange: rerender }));
 }
 
 function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }

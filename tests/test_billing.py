@@ -20,6 +20,18 @@ class PremiumTest(TempDBTestCase):
         super().setUp()
         storage.ensure_user(1, "u", "U")
 
+    def test_trial_after_three_habit_days(self):
+        import habits
+        hb = habits.create_habit(1, {"title": "Вода"})["habit"]
+        today = game.local_today(storage.get_user(1))
+        for i in (2, 1):
+            habits.log_habit(1, hb["id"], count=1, day=(today - timedelta(days=i)).isoformat())
+        self.assertFalse(billing.trial_available(storage.get_user(1)))
+        habits.log_habit(1, hb["id"], count=1)
+        self.assertTrue(billing.trial_available(storage.get_user(1)))
+        billing.start_trial(1)
+        self.assertTrue(game.is_premium(storage.get_user(1)))
+
     def test_trial_after_three_quests_once(self):
         with self.assertRaises(game.QuestError):
             billing.start_trial(1)

@@ -125,12 +125,12 @@ export function handlePremiumError(e) {
 }
 
 /** После 3-го квеста — предложение пробной недели (один раз). */
-export function offerTrial() {
+export function offerTrial(reason = 'quests') {
   const p = premiumInfo();
   if (!p.trial_available) return;
   const s = sheet(h('div', { class: 'center' },
     mascot((store.state && store.state.user.mascot) || 'star', 'love', { size: 100, acc: 'wizard', cls: 'jump' }),
-    h('h2', { style: { marginTop: '8px' } }, 'Три квеста позади! 🎉'),
+    h('h2', { style: { marginTop: '8px' } }, reason === 'habits' ? 'Три дня с привычками! 🎉' : 'Три квеста позади! 🎉'),
     h('p', { class: 'muted bold', style: { marginTop: '6px' } },
       `Держи подарок: ${p.trial_days} дней Premium бесплатно. Безлимит заданий, новые аксессуары и стиль «Космос».`),
     premiumActions(() => s.close())), { label: 'Подарок' });

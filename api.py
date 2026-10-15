@@ -491,8 +491,14 @@ async def delete_note(request):
 async def habit_log(request):
     _limit(request, "write")
     data = await _body(request)
-    return web.json_response(habits.log_habit(request["user_id"], _int(data.get("id")),
-                                              delta=data.get("delta"), count=data.get("count"), day=data.get("date")))
+    uid = request["user_id"]
+    days_before = billing.habit_days(uid)
+    result = habits.log_habit(uid, _int(data.get("id")), delta=data.get("delta"), count=data.get("count"), day=data.get("date"))
+    # третий день с привычками — один раз предлагаем пробную неделю Premium
+    days_after = billing.habit_days(uid)
+    result["trial_offer"] = (days_before < billing.TRIAL_AFTER_HABIT_DAYS <= days_after
+                             and billing.trial_available(storage.get_user(uid)))
+    return web.json_response(result)
 
 
 # ==================== ПЛАНЫ И КАЛЕНДАРЬ ====================

@@ -1,4 +1,5 @@
-// Приветствие при первом открытии: миссия и возможности LifeQuest в 5 слайдах.
+// Приветствие при первом открытии: 3 шага — что такое LifeQuest, выбор
+// первых привычек из шаблонов и квесты-бонус.
 // Отметка «уже видел» хранится на сервере (users.onboarded) — работает на
 // любом устройстве. Повторно открывается из Профиля.
 
@@ -7,7 +8,7 @@ import { api } from './api.js';
 import { haptic, pushBack } from './tg.js';
 import { myMascot } from './mascot.js';
 import { setState } from './store.js';
-import { MODE_INFO } from './ui.js';
+import { templatePicker } from './habitui.js';
 
 const feature = (emoji, color, title, text) => h('div', { class: `onb-feature c-${color}` },
   h('span', { class: 'onb-feature-emoji', 'aria-hidden': 'true' }, emoji),
@@ -17,45 +18,26 @@ const SLIDES = [
   {
     color: 'pink', kind: 'cat-purple', expr: 'love',
     title: 'Привет! Это LifeQuest',
-    lead: 'Дни часто похожи друг на друга. Наша миссия — помочь тебе выбираться из привычного сценария и превращать обычные дни в маленькие приключения, которые хочется запомнить.',
+    lead: 'Трекер привычек и планер, который не ругает, а играет с тобой. Маленькие шаги каждый день — и большие перемены.',
     body: () => [
-      feature('✨', 'yellow', 'Маленькие шаги', 'Задания на 15 минут или на целый день — без марафонов и давления.'),
-      feature('🌿', 'lime', 'Без чувства вины', 'Не успелось — бывает. Перенеси или отпусти, LifeQuest не ругается.'),
+      feature('🌱', 'lime', 'Привычки', 'Свои ритуалы по расписанию, серии и напоминания в чат.'),
+      feature('🗓️', 'blue', 'План дня', 'Дела по времени, главное дело дня и напоминания.'),
+      feature('🌿', 'yellow', 'Без чувства вины', 'Не успелось — бывает. Перенеси, пропусти или поставь паузу.'),
     ],
+  },
+  {
+    color: 'lime', kind: 'cat-lime', expr: 'happy', picker: true,
+    title: 'С чего начнём?',
+    lead: 'Выбери до 3 привычек — маленькие шаги работают лучше. Остальное добавишь потом.',
   },
   {
     color: 'purple', kind: 'star', expr: 'wink',
-    title: 'Задания трёх форматов',
-    lead: 'Нажми кнопку — я покручу рулетку и подкину что-нибудь странное и классное. Не понравилось — возьмём другое.',
-    body: () => ['solo', 'pair', 'company'].map(m => feature(MODE_INFO[m].emoji, MODE_INFO[m].color, MODE_INFO[m].label,
-      { solo: 'Приключение для себя: смелость, творчество, энергия и ещё 3 сферы.', pair: 'Свидания и вызовы на двоих, которые никто не повторит.',
-        company: 'Авантюры для друзей, о которых они не просили.' }[m])),
-  },
-  {
-    color: 'lime', kind: 'cat-lime', expr: 'happy',
-    title: 'Привычки и карта недели',
-    lead: 'Собирай свои ритуалы и ставь цели на неделю.',
+    title: 'А ещё — приключения',
+    lead: 'Когда захочется чего-то нового, я подкину квест: для себя, на двоих или для компании.',
     body: () => [
-      feature('🌱', 'lime', 'Трекер привычек', 'Придумай свои привычки, задай, сколько раз в день, и отмечай +/−.'),
-      feature('🎯', 'blue', 'Цели месяца 3×3', '9 своих целей на месяц. Собери линию или всю карту — получи бонус.'),
-    ],
-  },
-  {
-    color: 'blue', kind: 'cat-blue', expr: 'surprised',
-    title: 'Календарь и воспоминания',
-    lead: 'Планируй задания и дела на конкретные дни — бот напомнит в нужное время.',
-    body: () => [
-      feature('🗓️', 'blue', 'Календарь планов', 'Задание из банка или свой план, повторы и напоминания в чат.'),
-      feature('📷', 'pink', 'Фото-воспоминания', 'Прикрепляй фото к заданиям и дням — их видишь только ты.'),
-    ],
-  },
-  {
-    color: 'yellow', kind: 'heart', expr: 'love',
-    title: 'Расти и собирай награды',
-    lead: 'Каждое выполненное задание приносит XP. Чем больше приключений — тем выше уровень.',
-    body: () => [
-      feature('🔥', 'orange', 'Серия дней', 'Выполняй хотя бы одну привычку в день. Раз в неделю пропуск прощается ❄️'),
-      feature('🏆', 'purple', 'Уровни и ачивки', 'Уровни открывают новых маскотов — от лягушонка до панды. И 40+ ачивок.'),
+      feature('✨', 'purple', 'Квесты-бонус', 'Необычные задания на 15 минут или на целый день.'),
+      feature('📷', 'pink', 'Воспоминания', 'Фото с квестов и дней — полароиды в альбоме.'),
+      feature('🔥', 'orange', 'Серия и маскот', 'Делай привычки — маскот радуется, серия растёт.'),
     ],
   },
 ];
@@ -82,15 +64,20 @@ export function showOnboarding({ onDone } = {}) {
 
   const draw = (dir = 0) => {
     const s = SLIDES[i];
-    clear(slideHost).append(h('section', { class: `onb-slide c-${s.color} ${dir > 0 ? 'from-right' : dir < 0 ? 'from-left' : ''}`, 'aria-live': 'polite' },
-      h('div', { class: 'onb-hero' }, myMascot(s.expr, { size: 110, cls: 'jump' })),
+    const content = s.picker
+      ? templatePicker({ max: 3, title: '', onDone: () => go(1) })
+      : h('div', { class: 'stack-sm' }, s.body());
+    clear(slideHost).append(h('section', { class: `onb-slide c-${s.color} ${s.picker ? 'picker' : ''} ${dir > 0 ? 'from-right' : dir < 0 ? 'from-left' : ''}`, 'aria-live': 'polite' },
+      s.picker ? null : h('div', { class: 'onb-hero' }, myMascot(s.expr, { size: 110, cls: 'jump' })),
+      h('div', { class: 'onb-step' }, `Шаг ${i + 1} из ${SLIDES.length}`),
       h('h1', { class: 'onb-title' }, s.title),
       h('p', { class: 'onb-lead' }, s.lead),
-      h('div', { class: 'stack-sm' }, s.body())));
+      content));
     clear(dots).append(...SLIDES.map((_, k) => h('span', { class: `onb-dot ${k === i ? 'on' : ''}`, 'aria-hidden': 'true' })));
     dots.setAttribute('aria-label', `Шаг ${i + 1} из ${SLIDES.length}`);
     back.style.display = i === 0 ? 'none' : '';
-    next.textContent = i === SLIDES.length - 1 ? 'Поехали! 🚀' : 'Дальше';
+    next.textContent = i === SLIDES.length - 1 ? 'Поехали! 🚀' : SLIDES[i].picker ? 'Позже' : 'Дальше';
+    next.classList.toggle('ghost', Boolean(SLIDES[i].picker));
     skip.style.visibility = i === SLIDES.length - 1 ? 'hidden' : 'visible';
   };
   const go = d => {
