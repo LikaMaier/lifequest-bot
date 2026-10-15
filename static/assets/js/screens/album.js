@@ -9,6 +9,7 @@ import { myMascot } from '../mascot.js';
 import { skeleton, emptyState, sheet, toast, toastError } from '../ui.js';
 import { lazyThumb, openViewer, yearShareCard } from '../photoui.js';
 import { openDaySheet, todayIso } from '../planui.js';
+import { playStories, monthPalette, monthCollageCard, onThisDay, longestStreak } from '../memofun.js';
 
 const MONTH_COLORS = ['lav', 'blue', 'pink', 'lime', 'yellow', 'orange'];
 const SHORT_MONTHS = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
@@ -27,6 +28,8 @@ const ICONS = {
   left: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
   right: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
   camera: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+  play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 001.5.9l10.5-6.5a1 1 0 000-1.7L9.5 4.6A1 1 0 008 5.5z"/></svg>',
+  collage: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M12 3.5v17M12 12h8.5"/></svg>',
   grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>',
 };
 const icon = name => h('span', { class: 'memo-ico', 'aria-hidden': 'true', html: ICONS[name] });
@@ -82,6 +85,17 @@ export async function render(el, ctx) {
     return;
   }
 
+  const flash = onThisDay(all, today);
+  if (flash) {
+    const card = h('button', { type: 'button', class: 'memo-flash2' },
+      h('span', { class: 'memo-flash2-pics' }, flash.photos.slice(0, 3).map(p => h('span', { class: 'memo-flash2-pic' }, lazyThumb(p)))),
+      h('span', { class: 'grow' }, h('span', { class: 'memo-flash2-kicker' }, 'В этот день'),
+        h('span', { class: 'memo-flash2-title' }, flash.label), h('span', { class: 'memo-flash2-sub' }, fmtDay(flash.day))),
+      icon('play'));
+    card.addEventListener('click', () => playStories(flash.photos, `${flash.label} · ${fmtDay(flash.day)}`));
+    body.append(card);
+  }
+
   const firstMonth = first.slice(0, 7);
   if (!month || month < firstMonth || month > thisMonth) month = months.has(thisMonth) ? thisMonth : [...months].sort().pop();
 
@@ -115,6 +129,7 @@ export async function render(el, ctx) {
     next.addEventListener('click', () => go(1));
     const [y, m] = month.split('-').map(Number);
     const daysWith = byDay.size;
+    const streak = longestStreak([...byDay.keys()]);
 
     const grid = h('div', { class: 'memo-cal-grid' });
     const offset = (new Date(y, m - 1, 1).getDay() + 6) % 7;
@@ -135,7 +150,8 @@ export async function render(el, ctx) {
     view.append(h('section', { class: 'memo-cal' },
       h('div', { class: 'memo-cal-head' }, prev,
         h('div', { class: 'center' }, h('div', { class: 'memo-cal-title' }, `${MONTHS[m - 1]} ${y}`),
-          h('div', { class: 'memo-cal-sub' }, daysWith ? `${daysWith} ${plural(daysWith, 'день', 'дня', 'дней')} с фото` : 'Пока без фото')),
+          h('div', { class: 'memo-cal-sub' }, daysWith ? `${daysWith} ${plural(daysWith, 'день', 'дня', 'дней')} с фото` : 'Пока без фото',
+            streak >= 2 ? h('span', { class: 'memo-streak' }, `🔥 ${streak} ${plural(streak, 'день', 'дня', 'дней')} подряд`) : null)),
         next),
       h('div', { class: 'memo-cal-grid wd', 'aria-hidden': 'true' }, WEEKDAYS.map(w => h('span', null, w))),
       grid));
@@ -166,9 +182,22 @@ export async function render(el, ctx) {
       heights[c] += 1 / r;
     });
     const tiles = h('div', { class: 'memo-grid' }, cols);
-    view.append(heroBtn,
+    const stories = h('button', { type: 'button', class: 'memo-fun c-pink' }, icon('play'), h('span', null, h('b', null, 'Сторис'), h('small', null, 'весь месяц подряд')));
+    stories.addEventListener('click', () => playStories(inMonth, `${MONTHS[m - 1]} ${y}`));
+    const collage = h('button', { type: 'button', class: 'memo-fun c-lime' }, icon('collage'), h('span', null, h('b', null, 'Коллаж'), h('small', null, 'отправить друзьям')));
+    collage.addEventListener('click', async () => {
+      haptic.tap();
+      collage.disabled = true;
+      try {
+        await api.share(await monthCollageCard(month, inMonth));
+        haptic.success();
+        toast('📬 Коллаж месяца уже в чате с ботом — перешли друзьям!', 'good', 3200);
+      } catch (e) { toastError(e); }
+      collage.disabled = false;
+    });
+    view.append(h('div', { class: 'memo-fun-row' }, stories, collage), heroBtn,
       h('div', { class: 'memo-sec-head' }, h('h2', null, MONTHS[m - 1]), h('span', null, `${inMonth.length} ${plural(inMonth.length, 'фото', 'фото', 'фото')}`)),
-      tiles);
+      tiles, monthPalette(inMonth, m - 1));
   };
 
   const chips = h('div', { class: 'memo-chips', role: 'tablist', 'aria-label': 'Фильтр фото' });
