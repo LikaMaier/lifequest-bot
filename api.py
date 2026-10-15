@@ -409,7 +409,7 @@ async def post_share(request):
         raise game.QuestError("Картинка слишком большая")
     from aiogram.types import BufferedInputFile
     await bot.send_photo(request["user_id"], BufferedInputFile(raw, filename="lifequest.png" if prefix.endswith("png;base64,") else "lifequest.jpg"),
-                         caption="✨ Мой прогресс в LifeQuest. Перешли друзьям — пусть тоже выберутся из привычного сценария!")
+                         caption="✨ Мой прогресс в LifeQuest. Перешли друзьям — пусть тоже начнут свой путь к победе!")
     return web.json_response({"ok": True})
 
 

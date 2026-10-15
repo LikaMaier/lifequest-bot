@@ -303,6 +303,7 @@ def init_db():
     _ensure_column(c, "users", "streak_push_date", "TEXT")
     _ensure_column(c, "users", "streak_undo", "TEXT")
     _ensure_column(c, "plans", "sphere", "TEXT")
+    _ensure_column(c, "users", "kb_cleared", "INTEGER DEFAULT 0")
     _ensure_column(c, "habits", "sphere", "TEXT")  # сфера привычки: Дисциплина, Энергия… — для статистики
     c.execute("""CREATE TABLE IF NOT EXISTS user_spheres (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, key TEXT NOT NULL,

@@ -64,59 +64,61 @@ class BotRemindersTest(TempDBTestCase, unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.sent), 1)
 
 
-class DailyQuestPushTest(TempDBTestCase, unittest.IsolatedAsyncioTestCase):
+class MorningCardTest(TempDBTestCase, unittest.IsolatedAsyncioTestCase):
+    """Утро: картинка с маскотом + шутка и статистика, без кнопок с заданиями."""
+
     def setUp(self):
         TempDBTestCase.setUp(self)
-        storage.ensure_user(7)
-        storage.update_user(7, tz="Europe/Moscow")
-        self.sent = []
+        storage.ensure_user(7, "u", "Лика")
+        storage.update_user(7, tz="Europe/Moscow", mascot="panda")
+        self.sent, self.photos = [], []
 
         async def fake_send(chat_id, text, **kw):
             self.sent.append((chat_id, text, kw.get("reply_markup")))
-        self.patch = mock.patch.object(lifequest_bot.bot, "send_message", side_effect=fake_send)
-        self.patch.start()
+
+        async def fake_photo(chat_id, photo, **kw):
+            self.photos.append((chat_id, photo, kw.get("caption"), kw.get("reply_markup")))
+        self.p1 = mock.patch.object(lifequest_bot.bot, "send_message", side_effect=fake_send)
+        self.p2 = mock.patch.object(lifequest_bot.bot, "send_photo", side_effect=fake_photo)
+        self.p3 = mock.patch.object(lifequest_bot.bot, "get_me", new=mock.AsyncMock(return_value=mock.MagicMock(username="Bingo_Life_Quest_bot")))
+        for p in (self.p1, self.p2, self.p3):
+            p.start()
 
     def tearDown(self):
-        self.patch.stop()
+        for p in (self.p1, self.p2, self.p3):
+            p.stop()
         TempDBTestCase.tearDown(self)
 
-    def _daily(self):
-        today = game.local_today(storage.get_user(7))
-        return game.daily_quest_id(today), game.CATALOG[game.daily_quest_id(today)]
-
-    async def test_morning_push_has_daily_quest(self):
-        key, q = self._daily()
+    async def test_morning_is_a_card_with_stats_and_only_app_button(self):
         with mock.patch.object(lifequest_bot, "users_at_local_hour", return_value=[7]):
             await lifequest_bot.send_daily_reminders()
-        self.assertEqual(len(self.sent), 1)  # планов нет — только одно сообщение
-        _, text, kb = self.sent[0]
-        self.assertIn("Задание дня", text)
-        self.assertIn(q["title"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"), text)
+        # первое утро после обновления — убираем старую клавиатуру
+        self.assertEqual(len(self.sent), 1)
+        self.assertIn("Бот обновился", self.sent[0][1])
+        self.assertEqual(len(self.photos), 1)
+        _, photo, caption, kb = self.photos[0]
+        self.assertTrue(photo.data.startswith(b"\xff\xd8"))  # JPEG
+        self.assertIn("Твоя статистика", caption)
+        self.assertIn("Серия", caption)
         datas = [b.callback_data for row in kb.inline_keyboard for b in row]
-        self.assertIn(f"daily_accept_{key}", datas)
+        self.assertEqual([d for d in datas if d], [])  # только кнопка приложения
+        with mock.patch.object(lifequest_bot, "users_at_local_hour", return_value=[7]):
+            await lifequest_bot.send_daily_reminders()
+        self.assertEqual(len(self.sent), 1)  # клавиатуру убираем один раз
 
-    async def test_accept_button_hidden_after_accepting(self):
-        key, _ = self._daily()
-        game.accept_quest(7, key, None, daily=True)
-        text, kb = lifequest_bot.build_morning_message(7)
-        datas = [b.callback_data for row in kb.inline_keyboard for b in row]
-        self.assertNotIn(f"daily_accept_{key}", datas)
-        self.assertIn("menu_myquests", datas)
-
-    async def test_daily_accept_callback(self):
-        key, _ = self._daily()
+    async def test_old_buttons_and_commands_point_to_app(self):
         cb = mock.MagicMock()
-        cb.from_user.id, cb.from_user.username, cb.from_user.first_name = 7, "u", "U"
-        cb.data = f"daily_accept_{key}"
+        cb.data = "menu_solo"
         cb.answer = mock.AsyncMock()
-        cb.message.edit_text = mock.AsyncMock()
-        await lifequest_bot.daily_accept(cb)
-        cb.message.edit_text.assert_awaited_once()
-        self.assertEqual(game.daily_status(7, game.local_today(storage.get_user(7))), "active")
-        # Вчерашнее (не сегодняшнее) задание дня не принимается.
-        cb.data = "daily_accept_not_today"
-        await lifequest_bot.daily_accept(cb)
+        await lifequest_bot.old_buttons(cb)
         self.assertTrue(cb.answer.await_args.kwargs.get("show_alert"))
+        msg = mock.MagicMock()
+        msg.text = "/solo"
+        msg.from_user.id, msg.from_user.username, msg.from_user.first_name = 7, "u", "Лика"
+        msg.answer = mock.AsyncMock()
+        await lifequest_bot.cmd_app_only(msg)
+        kb = msg.answer.await_args.kwargs["reply_markup"]
+        self.assertIsNotNone(kb.inline_keyboard[0][0].web_app)
 
 
 class FunnyNudgesTest(TempDBTestCase, unittest.IsolatedAsyncioTestCase):
@@ -162,10 +164,16 @@ class FunnyNudgesTest(TempDBTestCase, unittest.IsolatedAsyncioTestCase):
     async def test_every_reminder_has_app_button(self):
         today = game.local_today(storage.get_user(9))
         plans.create_plan(9, {"title": "Йога", "date": today.isoformat(), "time": "08:00"})
-        with mock.patch.object(lifequest_bot, "users_at_local_hour", return_value=[9]):
+        storage.update_user(9, kb_cleared=1)
+
+        async def fake_photo(chat_id, photo, **kw):
+            self.sent.append((chat_id, kw.get("caption"), kw.get("reply_markup")))
+        with mock.patch.object(lifequest_bot, "users_at_local_hour", return_value=[9]), \
+                mock.patch.object(lifequest_bot.bot, "send_photo", side_effect=fake_photo), \
+                mock.patch.object(lifequest_bot.bot, "get_me", new=mock.AsyncMock(return_value=mock.MagicMock(username="b"))):
             await lifequest_bot.send_daily_reminders()
             await lifequest_bot.send_evening_reminders()
-        self.assertEqual(len(self.sent), 3)  # утро, планы, вечер
+        self.assertEqual(len(self.sent), 3)  # утро (картинка), планы, вечер
         for _, _, kb in self.sent:
             self.assertTrue(self.last_button_is_app(kb))
 
@@ -260,14 +268,6 @@ class EditMessageTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TelegramBadRequest):
             await lifequest_bot.safe_edit(msg, "x")
 
-    def test_reroll_gives_a_different_task(self):
-        shown_text, shown_kb = lifequest_bot.build_solo_quest_message(*lifequest_bot.get_random_solo_task())
-        msg = mock.MagicMock()
-        msg.reply_markup = shown_kb
-        for _ in range(30):
-            _text, kb = lifequest_bot.fresh_variant(lambda: lifequest_bot.build_solo_quest_message(*lifequest_bot.get_random_solo_task()), msg)
-            self.assertNotEqual(kb.inline_keyboard[0][0].callback_data, shown_kb.inline_keyboard[0][0].callback_data)
-
 
 class BotHandlersTest(TempDBTestCase, unittest.IsolatedAsyncioTestCase):
     """Обработчики бота на фейковых callback/message (без Telegram)."""
@@ -278,25 +278,6 @@ class BotHandlersTest(TempDBTestCase, unittest.IsolatedAsyncioTestCase):
         cb.from_user.id, cb.from_user.username, cb.from_user.first_name = user_id, "u", "Тест"
         cb.answer = mock.AsyncMock()
         return cb
-
-    async def test_solo_take_works_for_keys_with_underscores(self):
-        from quests_database import KEY_TO_TASK
-        keys = [k for k in KEY_TO_TASK if "_" in k]
-        self.assertTrue(keys)
-        with mock.patch.object(lifequest_bot, "safe_edit", new=mock.AsyncMock()) as edit:
-            for i, key in enumerate(keys[:20]):
-                cb = self._callback(f"solo_take_{key}_medium", user_id=100 + i)
-                await lifequest_bot.solo_take(cb)
-                self.assertEqual([q[1] for q in storage.get_active_quests(100 + i)], [key])
-                self.assertIn("Квест добавлен", edit.call_args.args[1])
-
-    async def test_solo_take_unknown_tier_is_rejected(self):
-        key = "no_list"
-        cb = self._callback(f"solo_take_{key}_nonsense")
-        with mock.patch.object(lifequest_bot, "safe_edit", new=mock.AsyncMock()):
-            await lifequest_bot.solo_take(cb)
-        cb.answer.assert_awaited()
-        self.assertEqual(storage.get_active_quests(77), [])
 
     async def test_remind_creates_missing_user(self):
         msg = mock.MagicMock()

@@ -17,7 +17,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, 
     InlineKeyboardButton, BotCommand, KeyboardButton, ReplyKeyboardMarkup,
-    WebAppInfo, MenuButtonWebApp, LabeledPrice, PreCheckoutQuery, ReplyKeyboardRemove
+    WebAppInfo, MenuButtonWebApp, LabeledPrice, PreCheckoutQuery, ReplyKeyboardRemove, BufferedInputFile
 )
 from apscheduler.events import EVENT_JOB_ERROR
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -27,6 +27,7 @@ load_dotenv()  # до импорта storage: он читает DB_PATH при �
 
 import api
 import billing
+import card
 import challenges
 import friends
 import game
@@ -114,16 +115,12 @@ WELCOME_TEXT = """👋 <b>Привет! Я LifeQuest.</b>
 Подкидываю задания, после которых день перестаёт быть обычным: расследовать загадку, \
 заговорить с незнакомцем, устроить свидание, которое никто не повторит.
 
-🎯 <b>Выбери формат</b> — или открой приложение: там план дня, привычки, календарь и твой маскот."""
+Всё живёт в приложении 👇 — квесты, план дня, привычки, календарь, воспоминания и твой маскот.
+А я буду присылать утром шутку и твою статистику, а вечером — спрашивать, как прошёл день."""
 
-def build_start_menu_keyboard() -> InlineKeyboardMarkup:
-    rows = [[build_miniapp_button()]] if MINIAPP_URL else []
-    return InlineKeyboardMarkup(inline_keyboard=rows + [
-        [InlineKeyboardButton(text="🎯 На одного", callback_data="menu_solo")],
-        [InlineKeyboardButton(text="💞 Для пары", callback_data="menu_pair")],
-        [InlineKeyboardButton(text="👥 Для компании", callback_data="menu_company")],
-        [InlineKeyboardButton(text="🗺️ Карта недели", callback_data="menu_board")],
-    ])
+def build_start_menu_keyboard():
+    """Только кнопка приложения: все задания и функции — в мини-аппе."""
+    return InlineKeyboardMarkup(inline_keyboard=app_row()) if MINIAPP_URL else None
 
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
@@ -134,7 +131,17 @@ async def cmd_start(message: Message):
     if invite and invite[2] != user_id and storage.get_user(invite[2]):
         await handle_invite(message, invite, is_new)
         return
+    await clear_old_keyboard(user_id)
     await message.answer(WELCOME_TEXT, parse_mode="HTML", reply_markup=build_start_menu_keyboard())
+
+
+async def clear_old_keyboard(user_id: int):
+    """Убираем старую клавиатуру «Карта недели» под полем ввода (один раз)."""
+    if storage.get_user(user_id).get("kb_cleared"):
+        return
+    storage.update_user(user_id, kb_cleared=1)
+    await ops.safe_send(user_id, "✨ Бот обновился: все задания и функции теперь в приложении LifeQuest.",
+                        reply_markup=ReplyKeyboardRemove())
 
 
 async def handle_invite(message: Message, invite, is_new: bool):
@@ -159,7 +166,7 @@ async def handle_invite(message: Message, invite, is_new: bool):
         note = f"🎉 {me} теперь в LifeQuest по твоей ссылке!"
     await message.answer(WELCOME_TEXT if kind == "ref" else text, parse_mode="HTML",
                          reply_markup=build_start_menu_keyboard() if kind == "ref" else
-                         InlineKeyboardMarkup(inline_keyboard=app_row("quests") or [[InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")]]))
+                         InlineKeyboardMarkup(inline_keyboard=app_row("quests")) if MINIAPP_URL else None)
     if kind == "ref":
         await message.answer(text, parse_mode="HTML")
     if res.get("added") or res.get("gift"):
@@ -167,240 +174,23 @@ async def handle_invite(message: Message, invite, is_new: bool):
                             parse_mode="HTML")
 
 
-# ==================== QUEST BANK ====================
-# Сами задания вынесены в quests_database.py.
-def get_random_solo_task():
-    """Один случайный квест из всего банка (любая сфера, равновероятно) —
-    основа механики «На одного»: показывается один на выбор, можно взять или
-    поменять на другой. Уровень сложности — случайный из того, что у задания
-    реально есть (часть заданий теперь только среднего уровня, без лёгкого)."""
-    task = random.choice(ALL_TASKS_FLAT)
-    available_tiers = [t for t in ("easy", "medium") if t in task]
-    tier = random.choice(available_tiers)
-    return task, tier
+# ==================== ВСЁ — В МИНИ-АППЕ ====================
+# Задания, «Мои квесты», карта недели и привычки живут только в приложении.
+# Старые команды и кнопки из прошлых сообщений ведут туда.
+APP_ONLY_COMMANDS = {"solo": "quests", "pair": "quests", "company": "quests", "myquests": "quests",
+                     "completed": "progress", "board": "board", "habits": "habits"}
 
 
-def build_group_quest_message(quest_list: list, callback_prefix: str):
-    quest = random.choice(quest_list)
-    text = f"👥 <b>{quest['label']}</b>\n\n{quest['text']}"
-    if quest.get("outcome"):
-        text += f"\n\n<i>Что может произойти: {quest['outcome']}</i>"
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Принять вызов", callback_data=f"{callback_prefix}_accept_{quest['key']}")],
-        [InlineKeyboardButton(text="🔄 Поменять", callback_data=f"{callback_prefix}_reroll")]
-    ])
-    return text, kb
-
-async def accept_group_quest(callback: CallbackQuery, quest_list: list, prefix: str):
-    """Общий обработчик «Принять вызов» для /company и /pair — так же, как
-    в «На одного» и «Задании дня», добавляет в «Мои квесты»."""
-    user_id = callback.from_user.id
-    quest_key = callback.data.replace(prefix, "")
-    quest = next((q for q in quest_list if q["key"] == quest_key), None)
-    if not quest:
-        await callback.answer("Этот квест уже недоступен, попробуй ещё раз")
+@dp.message(Command(*APP_ONLY_COMMANDS))
+async def cmd_app_only(message: Message):
+    ensure_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
+    cmd = (message.text or "").split()[0].lstrip("/").split("@")[0]
+    if not MINIAPP_URL:
+        await message.answer("Это теперь в приложении LifeQuest — оно скоро откроется.")
         return
+    await message.answer("✨ Это теперь в приложении — там удобнее:",
+                         reply_markup=InlineKeyboardMarkup(inline_keyboard=app_row(APP_ONLY_COMMANDS.get(cmd, ""))))
 
-    ensure_user(user_id, callback.from_user.username, callback.from_user.first_name)
-    game.accept_quest(user_id, quest["key"])
-
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")]
-    ])
-    await safe_edit(callback.message, 
-        f"✅ <b>Квест добавлен в «Мои квесты»!</b>\n\n{quest['label']}",
-        parse_mode="HTML",
-        reply_markup=kb
-    )
-    await callback.answer()
-
-@dp.message(Command("company"))
-async def cmd_company_quest(message: Message):
-    text, kb = build_group_quest_message(COMPANY_QUESTS, "company")
-    await message.answer(text, parse_mode="HTML", reply_markup=kb)
-
-@dp.callback_query(F.data == "menu_company")
-async def menu_company_quest(callback: CallbackQuery):
-    text, kb = build_group_quest_message(COMPANY_QUESTS, "company")
-    await safe_edit(callback.message, text, parse_mode="HTML", reply_markup=kb)
-    await callback.answer()
-
-@dp.callback_query(F.data == "company_reroll")
-async def reroll_company_quest(callback: CallbackQuery):
-    text, kb = fresh_variant(lambda: build_group_quest_message(COMPANY_QUESTS, "company"), callback.message)
-    await safe_edit(callback.message, text, parse_mode="HTML", reply_markup=kb)
-    await callback.answer()
-
-@dp.callback_query(F.data.startswith("company_accept_"))
-async def company_quest_accept(callback: CallbackQuery):
-    await accept_group_quest(callback, COMPANY_QUESTS, "company_accept_")
-
-@dp.message(Command("pair"))
-async def cmd_pair_quest(message: Message):
-    text, kb = build_group_quest_message(PAIR_QUESTS, "pair")
-    await message.answer(text, parse_mode="HTML", reply_markup=kb)
-
-@dp.callback_query(F.data == "menu_pair")
-async def menu_pair_quest(callback: CallbackQuery):
-    text, kb = build_group_quest_message(PAIR_QUESTS, "pair")
-    await safe_edit(callback.message, text, parse_mode="HTML", reply_markup=kb)
-    await callback.answer()
-
-@dp.callback_query(F.data == "pair_reroll")
-async def reroll_pair_quest(callback: CallbackQuery):
-    text, kb = fresh_variant(lambda: build_group_quest_message(PAIR_QUESTS, "pair"), callback.message)
-    await safe_edit(callback.message, text, parse_mode="HTML", reply_markup=kb)
-    await callback.answer()
-
-@dp.callback_query(F.data.startswith("pair_accept_"))
-async def pair_quest_accept(callback: CallbackQuery):
-    await accept_group_quest(callback, PAIR_QUESTS, "pair_accept_")
-
-# ==================== SOLO QUEST (На одного) ====================
-def build_solo_quest_message(task: dict, tier: str):
-    text = task[tier]
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Взять задание", callback_data=f"solo_take_{task['key']}_{tier}")],
-        [InlineKeyboardButton(text="🔄 Поменять задание", callback_data="solo_swap")]
-    ])
-    return text, kb
-
-@dp.message(Command("solo"))
-async def cmd_solo(message: Message):
-    task, tier = get_random_solo_task()
-    text, kb = build_solo_quest_message(task, tier)
-    await message.answer(text, parse_mode="HTML", reply_markup=kb)
-
-@dp.callback_query(F.data == "menu_solo")
-async def menu_solo(callback: CallbackQuery):
-    task, tier = get_random_solo_task()
-    text, kb = build_solo_quest_message(task, tier)
-    await safe_edit(callback.message, text, parse_mode="HTML", reply_markup=kb)
-    await callback.answer()
-
-@dp.callback_query(F.data == "solo_swap")
-async def solo_swap(callback: CallbackQuery):
-    text, kb = fresh_variant(lambda: build_solo_quest_message(*get_random_solo_task()), callback.message)
-    await safe_edit(callback.message, text, parse_mode="HTML", reply_markup=kb)
-    await callback.answer()
-
-@dp.callback_query(F.data.startswith("solo_take_"))
-async def solo_take(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    # ключи заданий сами содержат «_» (no_list, …), поэтому уровень — после последнего «_»
-    task_key, _, tier = callback.data[len("solo_take_"):].rpartition("_")
-    task = KEY_TO_TASK.get(task_key)
-    if not task or tier not in task:
-        await callback.answer("Это задание уже недоступно, попробуй ещё раз /start")
-        return
-
-    task_text = task[tier]
-    ensure_user(user_id, callback.from_user.username, callback.from_user.first_name)
-    game.accept_quest(user_id, task_key, tier)
-
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")],
-        [InlineKeyboardButton(text="🎯 Взять ещё один", callback_data="menu_solo")]
-    ])
-    await safe_edit(callback.message, 
-        f"✅ <b>Квест добавлен в «Мои квесты»!</b>\n\n{task_text}",
-        parse_mode="HTML",
-        reply_markup=kb
-    )
-    await callback.answer()
-
-# ==================== MY QUESTS / COMPLETED ====================
-def build_my_quests_keyboard(quests: list) -> InlineKeyboardMarkup:
-    buttons = [[InlineKeyboardButton(text=text[:60], callback_data=f"myquest_open_{qid}")]
-               for qid, _key, text, _taken_at in quests]
-    buttons.append([InlineKeyboardButton(text="🎯 Взять ещё один", callback_data="menu_solo")])
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
-
-async def show_my_quests(target, user_id: int, as_edit: bool):
-    quests = get_active_quests(user_id)
-    if not quests:
-        text = "📋 <b>Мои квесты</b>\n\nПока пусто. Возьми первый квест кнопкой ниже."
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🎯 На одного", callback_data="menu_solo")]
-        ])
-    else:
-        text = f"📋 <b>Мои квесты</b> ({len(quests)})\n\nЖми на задание, чтобы открыть и отметить выполнение."
-        kb = build_my_quests_keyboard(quests)
-
-    if as_edit:
-        await safe_edit(target, text, parse_mode="HTML", reply_markup=kb)
-    else:
-        await target.answer(text, parse_mode="HTML", reply_markup=kb)
-
-@dp.message(Command("myquests"))
-async def cmd_my_quests(message: Message):
-    await show_my_quests(message, message.from_user.id, as_edit=False)
-
-@dp.callback_query(F.data == "menu_myquests")
-async def menu_my_quests(callback: CallbackQuery):
-    await show_my_quests(callback.message, callback.from_user.id, as_edit=True)
-    await callback.answer()
-
-@dp.callback_query(F.data.startswith("myquest_open_"))
-async def open_my_quest(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    quest_id = int(callback.data.replace("myquest_open_", ""))
-    quest = get_active_quest(user_id, quest_id)
-    if not quest:
-        await callback.answer("Этот квест уже не найден — возможно, уже выполнен.")
-        return
-    _id, task_key, task_text = quest
-
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Выполнено!", callback_data=f"myquest_done_{quest_id}")],
-        [InlineKeyboardButton(text="« Назад к моим квестам", callback_data="menu_myquests")]
-    ])
-    await safe_edit(callback.message, task_text, parse_mode="HTML", reply_markup=kb)
-    await callback.answer()
-
-@dp.callback_query(F.data.startswith("myquest_done_"))
-async def complete_my_quest(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    quest_id = int(callback.data.replace("myquest_done_", ""))
-
-    result = game.complete_quest(user_id, quest_id)
-    if not result:
-        await callback.answer("Этот квест уже отмечен выполненным.")
-        await show_my_quests(callback.message, user_id, as_edit=True)
-        return
-
-    ctx = nudges.context(user_id)
-    note = f"🎉 +{result['xp']} XP. " + html.unescape(nudges.pick("done", user_id, ctx["today"], m=ctx["m"], xp=result["xp"]))
-    if result["level_up"]:
-        note += f" · новый уровень: {result['level_up']['name']}"
-    await callback.answer(note[:200])
-    await show_my_quests(callback.message, user_id, as_edit=True)
-
-async def show_completed_quests(target, user_id: int, as_edit: bool):
-    rows = get_recent_completed_texts(user_id, limit=20)
-    if not rows:
-        text = "🏆 <b>Выполненные</b>\n\nПока пусто — здесь появятся квесты, которые ты отметишь выполненными."
-    else:
-        lines = [f"🏆 <b>Выполненные</b> (последние {len(rows)})\n"]
-        lines.extend(f"✅ {t}" for t in rows)
-        text = "\n".join(lines)
-
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")]
-    ])
-    if as_edit:
-        await safe_edit(target, text, parse_mode="HTML", reply_markup=kb)
-    else:
-        await target.answer(text, parse_mode="HTML", reply_markup=kb)
-
-@dp.message(Command("completed"))
-async def cmd_completed(message: Message):
-    await show_completed_quests(message, message.from_user.id, as_edit=False)
-
-@dp.callback_query(F.data == "menu_completed")
-async def menu_completed(callback: CallbackQuery):
-    await show_completed_quests(callback.message, callback.from_user.id, as_edit=True)
-    await callback.answer()
 
 # ==================== MINI APP ====================
 # Мини-апп v2 раздаёт этот же процесс (api.py, папка static/) — он работает
@@ -473,31 +263,6 @@ async def show_weekly_board_entry(message: Message, user_id: int):
         reply_markup=build_board_keyboard(user_id)
     )
 
-@dp.message(Command("habits"))
-async def cmd_habits(message: Message):
-    ensure_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
-    if not MINIAPP_URL:
-        await message.answer("Трекер привычек живёт в мини-приложении, а оно пока не подключено.")
-        return
-    await message.answer(
-        "🌱 <b>Трекер привычек</b>\n\nПридумай свои привычки, задай, сколько раз в день их выполнять, "
-        "и отмечай прогресс — за каждую выполненную за день привычку начисляется XP.",
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[build_miniapp_button("🌱 Открыть привычки", "habits")]])
-    )
-
-@dp.message(Command("board"))
-async def cmd_board(message: Message):
-    ensure_user(message.from_user.id, message.from_user.username)
-    await show_weekly_board_entry(message, message.from_user.id)
-
-@dp.callback_query(F.data == "menu_board")
-async def menu_board(callback: CallbackQuery):
-    ensure_user(callback.from_user.id, callback.from_user.username)
-    # Reply-клавиатуру нельзя прикрепить редактированием — шлём новое сообщение.
-    await show_weekly_board_entry(callback.message, callback.from_user.id)
-    await callback.answer()
-
 @dp.message(F.web_app_data)
 async def handle_miniapp_data(message: Message):
     """Мини-апп присылает карту через Telegram.WebApp.sendData() по кнопке
@@ -541,26 +306,36 @@ def users_at_local_hour(column: str, default_hour: int) -> list:
     return [r["user_id"] for r in rows if game.local_now(dict(r)).hour == r["hour"]]
 
 def build_morning_message(user_id: int):
-    """Утреннее сообщение: задание дня (общее для всех) + сколько квестов ждёт."""
+    """Утро: шутка маскота + статистика (подпись к картинке-карточке). Без кнопок с заданиями."""
     user = storage.get_user(user_id)
     today = game.local_today(user)
-    daily_id = game.daily_quest_id(today)
-    q = game.public_quest(game.CATALOG[daily_id])
-    status = game.daily_status(user_id, today)
-    quests = get_active_quests(user_id)
     ctx = nudges.context(user_id)
     if ctx["away"] >= 3:
         joke = nudges.pick("absent", user_id, today, m=ctx["m"], days=ctx["away"])
     else:
         joke = nudges.pick("morning", user_id, today, m=ctx["m"])
+    s = ctx["streak"]
+    lv = game.level_info(user.get("xp") or 0)
+    hb = habits.summary(user_id)
+    today_plans = plans.today_plans(user_id)
+    week = game.week_summary(user_id, today)
 
-    text = (f"🌅 <b>Доброе утро!</b>\n{joke}\n\n"
-            f"⭐ <b>Задание дня</b> — одно на всех сегодня:\n"
-            f"{html.escape(q['emoji'])} <b>{html.escape(q['title'])}</b>\n"
-            f"{html.escape(q['text'])}\n"
-            f"<i>Бонус +{game.DAILY_BONUS} XP за выполнение сегодня.</i>")
-    if quests:
-        text += f"\n\nВ «Моих квестах» ждут {len(quests)} — самое время закрыть хотя бы один."
+    if s["status"] in ("done", "at_risk", "freeze") and s["current"]:
+        streak = f"{s['current']} {plural_ru(s['current'], 'день', 'дня', 'дней')}"
+        if s["status"] == "freeze":
+            streak += " — вчера выручила заморозка ❄️"
+    elif s["status"] == "lost":
+        streak = f"прервалась на {s['lost_value']} — начнём новую?"
+    else:
+        streak = "начни сегодня — отметь привычку"
+    lines = [f"🌅 <b>Доброе утро!</b>\n{joke}", "", "📊 <b>Твоя статистика</b>",
+             f"🔥 Серия: {streak}",
+             f"🌱 Привычки на сегодня: {hb['total']}" if hb["total"] else "🌱 Привычек пока нет — заведи первую в приложении",
+             f"🗓️ Планов на сегодня: {len(today_plans)}",
+             f"✅ За неделю: {week['done']} {plural_ru(week['done'], 'квест', 'квеста', 'квестов')}"
+             + (f", привычки на {week['habits_pct']}%" if week.get("habits_pct") is not None else ""),
+             f"⭐ Уровень {lv['level']} «{html.escape(lv['name'])}» — до следующего {lv['next'] - lv['xp']} XP"]
+    text = "\n".join(lines)
 
     rows = []
     lost = billing.restore_offer(user, today) if game.PAYMENTS_ENABLED else 0
@@ -569,49 +344,37 @@ def build_morning_message(user_id: int):
                  "Её ещё можно вернуть — пока не начата новая.")
         rows.append([InlineKeyboardButton(text=f"🔥 Вернуть серию за {billing.price(user_id, 'streak_restore')}⭐",
                                           callback_data="pay_streak_restore")])
-    if status is None:
-        rows.append([InlineKeyboardButton(text="✅ Принять задание дня", callback_data=f"daily_accept_{daily_id}")])
-    rows.append([InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")] if quests
-                else [InlineKeyboardButton(text="🎯 На одного", callback_data="menu_solo")])
     rows += app_row()
-    return text, InlineKeyboardMarkup(inline_keyboard=rows)
+    return text, (InlineKeyboardMarkup(inline_keyboard=rows) if rows else None)
 
 
 async def send_daily_reminders():
-    """Runs every hour; only messages users whose chosen reminder_hour matches
-    their current local hour (часовой пояс из мини-аппа; без него — время
-    сервера, как раньше). See /remind. Утром приходит задание дня."""
+    """Каждый час: тем, у кого сейчас час утреннего напоминания (/remind), —
+    карточка с маскотом, шутка и статистика; затем планы на сегодня."""
+    me = None
     for user_id in users_at_local_hour("reminder_hour", 9):
         try:
+            await clear_old_keyboard(user_id)
             text, kb = build_morning_message(user_id)
-            await ops.safe_send(user_id, text, parse_mode="HTML", reply_markup=kb)
+            if me is None:
+                try:
+                    me = (await bot.get_me()).username
+                except Exception:
+                    me = ""
+            try:
+                photo = card.render(user_id, me or None)
+            except Exception as e:  # без картинки — всё равно пришлём текст
+                await ops.alert("morning card", e, f"user {user_id}")
+                photo = None
+            if photo:
+                await ops.safe_send_photo(user_id, BufferedInputFile(photo, filename="lifequest.jpg"),
+                                          caption=text, parse_mode="HTML", reply_markup=kb)
+            else:
+                await ops.safe_send(user_id, text, parse_mode="HTML", reply_markup=kb)
             await send_morning_plans(user_id)
         except Exception as e:
             await ops.alert("reminder", e, f"user {user_id}")
 
-
-@dp.callback_query(F.data.startswith("daily_accept_"))
-async def daily_accept(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    key = callback.data[len("daily_accept_"):]
-    ensure_user(user_id, callback.from_user.username, callback.from_user.first_name)
-    today = game.local_today(storage.get_user(user_id))
-    if key != game.daily_quest_id(today):
-        await callback.answer("Это задание дня уже прошло — загляни в сегодняшнее 🙂", show_alert=True)
-        return
-    try:
-        result = game.accept_quest(user_id, key, None, daily=True)
-    except game.QuestError as e:
-        await callback.answer(str(e), show_alert=True)
-        return
-    q = game.public_quest(game.CATALOG[key])
-    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📋 Мои квесты", callback_data="menu_myquests")]])
-    head = "Задание дня уже у тебя в квестах" if result.get("already") else "Задание дня принято!"
-    await safe_edit(callback.message, 
-        f"✅ <b>{head}</b>\n\n{html.escape(q['emoji'])} <b>{html.escape(q['title'])}</b>\n{html.escape(q['text'])}\n\n"
-        f"Выполни сегодня — получишь +{game.DAILY_BONUS} XP бонусом.",
-        parse_mode="HTML", reply_markup=kb)
-    await callback.answer()
 
 def plans_lines(items: list) -> str:
     lines = []
@@ -1078,6 +841,13 @@ async def admin_refund(message: Message):
     await message.answer(f"↩️ Возвращено {row['stars']}⭐ пользователю {row['user_id']}")
 
 
+# Регистрируется последним: сюда попадают только кнопки, которых больше нет.
+@dp.callback_query()
+async def old_buttons(callback: CallbackQuery):
+    """Кнопки из старых сообщений (задания, «Мои квесты», карта) — теперь всё в приложении."""
+    await callback.answer("Задания теперь живут в приложении — нажми «Открыть LifeQuest» ✨", show_alert=True)
+
+
 def _on_job_error(event):
     if event.exception:
         asyncio.get_event_loop().create_task(ops.alert(f"задача по расписанию {event.job_id}", event.exception))
@@ -1091,16 +861,9 @@ async def main():
     # переподключается, а мини-апп продолжает работать.
     try:
         await bot.set_my_commands([
-            BotCommand(command="start", description="🚀 Начать / открыть меню"),
-            BotCommand(command="solo", description="🎯 Квест на одного"),
-            BotCommand(command="board", description="🗺️ Карта недели"),
-            BotCommand(command="habits", description="🌱 Трекер привычек"),
-            BotCommand(command="myquests", description="📋 Мои квесты"),
-            BotCommand(command="completed", description="🏆 Выполненные"),
-            BotCommand(command="pair", description="💞 Квест для пары"),
-            BotCommand(command="company", description="👥 Квест на компанию"),
-            BotCommand(command="remind", description="⏰ Настроить утреннее напоминание"),
-            BotCommand(command="evening", description="🌙 Настроить вечернее напоминание"),
+            BotCommand(command="start", description="✨ Открыть LifeQuest"),
+            BotCommand(command="remind", description="⏰ Час утреннего напоминания"),
+            BotCommand(command="evening", description="🌙 Час вечернего вопроса"),
             BotCommand(command="premium", description="👑 LifeQuest Premium"),
         ])
     except Exception as e:
