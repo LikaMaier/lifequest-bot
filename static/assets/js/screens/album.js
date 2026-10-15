@@ -144,24 +144,28 @@ export async function render(el, ctx) {
     if (!inMonth.length) return;
 
     const hero = pickHero(inMonth);
-    const heroBtn = h('button', { type: 'button', class: 'memo-hero-photo', 'aria-label': `Фото месяца: ${hero.label || fmtDay(hero.day)}` },
-      lazyThumb(hero),
+    const heroBtn = h('button', { type: 'button', class: 'memo-hero-photo', style: { aspectRatio: String(ratio(hero, 0.8, 1.5)) }, 'aria-label': `Фото месяца: ${hero.label || fmtDay(hero.day)}` },
+      h('img', { src: hero.url, alt: '', decoding: 'async' }),
       h('span', { class: 'memo-pill' }, 'Фото месяца'),
       h('span', { class: 'memo-hero-cap' },
         h('span', { class: 'memo-hero-kicker' }, `${MONTHS[m - 1]} ${y}`),
         h('span', { class: 'memo-hero-title' }, hero.label || fmtDay(hero.day))));
     heroBtn.addEventListener('click', () => { haptic.tap(); openViewer(inMonth, inMonth.indexOf(hero), { onDelete: reload }); });
 
-    const tiles = h('div', { class: 'memo-grid' });
-    const isTall = i => i % 5 === 0 && inMonth.length - i >= 3;
-    const cells = inMonth.reduce((n, _p, i) => n + (isTall(i) ? 2 : 1), 0);
+    // Две колонки «кирпичиками»: каждое фото в своих пропорциях, без обрезки
+    // лиц; очередное фото уходит в более короткую колонку.
+    const cols = [h('div', { class: 'memo-col' }), h('div', { class: 'memo-col' })];
+    const heights = [0, 0];
     inMonth.forEach((p, i) => {
-      const size = isTall(i) ? 'tall' : (cells % 2 && i === inMonth.length - 1 ? 'wide' : '');
-      const t = h('button', { type: 'button', class: `memo-tile ${size}`, 'aria-label': p.label || fmtDay(p.day) },
+      const r = ratio(p);
+      const t = h('button', { type: 'button', class: 'memo-tile', style: { aspectRatio: String(r) }, 'aria-label': p.label || fmtDay(p.day) },
         lazyThumb(p), p.label ? h('span', { class: 'memo-pill small' }, p.label) : null);
       t.addEventListener('click', () => { haptic.tap(); openViewer(inMonth, i, { onDelete: reload }); });
-      tiles.append(t);
+      const c = heights[0] <= heights[1] ? 0 : 1;
+      cols[c].append(t);
+      heights[c] += 1 / r;
     });
+    const tiles = h('div', { class: 'memo-grid' }, cols);
     view.append(heroBtn,
       h('div', { class: 'memo-sec-head' }, h('h2', null, MONTHS[m - 1]), h('span', null, `${inMonth.length} ${plural(inMonth.length, 'фото', 'фото', 'фото')}`)),
       tiles);
@@ -195,9 +199,9 @@ function dayPanel(day, photos, reload) {
   add.addEventListener('click', () => { haptic.tap(); openDaySheet(day, { onChange: reload }); });
   const head = h('div', { class: 'memo-sec-head' }, h('h2', null, fmtDay(day)), add);
   if (!photos.length) return h('section', { class: 'memo-day' }, head, h('p', { class: 'memo-day-empty' }, 'В этот день фото нет'));
-  const pics = h('div', { class: `memo-day-pics n${Math.min(photos.length, 3)}` }, photos.slice(0, 3).map((p, i) => {
-    const b = h('button', { type: 'button', class: 'memo-tile', 'aria-label': p.label || 'Фото' }, lazyThumb(p),
-      i === 2 && photos.length > 3 ? h('span', { class: 'memo-more-count' }, `+${photos.length - 3}`) : null);
+  const pics = h('div', { class: `memo-day-pics ${photos.length === 1 ? 'one' : ''}` }, photos.map((p, i) => {
+    const b = h('button', { type: 'button', class: 'memo-tile', style: { aspectRatio: String(ratio(p, photos.length === 1 ? 0.8 : 0.6, 1.6)) },
+      'aria-label': p.label || 'Фото' }, lazyThumb(p));
     b.addEventListener('click', () => { haptic.tap(); openViewer(photos, i, { onDelete: reload }); });
     return b;
   }));
@@ -205,6 +209,13 @@ function dayPanel(day, photos, reload) {
   return h('section', { class: 'memo-day' }, head, pics, labels.map(p => h('div', { class: 'memo-day-item' },
     h('span', { class: `memo-day-ico k-${p.target}`, 'aria-hidden': 'true' }, p.target === 'quest' ? '✓' : '•'),
     h('div', { class: 'grow' }, h('div', { class: 'bold' }, p.label), h('div', { class: 'tiny muted bold' }, KIND[p.target] || 'Фото')))));
+}
+
+/** Пропорции фото (ширина / высота), чтобы показывать его без обрезки;
+ *  слишком вытянутые слегка подрезаются до разумных рамок. */
+function ratio(p, min = 0.62, max = 1.6) {
+  const r = p.w && p.h ? p.w / p.h : 1;
+  return Math.min(max, Math.max(min, Math.round(r * 1000) / 1000));
 }
 
 function groupByMonth(list) {
