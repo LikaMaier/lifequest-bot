@@ -79,6 +79,24 @@ def _public(user: dict) -> dict:
     }
 
 
+# Лига недели: очки за квесты, привычки и планы с понедельника.
+POINTS = {"quest": 3, "habit": 1, "plan": 1}
+
+
+def week_points(conn, user_id: int, week_start: str) -> dict:
+    q = conn.execute("""SELECT COUNT(*) FROM quest_history WHERE user_id = ? AND status = 'done'
+                        AND local_date >= ?""", (user_id, week_start)).fetchone()[0]
+    hb = conn.execute("""SELECT COUNT(*) FROM habit_logs l JOIN habits h ON h.id = l.habit_id
+                         WHERE l.user_id = ? AND l.done = 1 AND l.local_date >= ?
+                         AND COALESCE(h.kind, 'build') = 'build'""", (user_id, week_start)).fetchone()[0]
+    pl = conn.execute("""SELECT COUNT(*) FROM plans WHERE user_id = ? AND status = 'done' AND date >= ?
+                         AND COALESCE(repeat_rule, 'none') = 'none'""", (user_id, week_start)).fetchone()[0]
+    pl += conn.execute("""SELECT COUNT(*) FROM plan_exceptions e JOIN plans p ON p.id = e.plan_id
+                          WHERE p.user_id = ? AND e.status = 'done' AND e.date >= ?""", (user_id, week_start)).fetchone()[0]
+    return {"week_done": q, "week_habits": hb, "week_plans": pl,
+            "points": q * POINTS["quest"] + hb * POINTS["habit"] + pl * POINTS["plan"]}
+
+
 def list_view(user_id: int) -> dict:
     me = storage.get_user(user_id)
     today = game.local_today(me)
@@ -86,18 +104,17 @@ def list_view(user_id: int) -> dict:
     rows = conn.execute("""SELECT u.* FROM friends f JOIN users u ON u.user_id = f.friend_id
                            WHERE f.user_id = ? ORDER BY f.created_at DESC LIMIT ?""",
                         (user_id, FRIENDS_LIMIT)).fetchall()
-    week_start = (today - timedelta(days=6)).isoformat()
+    week_start = (today - timedelta(days=today.weekday())).isoformat()
     out = []
     for r in rows:
         item = _public(dict(r))
-        item["week_done"] = conn.execute("""SELECT COUNT(*) FROM quest_history WHERE user_id = ? AND status = 'done'
-                                            AND local_date >= ?""", (r["user_id"], week_start)).fetchone()[0]
+        item.update(week_points(conn, r["user_id"], week_start))
         out.append(item)
-    my_week = conn.execute("""SELECT COUNT(*) FROM quest_history WHERE user_id = ? AND status = 'done'
-                              AND local_date >= ?""", (user_id, week_start)).fetchone()[0]
+    mine = week_points(conn, user_id, week_start)
     conn.close()
-    out.sort(key=lambda f: (-f["week_done"], -f["streak"]))
-    return {"friends": out, "me_week": my_week}
+    out.sort(key=lambda f: (-f["points"], -f["streak"]))
+    return {"friends": out, "me_week": mine["week_done"], "me": mine, "points": POINTS,
+            "days_left": 6 - today.weekday()}
 
 
 def remove(user_id: int, friend_id: int):

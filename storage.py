@@ -316,6 +316,8 @@ def init_db():
     _ensure_column(c, "plans", "duration", "INTEGER")  # длительность, минуты
     _ensure_column(c, "plans", "subtasks", "TEXT")  # JSON: [{"t": "...", "done": false}]
     _ensure_column(c, "users", "focus_plan", "TEXT")  # «главное дело дня»: "<plan_id>|<YYYY-MM-DD>"
+    _ensure_column(c, "users", "chest_day", "TEXT")  # сундук дня: дата, когда открыт
+    _ensure_column(c, "users", "chest_reward", "TEXT")
     c.execute("""CREATE TABLE IF NOT EXISTS inbox (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, title TEXT NOT NULL, created_at TEXT)""")
     _ensure_column(c, "habit_logs", "skipped", "INTEGER DEFAULT 0")  # пропуск с причиной — не рвёт серию

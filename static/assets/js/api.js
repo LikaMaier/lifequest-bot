@@ -97,6 +97,7 @@ export const api = {
   movePlan: (id, date, to) => request('POST', `api/plans/${id}/move`, { date, to }),
   subtaskPlan: (id, index, done) => request('POST', `api/plans/${id}/subtask`, { index, done }),
   focusPlan: (id, date) => request('POST', 'api/plans/focus', { id, date }),
+  openChest: () => request('POST', 'api/chest/open'),
   inbox: () => request('GET', 'api/inbox'),
   addInbox: title => request('POST', 'api/inbox', { title }),
   deleteInbox: id => request('DELETE', `api/inbox/${id}`),

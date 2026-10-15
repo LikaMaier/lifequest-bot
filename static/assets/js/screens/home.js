@@ -10,6 +10,7 @@ import { openQuest } from '../questflow.js';
 import { habitRing, openTemplatePicker } from '../habitui.js';
 import { planRow } from '../planui.js';
 import { openPlus, plusFab } from '../plus.js';
+import { chestRow } from '../chest.js';
 
 const DATE_FMT = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -68,6 +69,8 @@ export function render(el, ctx) {
     habitsCard.append(h('div', { class: 'home2-hint' }, left
       ? `Ещё ${left} ${plural(left, 'привычка', 'привычки', 'привычек')} — и день засчитан полностью`
       : 'Все привычки сделаны — маскот доволен 🎉'));
+    const ch = chestRow(state.chest);
+    if (ch) habitsCard.append(ch);
   }
   el.append(habitsCard);
 

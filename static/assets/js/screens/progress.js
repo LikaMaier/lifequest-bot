@@ -20,15 +20,22 @@ export async function render(el, ctx) {
   clear(el);
   el.append(h('header', { class: 'page-head' }, myMascot('happy', { size: 56 }),
     h('div', null, h('h1', null, 'Прогресс'), h('p', null, 'Следи за своими приключениями и находи закономерности'))));
-  const awardsBtn = h('button', { type: 'button', class: 'quest-item c-yellow' }, h('span', { class: 'q-emoji', 'aria-hidden': 'true' }, '🏆'),
-    h('span', { class: 'grow' }, h('span', { class: 'q-title', style: { display: 'block' } }, 'Награды'),
-      h('span', { class: 'q-meta', style: { display: 'block' } }, `${ctx.state.badges.unlocked} из ${ctx.state.badges.total} ачивок · уровень ${ctx.state.level.level}`)));
-  awardsBtn.addEventListener('click', () => { haptic.tap(); ctx.go('awards'); });
-  const albumBtn = h('button', { type: 'button', class: 'quest-item c-pink' }, h('span', { class: 'q-emoji', 'aria-hidden': 'true' }, '📷'),
-    h('span', { class: 'grow' }, h('span', { class: 'q-title', style: { display: 'block' } }, 'Альбом'),
-      h('span', { class: 'q-meta', style: { display: 'block' } }, ctx.state.photos.enabled ? `${ctx.state.photos.count} фото-воспоминаний` : 'Фото пока недоступны')));
-  albumBtn.addEventListener('click', () => { haptic.tap(); ctx.go('album'); });
-  el.append(h('div', { class: 'metrics', style: { marginBottom: '14px' } }, awardsBtn, albumBtn));
+  // Хаб: всё про награды и достижения в одном месте
+  const tile = (emoji, title, sub, color, route) => {
+    const b = h('button', { type: 'button', class: `hub-tile c-${color}` }, h('span', { class: 'hub-emoji', 'aria-hidden': 'true' }, emoji),
+      h('b', null, title), h('span', null, sub));
+    b.addEventListener('click', () => { haptic.tap(); ctx.go(route); });
+    return b;
+  };
+  const st = ctx.state;
+  el.append(h('div', { class: 'hub-grid' },
+    tile('🏆', 'Награды', `${st.badges.unlocked} из ${st.badges.total} ачивок`, 'yellow', 'awards'),
+    tile('🛍️', 'Магазин', `${st.user.balance} XP на счету`, 'lime', 'shop'),
+    tile('🎯', 'Цели месяца', 'бинго из 9 целей', 'lav', 'board'),
+    tile('🏅', 'Лига недели', 'соревнуйся с друзьями', 'blue', 'friends'),
+    tile('🔥', 'Челленджи', st.challenge ? `${st.challenge.title} · ${st.challenge.done}/${st.challenge.days}` : 'серии на 7–30 дней', 'orange', 'challenges'),
+    tile('📷', 'Альбом', st.photos.enabled ? `${st.photos.count} фото` : 'скоро', 'pink', 'album')));
+
   const recapBtn = (period, label) => {
     const b = h('button', { type: 'button', class: `btn small ${period === 'year' ? 'colored c-purple' : 'ghost'}` }, label);
     b.addEventListener('click', busy(b, async () => {

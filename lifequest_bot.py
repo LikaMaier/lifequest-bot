@@ -536,6 +536,16 @@ def build_weekly_message(user_id: int):
         lines.append(f"🔥 Серия: {w['streak']} {plural_ru(w['streak'], 'день', 'дня', 'дней')}")
     if w["habits_pct"] is not None:
         lines.append(f"🌱 Привычки выполнены на {w['habits_pct']}%")
+    try:
+        league = friends.list_view(user_id)
+    except Exception:
+        league = {"friends": []}
+    if league["friends"]:
+        mine = league["me"]["points"]
+        place = 1 + sum(1 for f in league["friends"] if f["points"] > mine)
+        medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(place, "🏅")
+        lines.append(f"{medal} Лига друзей: {place} место из {len(league['friends']) + 1} — {mine} "
+                     f"{plural_ru(mine, 'очко', 'очка', 'очков')}")
     markup = InlineKeyboardMarkup(inline_keyboard=app_row("progress")) if MINIAPP_URL else None
     return "\n".join(lines), markup
 
