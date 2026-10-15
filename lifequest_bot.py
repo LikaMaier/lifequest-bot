@@ -29,6 +29,7 @@ import api
 import billing
 import card
 import challenges
+import compliments
 import friends
 import game
 import habits
@@ -346,6 +347,25 @@ def build_morning_message(user_id: int):
                                           callback_data="pay_streak_restore")])
     rows += app_row()
     return text, (InlineKeyboardMarkup(inline_keyboard=rows) if rows else None)
+
+
+async def send_owner_compliment():
+    """Каждый час: владелице бота (ADMIN_ID) — утренний комплимент в её час
+    (COMPLIMENT_HOUR, по умолчанию 8 по её часовому поясу). Больше никому."""
+    if not ADMIN_ID:
+        return
+    user = storage.get_user(ADMIN_ID)
+    if not user:
+        return
+    now = game.local_now(user)
+    today = now.date().isoformat()
+    if now.hour != int(os.getenv("COMPLIMENT_HOUR", "8")) or user.get("compliment_day") == today:
+        return
+    storage.update_user(ADMIN_ID, compliment_day=today)
+    try:
+        await ops.safe_send(ADMIN_ID, compliments.for_day(now.date().toordinal()))
+    except Exception as e:
+        await ops.alert("compliment", e)
 
 
 async def send_daily_reminders():
@@ -985,6 +1005,7 @@ async def main():
 
 
     scheduler.add_job(send_daily_reminders, "cron", minute=0)
+    scheduler.add_job(send_owner_compliment, "cron", minute=0, second=30)
     scheduler.add_job(send_evening_reminders, "cron", minute=0)
     scheduler.add_job(send_monthly_recap, "cron", day=1, hour=10, minute=0)
     scheduler.add_job(send_plan_reminders, "interval", minutes=1)
