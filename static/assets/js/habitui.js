@@ -5,22 +5,22 @@ import { api } from './api.js';
 import { haptic } from './tg.js';
 import { refreshState } from './store.js';
 import { celebrate } from './celebrate.js';
-import { sheet, toast, toastError, busy, ICONS, confetti } from './ui.js';
+import { sheet, toast, toastError, busy, ICONS, confetti, SPHERE_INFO } from './ui.js';
 
 export const HABIT_COLORS = ['lime', 'blue', 'pink', 'yellow', 'lav', 'orange', 'purple', 'red'];
 const EMOJIS = ['💧', '🧘', '📖', '🚶', '😴', '📵', '🙏', '💪', '🥗', '✍️', '💊', '🧴', '🎨', '🎧', '🧹', '🌿', '🍎', '🏃', '🦷', '☀️', '🧠', '💤', '🚿', '✨'];
 
 export const TEMPLATES = [
-  { emoji: '💧', title: 'Пить воду', target: 8, unit: 'стаканов', color: 'blue' },
-  { emoji: '🧘', title: 'Медитация', target: 1, unit: '', color: 'lav' },
-  { emoji: '📖', title: 'Чтение', target: 10, unit: 'страниц', color: 'yellow' },
-  { emoji: '💪', title: 'Зарядка', target: 1, unit: '', color: 'orange' },
-  { emoji: '🚶', title: '10 000 шагов', target: 1, unit: '', color: 'lime' },
-  { emoji: '🙏', title: 'Благодарности', target: 3, unit: 'штуки', color: 'pink' },
-  { emoji: '😴', title: 'Лечь до 23:00', target: 1, unit: '', color: 'purple' },
-  { emoji: '📵', title: 'Утро без соцсетей', target: 1, unit: '', color: 'red' },
-  { emoji: '🥗', title: 'Овощи и фрукты', target: 5, unit: 'порций', color: 'lime' },
-  { emoji: '✍️', title: 'Дневник', target: 1, unit: '', color: 'yellow' },
+  { emoji: '💧', title: 'Пить воду', sphere: 'Энергия', target: 8, unit: 'стаканов', color: 'blue' },
+  { emoji: '🧘', title: 'Медитация', sphere: 'Дисциплина', target: 1, unit: '', color: 'lav' },
+  { emoji: '📖', title: 'Чтение', sphere: 'Саморазвитие', target: 10, unit: 'страниц', color: 'yellow' },
+  { emoji: '💪', title: 'Зарядка', sphere: 'Энергия', target: 1, unit: '', color: 'orange' },
+  { emoji: '🚶', title: '10 000 шагов', sphere: 'Энергия', target: 1, unit: '', color: 'lime' },
+  { emoji: '🙏', title: 'Благодарности', sphere: 'Творчество', target: 3, unit: 'штуки', color: 'pink' },
+  { emoji: '😴', title: 'Лечь до 23:00', sphere: 'Дисциплина', target: 1, unit: '', color: 'purple' },
+  { emoji: '📵', title: 'Утро без соцсетей', sphere: 'Дисциплина', target: 1, unit: '', color: 'red' },
+  { emoji: '🥗', title: 'Овощи и фрукты', sphere: 'Энергия', target: 5, unit: 'порций', color: 'lime' },
+  { emoji: '✍️', title: 'Дневник', sphere: 'Саморазвитие', target: 1, unit: '', color: 'yellow' },
 ];
 
 function countLabel(hb) {
@@ -60,7 +60,8 @@ export function habitCard(hb, { compact = false, onChanged } = {}) {
   const info = h('button', { type: 'button', class: 'habit-info', 'aria-label': `Изменить привычку «${hb.title}»` },
     h('span', { class: 'habit-emoji', 'aria-hidden': 'true' }, hb.emoji),
     h('span', { class: 'grow' }, h('span', { class: 'habit-title' }, hb.title),
-      h('span', { class: 'habit-meta' }, countLabel(hb), hb.streak ? ` · 🔥 ${hb.streak} ${plural(hb.streak, 'день', 'дня', 'дней')}` : '')));
+      h('span', { class: 'habit-meta' }, countLabel(hb), hb.sphere && SPHERE_INFO[hb.sphere] ? ` · ${SPHERE_INFO[hb.sphere].emoji}` : '',
+        hb.streak ? ` · 🔥 ${hb.streak} ${plural(hb.streak, 'день', 'дня', 'дней')}` : '')));
   info.addEventListener('click', () => { haptic.tap(); openHabitEditor(hb); });
 
   let controls;
@@ -103,7 +104,8 @@ export function habitCard(hb, { compact = false, onChanged } = {}) {
 export function openHabitEditor(habit = null, { onSaved, preset } = {}) {
   const isNew = !habit;
   const src = habit || preset || {};
-  const form = { title: src.title || '', emoji: src.emoji || '✨', color: src.color || 'lime', target: src.target || 1, unit: src.unit || '' };
+  const form = { title: src.title || '', emoji: src.emoji || '✨', color: src.color || 'lime', target: src.target || 1, unit: src.unit || '',
+    sphere: src.sphere || null };
   const s = sheet(h('div'), { label: isNew ? 'Новая привычка' : 'Изменить привычку' });
 
   const draw = () => {
@@ -122,6 +124,14 @@ export function openHabitEditor(habit = null, { onSaved, preset } = {}) {
       HABIT_COLORS.map(c => {
         const b = h('button', { type: 'button', class: `accent-pick c-${c} ${c === form.color ? 'on' : ''}`, role: 'radio', 'aria-checked': String(c === form.color), 'aria-label': `Цвет ${c}` }, c === form.color ? '✓' : '');
         b.addEventListener('click', () => { haptic.select(); form.color = c; form.title = title.value; form.unit = unit.value; draw(); });
+        return b;
+      }));
+    const spheres = h('div', { class: 'chips', role: 'radiogroup', 'aria-label': 'Сфера' },
+      [...Object.keys(SPHERE_INFO), null].map(sp => {
+        const on = (form.sphere || null) === sp;
+        const b = h('button', { type: 'button', class: `chip c-${sp ? SPHERE_INFO[sp].color : 'paleyellow'}`, role: 'radio',
+          'aria-checked': String(on), 'aria-pressed': String(on) }, sp ? `${SPHERE_INFO[sp].emoji} ${sp}` : 'Без сферы');
+        b.addEventListener('click', () => { haptic.select(); form.sphere = sp; form.title = title.value; form.unit = unit.value; draw(); });
         return b;
       }));
     const targetVal = h('span', { class: 'num', style: { fontSize: '26px', minWidth: '44px', textAlign: 'center' }, 'aria-live': 'polite' }, String(form.target));
@@ -157,6 +167,7 @@ export function openHabitEditor(habit = null, { onSaved, preset } = {}) {
       h('div', { class: 'field' }, h('span', { class: 'label' }, 'Название'), title),
       h('div', { class: 'field' }, h('span', { class: 'label' }, 'Сколько раз в день'),
         h('div', { class: 'row' }, minus, targetVal, plus, h('div', { class: 'grow' }, unit))),
+      h('div', { class: 'field' }, h('span', { class: 'label' }, 'Сфера — для статистики «Прогресс»'), spheres),
       h('div', { class: 'field' }, h('span', { class: 'label' }, 'Эмодзи'), emojis),
       h('div', { class: 'field' }, h('span', { class: 'label' }, 'Цвет'), colors),
       save);

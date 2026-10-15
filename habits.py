@@ -9,6 +9,7 @@ from datetime import date, timedelta
 
 import game
 import storage
+from quests_database import BINGO_SPHERES
 
 COLORS = ("blue", "pink", "yellow", "lav", "red", "orange", "purple", "lime")
 HABITS_LIMIT = 20
@@ -39,6 +40,9 @@ def _clean_fields(data: dict, partial: bool) -> dict:
         fields["color"] = color if color in COLORS else "lime"
     if not partial or "unit" in data:
         fields["unit"] = _clean_text(data.get("unit"), UNIT_MAX, "единицу")
+    if not partial or "sphere" in data:
+        sp = data.get("sphere")
+        fields["sphere"] = sp if sp in BINGO_SPHERES else None
     if not partial or "target" in data:
         try:
             fields["target"] = max(1, min(TARGET_MAX, int(data.get("target") or 1)))
@@ -64,9 +68,10 @@ def create_habit(user_id: int, data: dict) -> dict:
     if n >= HABITS_LIMIT:
         conn.close()
         raise game.QuestError(f"Привычек уже {HABITS_LIMIT} — это максимум. Убери какую-нибудь, чтобы добавить новую.")
-    cur = conn.execute("INSERT INTO habits (user_id, title, emoji, color, target, unit, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    cur = conn.execute("""INSERT INTO habits (user_id, title, emoji, color, target, unit, sphere, created_at)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                        (user_id, fields["title"], fields["emoji"], fields["color"], fields["target"], fields["unit"],
-                        storage.utc_now_str()))
+                        fields["sphere"], storage.utc_now_str()))
     conn.commit()
     habit_id = cur.lastrowid
     conn.close()
@@ -158,6 +163,17 @@ def log_habit(user_id: int, habit_id: int, delta: int = None, count: int = None,
             "new_achievements": game.check_achievements(user_id) if done else []}
 
 
+def done_by_sphere(user_id: int, start: date, end: date) -> dict:
+    """Сколько раз за период выполнены привычки каждой сферы (день цели = 1)."""
+    conn = storage.connect()
+    rows = conn.execute("""SELECT h.sphere, COUNT(*) FROM habit_logs l JOIN habits h ON h.id = l.habit_id
+                           WHERE l.user_id = ? AND l.done = 1 AND h.sphere IS NOT NULL
+                             AND l.local_date BETWEEN ? AND ? GROUP BY h.sphere""",
+                        (user_id, start.isoformat(), end.isoformat())).fetchall()
+    conn.close()
+    return dict(rows)
+
+
 def _streak(done_days: set, today: date) -> int:
     """Дни подряд с выполненной целью: считаем от сегодня, а если сегодня
     ещё не отмечено — от вчера (серия не сгорает до конца дня)."""
@@ -190,7 +206,7 @@ def _views(user_id: int, rows: list) -> list:
             week.append({"date": d, "count": c, "done": bool(dn)})
         result.append({
             "id": h["id"], "title": h["title"], "emoji": h["emoji"] or "✨", "color": h["color"] or "lime",
-            "target": h["target"] or 1, "unit": h["unit"] or "",
+            "target": h["target"] or 1, "unit": h["unit"] or "", "sphere": h["sphere"],
             "today": days.get(today.isoformat(), (0, 0))[0],
             "done_today": today.isoformat() in done_days,
             "week": week, "streak": _streak(done_days, today),

@@ -302,7 +302,8 @@ def init_db():
     _ensure_column(c, "users", "freeze_week_count", "INTEGER DEFAULT 0")
     _ensure_column(c, "users", "streak_push_date", "TEXT")
     _ensure_column(c, "users", "streak_undo", "TEXT")
-    _ensure_column(c, "plans", "sphere", "TEXT")  # категория плана: Дисциплина, Энергия…
+    _ensure_column(c, "plans", "sphere", "TEXT")
+    _ensure_column(c, "habits", "sphere", "TEXT")  # сфера привычки: Дисциплина, Энергия… — для статистики
     c.execute("""CREATE TABLE IF NOT EXISTS payments (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, product TEXT NOT NULL,
         stars INTEGER NOT NULL, charge_id TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL,

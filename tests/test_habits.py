@@ -141,3 +141,18 @@ class HabitStreakTest(TempDBTestCase):
         self.assertEqual(storage.get_user(3)["streak_current"], 4)
         self.hb.log_habit(3, self.h1, delta=1)
         self.assertEqual(storage.get_user(3)["streak_current"], 5)
+
+
+class HabitSphereTest(TempDBTestCase):
+    def test_sphere_saved_and_counted(self):
+        storage.ensure_user(4)
+        today = game.local_today(storage.get_user(4))
+        hb = habits.create_habit(4, {"title": "Зарядка", "target": 1, "sphere": "Энергия"})["habit"]
+        self.assertEqual(hb["sphere"], "Энергия")
+        bad = habits.create_habit(4, {"title": "Что-то", "sphere": "Котики"})["habit"]
+        self.assertIsNone(bad["sphere"])
+        habits.log_habit(4, hb["id"], delta=1)
+        habits.log_habit(4, bad["id"], delta=1)
+        self.assertEqual(habits.done_by_sphere(4, today, today), {"Энергия": 1})
+        habits.update_habit(4, bad["id"], {"sphere": "Творчество"})
+        self.assertEqual(habits.done_by_sphere(4, today, today), {"Энергия": 1, "Творчество": 1})
