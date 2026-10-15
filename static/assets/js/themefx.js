@@ -1,5 +1,5 @@
 // Применение стиля приложения: атрибут data-theme, цвета шапки Telegram и
-// декоративные эффекты (цифровой дождь в «Матрице», фигурки тетриса в 8-bit, пузырьки в «Морском мире»,
+// декоративные эффекты (цифровой дождь в «Матрице», пузырьки в «Морском мире»,
 // летучие мыши и тыквы в «Хэллоуине», листья в «Лесу»).
 
 import { tg } from './tg.js';
@@ -72,64 +72,6 @@ function matrixRain() {
     cols.forEach((y, i) => {
       ctx.fillText(chars[Math.floor(Math.random() * chars.length)], i * size, y * size);
       cols[i] = y * size > canvas.height && Math.random() > 0.975 ? 0 : y + 1;
-    });
-  });
-}
-
-// Тетрис: разноцветные фигурки падают по клеткам и иногда поворачиваются.
-const TETROMINOES = [
-  [[0, 0], [1, 0], [2, 0], [3, 0]],         // I
-  [[0, 0], [1, 0], [0, 1], [1, 1]],         // O
-  [[0, 0], [1, 0], [2, 0], [1, 1]],         // T
-  [[1, 0], [2, 0], [0, 1], [1, 1]],         // S
-  [[0, 0], [1, 0], [1, 1], [2, 1]],         // Z
-  [[0, 0], [0, 1], [1, 1], [2, 1]],         // J
-  [[2, 0], [0, 1], [1, 1], [2, 1]],         // L
-];
-const TETRIS_COLORS = ['#4D6BFF', '#00E0EB', '#FF2E84', '#FF9500', '#8A5CFF', '#FFD12E'];
-
-function tetrisRain() {
-  const cell = 14;
-  let pieces = [], cols = 0, rows = 0;
-  const spawn = (y = -4 - Math.floor(Math.random() * 20)) => ({
-    shape: TETROMINOES[Math.floor(Math.random() * TETROMINOES.length)].map(p => [...p]),
-    color: TETRIS_COLORS[Math.floor(Math.random() * TETRIS_COLORS.length)],
-    x: Math.floor(Math.random() * Math.max(1, cols - 3)),
-    y,
-    every: 2 + Math.floor(Math.random() * 3), // скорость: шаг раз в 2–4 кадра
-    tick: 0,
-  });
-  const rotate = shape => {
-    const r = shape.map(([x, y]) => [-y, x]);
-    const minX = Math.min(...r.map(p => p[0])), minY = Math.min(...r.map(p => p[1]));
-    return r.map(([x, y]) => [x - minX, y - minY]);
-  };
-  const block = (ctx, x, y, color) => {
-    const px = x * cell, py = y * cell;
-    ctx.fillStyle = color;
-    ctx.fillRect(px, py, cell, cell);
-    ctx.fillStyle = 'rgba(255,255,255,.35)'; // блик сверху-слева, как в 8-bit
-    ctx.fillRect(px, py, cell, 3);
-    ctx.fillRect(px, py, 3, cell);
-    ctx.fillStyle = 'rgba(0,0,0,.35)';
-    ctx.fillRect(px, py + cell - 3, cell, 3);
-    ctx.fillRect(px + cell - 3, py, 3, cell);
-  };
-  return canvasLoop('tetris-rain', canvas => {
-    cols = Math.ceil(canvas.width / cell);
-    rows = Math.ceil(canvas.height / cell);
-    const count = Math.max(8, Math.round(cols / 2.5));
-    pieces = Array.from({ length: count }, () => spawn(Math.floor(Math.random() * rows) - 4));
-  }, (canvas, ctx) => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    pieces.forEach((p, i) => {
-      if (++p.tick >= p.every) {
-        p.tick = 0;
-        p.y += 1;
-        if (Math.random() < 0.08) p.shape = rotate(p.shape);
-      }
-      if (p.y > rows) { pieces[i] = spawn(); return; }
-      for (const [dx, dy] of p.shape) block(ctx, p.x + dx, p.y + dy, p.color);
     });
   });
 }
@@ -374,4 +316,4 @@ function spaceSky() {
   }, 40);
 }
 
-const EFFECTS = { matrix: matrixRain, pixel: tetrisRain, ocean: oceanBubbles, halloween: halloweenSky, forest: forestLeaves, space: spaceSky };
+const EFFECTS = { matrix: matrixRain, ocean: oceanBubbles, halloween: halloweenSky, forest: forestLeaves, space: spaceSky };

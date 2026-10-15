@@ -8,12 +8,6 @@
    подписи). Так контраст сохраняется во всех компонентах без исключений.
    ============================================================ */
 
-@font-face { font-family: 'Press Start 2P'; font-display: swap; src: url(../fonts/press-start-2p-cyrillic-400-normal.woff2) format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
-@font-face { font-family: 'Press Start 2P'; font-display: swap; src: url(../fonts/press-start-2p-latin-400-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+2000-206F, U+20AC, U+2122; }
-@font-face { font-family: 'Pixelify Sans'; font-weight: 400; font-display: swap; src: url(../fonts/pixelify-sans-cyrillic-400-normal.woff2) format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
-@font-face { font-family: 'Pixelify Sans'; font-weight: 400; font-display: swap; src: url(../fonts/pixelify-sans-latin-400-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+2000-206F, U+20AC, U+2122; }
-@font-face { font-family: 'Pixelify Sans'; font-weight: 600 900; font-display: swap; src: url(../fonts/pixelify-sans-cyrillic-700-normal.woff2) format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
-@font-face { font-family: 'Pixelify Sans'; font-weight: 600 900; font-display: swap; src: url(../fonts/pixelify-sans-latin-700-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+2000-206F, U+20AC, U+2122; }
 @font-face { font-family: 'JetBrains Mono'; font-weight: 400 500; font-display: swap; src: url(../fonts/jetbrains-mono-cyrillic-400-normal.woff2) format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
 @font-face { font-family: 'JetBrains Mono'; font-weight: 400 500; font-display: swap; src: url(../fonts/jetbrains-mono-latin-400-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+2000-206F, U+20AC, U+2122; }
 @font-face { font-family: 'JetBrains Mono'; font-weight: 600 900; font-display: swap; src: url(../fonts/jetbrains-mono-cyrillic-700-normal.woff2) format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
@@ -50,37 +44,6 @@
 [data-theme="forest"] .tab[aria-current="page"] { background: #DCE49A; }
 [data-theme="forest"] .tab[aria-current="page"] svg { color: #365004; }
 [data-theme="forest"] .ring-track { stroke: #EAE3A6; }
-
-/* ---------- 8-bit: светлый, очень яркий. Оттенки палитры Wild Yonder / Spray /
-   Mulberry / Gamboge / Bossanova, выкрученные на максимум насыщенности ---------- */
-:root[data-theme="pixel"] {
-  --cream: #FFF8EC; --cream-2: #FFEBC7; --white: #FFFFFF;
-  --ink: #2A1F33; --ink-soft: #4F4459; --muted: #6E6378; --line: #2A1F33;
-  --blue: #8FA4FF; --blue-deep: #2440D6; --pink: #FF7AB6; --pink-deep: #B5005A; --yellow: #FFD12E; --yellow-deep: #855A00;
-  --lav: #C8B6FF; --lav-deep: #5228C7; --red: #FF6F8E; --red-deep: #B0002E; --orange: #FFA21F; --orange-deep: #9A4600;
-  --purple: #A98BFF; --purple-deep: #4A1FC2; --lime: #3DEBF2; --lime-deep: #006E75; --paleyellow: #FFF0A8;
-  --accent: #FF2E84; --accent-deep: #2440D6; --accent-ink: #FFFFFF;
-  --r-sm: 0; --r-md: 0; --r-lg: 0; --r-xl: 0;
-  --font-display: 'Pixelify Sans', monospace; --font-body: 'Pixelify Sans', monospace;
-  color-scheme: light;
-}
-[data-theme="pixel"] body { font-size: 15.5px; background-color: transparent; /* фигурки тетриса видны между карточками */ background-image: linear-gradient(#2A1F3310 2px, transparent 2px), linear-gradient(90deg, #2A1F3310 2px, transparent 2px); background-size: 16px 16px; }
-.tetris-rain { position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: .85; image-rendering: pixelated; }
-.mascot-pixel { height: 100%; aspect-ratio: 1; image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
-[data-theme="pixel"] h1 { font-family: 'Press Start 2P', monospace; font-size: 16px; line-height: 1.5; letter-spacing: 0; }
-[data-theme="pixel"] .onb-title { font-size: 15px; }
-[data-theme="pixel"] :is(.card, .metric, .mode-btn, .quest-item, .plan-row, .habit-card, .feed-item, .badge, .speech, .quest-card,
-  .board-grid, .picker, .photo-add, .onb-feature, .onb-hero, .level-badge, .avatar-btn, .icon-btn, .chip, .habit-check,
-  .habit-step, .plan-check, .accent-pick, .theme-card, .badge-big, .toast, .modal, .btn, .input, .segmented) {
-  border-radius: 0 !important; image-rendering: pixelated;
-  box-shadow: 0 -4px 0 0 #2A1F33, 0 4px 0 0 #2A1F33, -4px 0 0 0 #2A1F33, 4px 0 0 0 #2A1F33, 4px 8px 0 0 #2A1F3333 !important;
-}
-[data-theme="pixel"] .btn:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 -4px 0 0 #2A1F33, 0 4px 0 0 #2A1F33, -4px 0 0 0 #2A1F33, 4px 0 0 0 #2A1F33 !important; }
-[data-theme="pixel"] :is(.cal-day, .board-cell, .heat-cell, .photo-thumb, .album-cell, .emoji-pick, .tab, .bar, .bar > span, .hbar-track, .hbar-track span, .habit-bar, .habit-bar span) { border-radius: 0 !important; }
-[data-theme="pixel"] .ring-bar { stroke-linecap: butt; }
-[data-theme="pixel"] .tabbar { border: 4px solid #2A1F33; border-radius: 0; background: #FFFFFF; box-shadow: 4px 4px 0 #2A1F3333; }
-[data-theme="pixel"] .tab[aria-current="page"] { background: #FFD12E; color: #2A1F33; }
-[data-theme="pixel"] .ring-track { stroke: #FFE3B0; }
 
 /* ---------- Хэллоуин: фиолетовая ночь, тыквенный оранжевый ---------- */
 :root[data-theme="halloween"] {
