@@ -20,6 +20,7 @@ import re
 import aiquest
 import billing
 import spheres
+import chest
 import challenges
 import friends
 import game
@@ -159,6 +160,7 @@ def _state(request) -> dict:
     data = game.get_state(request["user_id"])
     data["bot_username"] = request.app.get(BOT_USERNAME_KEY)
     data["habits"] = habits.summary(request["user_id"])
+    data["chest"] = chest.status(request["user_id"], data["habits"])
     data["plans_today"] = plans.today_plans(request["user_id"])
     data["plans_overdue"] = len(plans.overdue_plans(request["user_id"]))
     data["photos"] = photos.stats(request["user_id"])
@@ -501,6 +503,11 @@ async def habit_log(request):
     return web.json_response(result)
 
 
+async def chest_open(request):
+    _limit(request, "write")
+    return web.json_response(chest.open_chest(request["user_id"]))
+
+
 async def plan_subtask(request):
     _limit(request, "write")
     data = await _body(request)
@@ -754,6 +761,7 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_post("/api/challenges/start", challenge_start)
     app.router.add_post("/api/challenges/quit", challenge_quit)
     app.router.add_get("/api/packs", get_packs)
+    app.router.add_post("/api/chest/open", chest_open)
     app.router.add_get("/api/friends", get_friends)
     app.router.add_post("/api/friends/remove", friend_remove)
     app.router.add_get("/api/ai/options", ai_options)
