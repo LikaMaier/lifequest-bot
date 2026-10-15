@@ -46,7 +46,7 @@
 [data-theme="forest"] .card.tinted { box-shadow: 0 4px 0 color-mix(in srgb, var(--c-deep) 45%, transparent); }
 [data-theme="forest"] .mode-btn { box-shadow: 0 6px 0 color-mix(in srgb, var(--c-deep) 45%, transparent); }
 [data-theme="forest"] :is(h1, .brand) { color: #365004; }
-[data-theme="forest"] .tabbar { background: #FFFCE8F2; border-top: 1px solid #D8CF86; }
+[data-theme="forest"] .tabbar { background: #FFFCE8F2; border-color: #D8CF86; }
 [data-theme="forest"] .tab[aria-current="page"] { background: #DCE49A; }
 [data-theme="forest"] .tab[aria-current="page"] svg { color: #365004; }
 [data-theme="forest"] .ring-track { stroke: #EAE3A6; }
@@ -78,7 +78,7 @@
 [data-theme="pixel"] .btn:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 -4px 0 0 #2A1F33, 0 4px 0 0 #2A1F33, -4px 0 0 0 #2A1F33, 4px 0 0 0 #2A1F33 !important; }
 [data-theme="pixel"] :is(.cal-day, .board-cell, .heat-cell, .photo-thumb, .album-cell, .emoji-pick, .tab, .bar, .bar > span, .hbar-track, .hbar-track span, .habit-bar, .habit-bar span) { border-radius: 0 !important; }
 [data-theme="pixel"] .ring-bar { stroke-linecap: butt; }
-[data-theme="pixel"] .tabbar { border-top: 4px solid #2A1F33; background: #FFFFFF; }
+[data-theme="pixel"] .tabbar { border: 4px solid #2A1F33; border-radius: 0; background: #FFFFFF; box-shadow: 4px 4px 0 #2A1F3333; }
 [data-theme="pixel"] .tab[aria-current="page"] { background: #FFD12E; color: #2A1F33; }
 [data-theme="pixel"] .ring-track { stroke: #FFE3B0; }
 
@@ -103,7 +103,7 @@
   }
 }
 [data-theme="halloween"] :is(h1, .section-title h2, .onb-title) { font-family: 'Rubik Wet Paint', 'Unbounded', sans-serif; font-weight: 400; letter-spacing: .01em; color: #FF8A2A; }
-[data-theme="halloween"] .tabbar { background: #160D1Eee; }
+[data-theme="halloween"] .tabbar { background: #160D1Eee; border-color: #3A2549; box-shadow: 0 10px 28px #0006; }
 [data-theme="halloween"] .brand, [data-theme="halloween"] .onb-brand { color: #FF8A2A; }
 
 /* ---------- Матрица: зелёный код на чёрном ---------- */
@@ -123,7 +123,7 @@
 [data-theme="matrix"] :is(.card, .quest-item, .plan-row, .habit-card, .feed-item, .speech) { box-shadow: 0 0 0 1px #0F3D1E, 0 0 18px #00ff6614 !important; }
 [data-theme="matrix"] .btn { box-shadow: 0 0 0 1px var(--b-deep), 0 0 14px color-mix(in srgb, var(--b) 45%, transparent); margin-bottom: 0; }
 [data-theme="matrix"] .btn:active:not(:disabled) { transform: scale(.97); box-shadow: 0 0 0 1px var(--b-deep); }
-[data-theme="matrix"] .tabbar { background: #020A04ee; border-top-color: #0F3D1E; }
+[data-theme="matrix"] .tabbar { background: #020A04ee; border-color: #0F3D1E; box-shadow: 0 0 18px #00ff6622; }
 .matrix-rain { position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: .22; }
 
 /* ---------- Морской мир: песок и бирюза (палитра #DFD0B1 #AF906A #3BEAEF #3D7282),
@@ -166,7 +166,7 @@
 [data-theme="ocean"] .btn:active:not(:disabled) { transform: scale(.97); box-shadow: 0 3px 10px rgba(29, 76, 89, .3); }
 [data-theme="ocean"] .tabbar {
   background: rgba(255, 255, 255, .45); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
-  border-top: 1px solid rgba(255, 255, 255, .7);
+  border: 1px solid rgba(255, 255, 255, .7);
 }
 [data-theme="ocean"] .tab[aria-current="page"] { background: rgba(255, 255, 255, .6); }
 [data-theme="ocean"] .ring-track { stroke: rgba(255, 255, 255, .55); }
@@ -212,5 +212,5 @@
 }
 [data-theme="space"] .btn { box-shadow: 0 0 0 1px var(--b-deep), 0 0 16px color-mix(in srgb, var(--b) 50%, transparent); margin-bottom: 0; }
 [data-theme="space"] .btn:active:not(:disabled) { transform: scale(.97); }
-[data-theme="space"] .tabbar { background: #0B0820ee; border-top-color: #2C2463; }
+[data-theme="space"] .tabbar { background: #0B0820ee; border-color: #2C2463; box-shadow: 0 10px 28px #0006, 0 0 0 1px #FF5FD222; }
 .shop-item.premium { background: linear-gradient(160deg, color-mix(in srgb, var(--yellow) 60%, var(--white)), var(--white)); }
