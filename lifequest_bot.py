@@ -711,6 +711,12 @@ async def admin_stats(message: Message):
         parse_mode="HTML"
     )
 
+@dp.message(Command("compliment"), F.from_user.id == ADMIN_ID)
+async def admin_compliment(message: Message):
+    """Комплимент прямо сейчас — только владелице бота."""
+    await message.answer(compliments.for_day(random.randrange(10000)))
+
+
 @dp.message(Command("backup"), F.from_user.id == ADMIN_ID)
 async def admin_backup(message: Message):
     await message.answer("💾 Делаю копию базы…")
