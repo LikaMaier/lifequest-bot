@@ -327,6 +327,7 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, emoji TEXT, title TEXT NOT NULL,
         text TEXT NOT NULL, sphere TEXT, local_date TEXT, created_at TEXT)""")
     c.execute("CREATE INDEX IF NOT EXISTS idx_ai_quests_user ON ai_quests(user_id, local_date)")
+    _ensure_column(c, "ai_quests", "ai", "INTEGER DEFAULT 1")
     c.execute("""CREATE TABLE IF NOT EXISTS purchases (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, item TEXT NOT NULL,
         price INTEGER NOT NULL, created_at TEXT NOT NULL)""")

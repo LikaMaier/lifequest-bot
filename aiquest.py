@@ -7,13 +7,13 @@
 
 import json
 import os
-import random
 
 import aiohttp
 
 import game
+import mood_bank
 import storage
-from quests_database import BINGO_SPHERES, CATALOG
+from quests_database import BINGO_SPHERES
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
@@ -28,7 +28,8 @@ MOODS = {
     "smart": ("🧠 Хочу умнеть", ["Саморазвитие", "Дисциплина"]),
 }
 TIMES = {"15": "15 минут", "60": "около часа", "day": "целый день"}
-PLACES = {"home": "дома", "city": "в городе", "work": "на работе или учёбе"}
+PLACES = {"home": "дома", "city": "в городе"}
+PLACE_RULE = {"home": "не выходя из дома", "city": "на улице, в городе — не дома"}
 
 
 def api_key() -> str:
@@ -44,7 +45,8 @@ def options() -> dict:
 
 def _today_count(user_id: int, today: str) -> int:
     conn = storage.connect()
-    n = conn.execute("SELECT COUNT(*) FROM ai_quests WHERE user_id = ? AND local_date = ?", (user_id, today)).fetchone()[0]
+    n = conn.execute("SELECT COUNT(*) FROM ai_quests WHERE user_id = ? AND local_date = ? AND COALESCE(ai, 1) = 1",
+                     (user_id, today)).fetchone()[0]
     conn.close()
     return n
 
@@ -77,7 +79,8 @@ def _prompt(mood: str, time: str, place: str, done_titles: list) -> list:
         "Ответь строго JSON: {\"emoji\": один эмодзи, \"title\": название до 40 символов, "
         "\"text\": 2–3 предложения, что сделать, \"sphere\": одна из " + ", ".join(BINGO_SPHERES) + "}."
     )
-    user = (f"Настроение: {MOODS[mood][0]}. Времени: {TIMES[time]}. Где: {PLACES[place]}. "
+    user = (f"Настроение: {MOODS[mood][0]}. Времени: {TIMES[time]}. Где: {PLACES[place]} — задание выполняется "
+            f"строго {PLACE_RULE[place]}. "
             f"Не повторяй эти задания: {avoid}.")
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
@@ -102,12 +105,22 @@ async def _ask_groq(messages: list) -> dict:
     return {"emoji": emoji, "title": title, "text": text, "sphere": sphere}
 
 
-def _fallback(user_id: int, mood: str, rng=random) -> dict:
-    spheres = MOODS[mood][1]
-    done = game._keys_with_status(user_id, "done") | game._active_keys(user_id)
-    pool = [q for q in CATALOG.values() if q["mode"] == "solo" and not q.get("pack") and q["sphere"] in spheres]
-    fresh = [q for q in pool if q["id"] not in done] or pool
-    return game.public_quest(rng.choice(fresh))
+def _save(user_id: int, q: dict, today: str, ai: bool) -> dict:
+    conn = storage.connect()
+    cur = conn.execute("""INSERT INTO ai_quests (user_id, emoji, title, text, sphere, local_date, created_at, ai)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                       (user_id, q["emoji"], q["title"], q["text"], q["sphere"], today, storage.utc_now_str(), 1 if ai else 0))
+    conn.commit()
+    conn.close()
+    quest = game.public_quest(get(f"ai_{cur.lastrowid}"))
+    quest["ai"] = ai
+    return quest
+
+
+def _fallback(user_id: int, mood: str, time: str, place: str, today: str) -> dict:
+    """Задание из банка mood_bank — точно под настроение, место и время."""
+    emoji, title, text, sphere = mood_bank.BANK[(mood, place)][time]
+    return _save(user_id, {"emoji": emoji, "title": title, "text": text, "sphere": sphere}, today, ai=False)
 
 
 async def generate(user_id: int, mood: str, time: str, place: str) -> dict:
@@ -116,7 +129,7 @@ async def generate(user_id: int, mood: str, time: str, place: str) -> dict:
     user = storage.get_user(user_id)
     today = game.local_today(user).isoformat()
     if not api_key():
-        return {"quest": _fallback(user_id, mood), "ai": False}
+        return {"quest": _fallback(user_id, mood, time, place, today), "ai": False}
     if _today_count(user_id, today) >= limit_for(user):
         raise game.QuestError("ИИ-квесты на сегодня закончились — завтра будут новые ✨", code="ai_limit")
     conn = storage.connect()
@@ -128,13 +141,6 @@ async def generate(user_id: int, mood: str, time: str, place: str) -> dict:
         q = await _ask_groq(_prompt(mood, time, place, done_titles))
     except Exception as e:  # сеть, лимиты Groq, кривой JSON — не страшно, есть каталог
         print(f"AI quest fallback: {e}")
-        return {"quest": _fallback(user_id, mood), "ai": False}
-    conn = storage.connect()
-    cur = conn.execute("""INSERT INTO ai_quests (user_id, emoji, title, text, sphere, local_date, created_at)
-                          VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                       (user_id, q["emoji"], q["title"], q["text"], q["sphere"], today, storage.utc_now_str()))
-    conn.commit()
-    conn.close()
-    quest = game.public_quest(get(f"ai_{cur.lastrowid}"))
-    quest["ai"] = True
+        return {"quest": _fallback(user_id, mood, time, place, today), "ai": False}
+    quest = _save(user_id, q, today, ai=True)
     return {"quest": quest, "ai": True, "left": max(0, limit_for(user) - _today_count(user_id, today))}

@@ -66,7 +66,7 @@ async function drawPacks(host, ctx) {
     const card = h('button', { type: 'button', class: 'pack-card', role: 'listitem', 'aria-label': p.name },
       h('span', { class: 'pack-emoji', 'aria-hidden': 'true' }, p.emoji),
       h('span', { class: 'bold' }, p.name),
-      h('span', { class: 'tiny bold muted' }, p.until ? `🎃 до ${p.until}` : `${p.done}/${p.quests.length} выполнено`));
+      h('span', { class: 'tiny bold muted' }, p.until ? `⏳ до ${p.until}` : `${p.done}/${p.quests.length} выполнено`));
     card.addEventListener('click', () => { haptic.tap(); openPack(p, ctx); });
     host.append(card);
   }
