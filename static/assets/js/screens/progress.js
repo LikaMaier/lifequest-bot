@@ -7,12 +7,14 @@ import { api } from '../api.js';
 import { myMascot } from '../mascot.js';
 import { skeleton, sectionTitle, emptyState, busy, toast, toastError, SPHERE_INFO, MODE_INFO, colorOf } from '../ui.js';
 import { buildRecapCard } from '../share.js';
+import { openSphereManager } from '../sphereui.js';
+const RANGE_WORD = { 1: 'сегодня', 7: 'неделя', 30: 'месяц', all: 'всё время' };
 import { handlePremiumError } from '../premium.js';
 import { barChart, lineChart, hbars, heatmap } from '../charts.js';
 import { openPhotoReport } from '../photoui.js';
 
 const view = { range: '7', kind: 'bar', stats: {} };
-const RANGES = [['7', '7 дн.'], ['14', '14 дн.'], ['30', '30 дн.'], ['all', 'Всё время']];
+const RANGES = [['1', 'День'], ['7', 'Неделя'], ['30', 'Месяц'], ['all', 'Всё время']];
 
 export async function render(el, ctx) {
   clear(el);
@@ -67,7 +69,7 @@ export async function render(el, ctx) {
     }
   }
   clear(body);
-  draw(body, stats, ctx);
+  draw(body, stats, { ...ctx, el });
 }
 
 export function update(el, ctx) {
@@ -103,18 +105,21 @@ function draw(body, s, ctx) {
 
   // Рекорды
   const fav = r.favorite_sphere;
+  const favSp = fav ? (s.spheres.find(x => x.key === fav) || { color: (SPHERE_INFO[fav] || {}).color || 'lav', emoji: (SPHERE_INFO[fav] || {}).emoji || '⭐', name: fav }) : null;
   body.append(sectionTitle('Рекорды'), h('div', { class: 'metrics' },
     metric('orange', 'Лучшая серия', r.best_streak, plural(r.best_streak, 'день', 'дня', 'дней'), '🔥'),
     metric('lime', 'Всего заданий', r.total, `${r.xp} XP всего`, '🏆'),
     metric('blue', 'Лучшая неделя', r.best_week ? r.best_week.count : 0, r.best_week ? weekLabel(r.best_week.week) : 'ещё впереди', null),
-    metric(fav ? SPHERE_INFO[fav].color : 'lav', 'Любимая сфера', fav ? SPHERE_INFO[fav].emoji : '—', fav || 'пока не ясно', null, true)));
+    metric(favSp ? favSp.color : 'lav', 'Любимая сфера', favSp ? favSp.emoji : '—', favSp ? favSp.name : 'пока не ясно', null, true)));
 
   // Сферы и форматы
-  const spheres = s.spheres.map(x => ({ label: x.sphere, value: x.count,
-    tag: h('span', { class: `tag c-${SPHERE_INFO[x.sphere].color}` }, `${SPHERE_INFO[x.sphere].emoji} ${x.sphere}`) }));
+  const spheres = s.spheres.map(x => ({ label: x.name || x.sphere, value: x.count,
+    tag: h('span', { class: `tag c-${x.color || 'lav'}` }, `${x.emoji || '⭐'} ${x.name || x.sphere}`) }));
+  const tune = h('button', { type: 'button', class: 'link' }, 'Настроить');
+  tune.addEventListener('click', () => { haptic.tap(); openSphereManager({ onChange: () => { view.stats = {}; render(ctx.el, ctx); } }); });
   const modes = s.modes.map(x => ({ label: MODE_INFO[x.mode].label, value: x.count,
     tag: h('span', { class: `tag c-${MODE_INFO[x.mode].color}` }, `${MODE_INFO[x.mode].emoji} ${MODE_INFO[x.mode].short}`) }));
-  body.append(sectionTitle('Сферы'),
+  body.append(sectionTitle(`Сферы · ${RANGE_WORD[view.range]}`, tune),
     h('section', { class: 'card' }, s.spheres.some(x => x.count) ? hbars(spheres, { label: 'Квесты и привычки по сферам' })
       : h('p', { class: 'muted bold small' }, 'За этот период пока пусто — сферы появятся после квестов «Для себя» и привычек, у которых выбрана сфера.'),
       s.spheres.some(x => x.count) ? h('p', { class: 'tiny muted bold', style: { marginTop: '8px' } }, 'Считаются выполненные квесты и дни, когда привычка со сферой выполнена') : null),

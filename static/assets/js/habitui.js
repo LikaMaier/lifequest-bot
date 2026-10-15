@@ -5,7 +5,8 @@ import { api } from './api.js';
 import { haptic } from './tg.js';
 import { refreshState } from './store.js';
 import { celebrate } from './celebrate.js';
-import { sheet, toast, toastError, busy, ICONS, confetti, SPHERE_INFO } from './ui.js';
+import { sheet, toast, toastError, busy, ICONS, confetti } from './ui.js';
+import { userSpheres, sphereByKey, openSphereManager } from './sphereui.js';
 
 export const HABIT_COLORS = ['lime', 'blue', 'pink', 'yellow', 'lav', 'orange', 'purple', 'red'];
 const EMOJIS = ['💧', '🧘', '📖', '🚶', '😴', '📵', '🙏', '💪', '🥗', '✍️', '💊', '🧴', '🎨', '🎧', '🧹', '🌿', '🍎', '🏃', '🦷', '☀️', '🧠', '💤', '🚿', '✨'];
@@ -60,7 +61,7 @@ export function habitCard(hb, { compact = false, onChanged } = {}) {
   const info = h('button', { type: 'button', class: 'habit-info', 'aria-label': `Изменить привычку «${hb.title}»` },
     h('span', { class: 'habit-emoji', 'aria-hidden': 'true' }, hb.emoji),
     h('span', { class: 'grow' }, h('span', { class: 'habit-title' }, hb.title),
-      h('span', { class: 'habit-meta' }, countLabel(hb), hb.sphere && SPHERE_INFO[hb.sphere] ? ` · ${SPHERE_INFO[hb.sphere].emoji}` : '',
+      h('span', { class: 'habit-meta' }, countLabel(hb), hb.sphere && sphereByKey(hb.sphere) ? ` · ${sphereByKey(hb.sphere).emoji}` : '',
         hb.streak ? ` · 🔥 ${hb.streak} ${plural(hb.streak, 'день', 'дня', 'дней')}` : '')));
   info.addEventListener('click', () => { haptic.tap(); openHabitEditor(hb); });
 
@@ -126,14 +127,17 @@ export function openHabitEditor(habit = null, { onSaved, preset } = {}) {
         b.addEventListener('click', () => { haptic.select(); form.color = c; form.title = title.value; form.unit = unit.value; draw(); });
         return b;
       }));
+    const manage = h('button', { type: 'button', class: 'chip c-paleyellow' }, '⚙️ Настроить');
+    manage.addEventListener('click', () => { haptic.tap(); form.title = title.value; form.unit = unit.value; openSphereManager({ onChange: draw }); });
     const spheres = h('div', { class: 'chips', role: 'radiogroup', 'aria-label': 'Сфера' },
-      [...Object.keys(SPHERE_INFO), null].map(sp => {
-        const on = (form.sphere || null) === sp;
-        const b = h('button', { type: 'button', class: `chip c-${sp ? SPHERE_INFO[sp].color : 'paleyellow'}`, role: 'radio',
-          'aria-checked': String(on), 'aria-pressed': String(on) }, sp ? `${SPHERE_INFO[sp].emoji} ${sp}` : 'Без сферы');
-        b.addEventListener('click', () => { haptic.select(); form.sphere = sp; form.title = title.value; form.unit = unit.value; draw(); });
+      [...userSpheres(), null].map(sp => {
+        const key = sp ? sp.key : null;
+        const on = (form.sphere || null) === key;
+        const b = h('button', { type: 'button', class: `chip c-${sp ? sp.color : 'paleyellow'}`, role: 'radio',
+          'aria-checked': String(on), 'aria-pressed': String(on) }, sp ? `${sp.emoji} ${sp.name}` : 'Без сферы');
+        b.addEventListener('click', () => { haptic.select(); form.sphere = key; form.title = title.value; form.unit = unit.value; draw(); });
         return b;
-      }));
+      }), manage);
     const targetVal = h('span', { class: 'num', style: { fontSize: '26px', minWidth: '44px', textAlign: 'center' }, 'aria-live': 'polite' }, String(form.target));
     const step = d => { haptic.select(); form.target = Math.max(1, Math.min(50, form.target + d)); targetVal.textContent = String(form.target); };
     const minus = h('button', { type: 'button', class: 'habit-step', 'aria-label': 'Меньше раз в день', html: ICONS.minus });

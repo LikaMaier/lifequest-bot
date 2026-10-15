@@ -156,3 +156,30 @@ class HabitSphereTest(TempDBTestCase):
         self.assertEqual(habits.done_by_sphere(4, today, today), {"Энергия": 1})
         habits.update_habit(4, bad["id"], {"sphere": "Творчество"})
         self.assertEqual(habits.done_by_sphere(4, today, today), {"Энергия": 1, "Творчество": 1})
+
+
+class UserSpheresTest(TempDBTestCase):
+    def test_custom_and_renamed_spheres(self):
+        import spheres
+        storage.ensure_user(5)
+        lst = spheres.create(5, {"name": "Семья", "emoji": "👨‍👩‍👧", "color": "pink"})
+        fam = next(s for s in lst if s["name"] == "Семья")
+        self.assertTrue(fam["custom"])
+        with self.assertRaises(game.QuestError):
+            spheres.create(5, {"name": "семья"})
+        spheres.update(5, "Энергия", {"name": "Здоровье", "emoji": "💪"})
+        en = next(s for s in spheres.list_spheres(5) if s["key"] == "Энергия")
+        self.assertEqual((en["name"], en["emoji"]), ("Здоровье", "💪"))
+        hb = habits.create_habit(5, {"title": "Звонок маме", "sphere": fam["key"]})["habit"]
+        self.assertEqual(hb["sphere"], fam["key"])
+        other = habits.create_habit(6 if storage.ensure_user(6) or True else 6, {"title": "X", "sphere": fam["key"]})["habit"]
+        self.assertIsNone(other["sphere"])  # чужая сфера не подходит
+        habits.log_habit(5, hb["id"], delta=1)
+        today = game.local_today(storage.get_user(5))
+        self.assertEqual(habits.done_by_sphere(5, today, today), {fam["key"]: 1})
+        with self.assertRaises(game.QuestError):
+            spheres.delete(5, "Энергия")
+        spheres.delete(5, fam["key"])
+        self.assertIsNone(habits.habit_view(5, hb["id"])["sphere"])
+        spheres.reset(5, "Энергия")
+        self.assertEqual(next(s for s in spheres.list_spheres(5) if s["key"] == "Энергия")["name"], "Энергия")
