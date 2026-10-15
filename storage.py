@@ -680,7 +680,35 @@ def week_key_for(day) -> str:
 
 
 def get_current_week_key(today=None) -> str:
-    return week_key_for(today or datetime.now().date())
+    """Ключ периода карты «Цели месяца» — месяц вида '2026-10' (раньше карта
+    была недельной: старые ключи '2026-W42' текущего месяца тоже принимаются)."""
+    d = today or datetime.now().date()
+    return f"{d.year}-{d.month:02d}"
+
+
+def board_keys(today=None) -> tuple:
+    """Ключ текущего месяца + ключ текущей недели (карта до перехода на месяцы)."""
+    d = today or datetime.now().date()
+    return get_current_week_key(d), week_key_for(d)
+
+
+def _legacy_week_in_month(key: str, today) -> bool:
+    try:
+        monday = datetime.strptime(key + "-1", "%G-W%V-%u").date()
+    except (TypeError, ValueError):
+        return False
+    sunday = monday + timedelta(days=6)
+    return (monday.year, monday.month) == (today.year, today.month) or (sunday.year, sunday.month) == (today.year, today.month)
+
+
+BOARD_TITLE_MAX = 30
+RU_MONTHS_NOM = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август",
+                 "сентябрь", "октябрь", "ноябрь", "декабрь"]
+
+
+def get_board_period_label(today=None) -> str:
+    d = today or datetime.now().date()
+    return f"{RU_MONTHS_NOM[d.month - 1].capitalize()} {d.year}"
 
 
 def get_week_range_label(today=None) -> str:
@@ -707,9 +735,13 @@ def normalize_board(raw) -> dict:
         rating = max(0, min(10, int(raw.get("rating") or 0)))
     except (TypeError, ValueError):
         rating = 0
+    titles = raw.get("titles") if isinstance(raw.get("titles"), list) else []
+    titles = [" ".join(str(x or "").split())[:BOARD_TITLE_MAX] for x in titles[:BOARD_CELLS]]
+    titles += [""] * (BOARD_CELLS - len(titles))
     return {
         "cells": cells,
         "done": done,
+        "titles": titles,
         "reward": str(raw.get("reward") or "")[:BOARD_REWARD_MAX],
         "rating": rating,
         "notes": str(raw.get("notes") or "")[:BOARD_NOTES_MAX],
@@ -722,7 +754,8 @@ def get_weekly_board(user_id: int, today=None) -> dict:
     c.execute("SELECT week_key, board_json FROM weekly_boards WHERE user_id = ?", (user_id,))
     row = c.fetchone()
     conn.close()
-    if row and row[0] == get_current_week_key(today) and row[1]:
+    d = today or datetime.now().date()
+    if row and row[1] and (row[0] == get_current_week_key(d) or _legacy_week_in_month(row[0], d)):
         try:
             return normalize_board(json.loads(row[1]))
         except (TypeError, json.JSONDecodeError):

@@ -80,7 +80,7 @@ export function render(el, ctx) {
       h('div', { class: 'grow small bold' }, `${overdue} ${plural(overdue, 'план ждёт', 'плана ждут', 'планов ждут')} решения — перенеси или отпусти, без чувства вины.`)));
   }
   const body = h('div');
-  el.append(body);
+  el.append(body, goalsCard(ctx));
   if (view.mode === 'month') drawMonth(body, el, ctx);
   else if (view.mode === 'week') drawWeek(body, el, ctx);
   else drawList(body, el, ctx);
@@ -221,9 +221,6 @@ async function drawMonth(body, el, ctx) {
   gridHost.append(grid, legend(),
     h('p', { class: 'tiny muted bold center', style: { marginTop: '8px' } }, 'Разведи двумя пальцами — откроется неделя крупно'));
 
-  const exportBtn = h('button', { type: 'button', class: 'btn ghost block', style: { marginTop: '14px' } }, '📲 Добавить месяц в календарь телефона');
-  exportBtn.addEventListener('click', () => exportIcs(summary.days[0].date, summary.days[summary.days.length - 1].date));
-  body.append(exportBtn);
 }
 
 function dayCell(d, today, el, ctx) {
@@ -286,21 +283,19 @@ async function drawList(body, el, ctx) {
     const title = key === 'overdue' ? '🌿 Не успелось' : key === todayIso() ? `Сегодня, ${fmtDay(key)}` : key === addDays(todayIso(), 1) ? `Завтра, ${fmtDay(key)}` : dayTitle(key);
     body.append(sectionTitle(title), h('div', { class: 'stack-sm' }, list.map(o => planRow(o, { onChange: () => refresh(el, ctx), onOpen: x => openDaySheet(x.date, { onChange: () => refresh(el, ctx) }) }))));
   }
-  const exportBtn = h('button', { type: 'button', class: 'btn ghost block', style: { marginTop: '18px' } }, '📲 Ближайший месяц — в календарь телефона');
-  exportBtn.addEventListener('click', () => exportIcs(todayIso(), addDays(todayIso(), 30)));
-  body.append(exportBtn);
 }
 
-async function exportIcs(from, to) {
-  haptic.tap();
-  try {
-    const { url } = await api.exportLink(from, to);
-    const abs = new URL(url, location.href).href;
-    if (tg && tg.downloadFile) {
-      try { tg.downloadFile({ url: abs, file_name: `lifequest-${from}.ics` }); return; } catch (e) { /* старый клиент */ }
-    }
-    if (tg && tg.openLink) tg.openLink(abs); else window.open(abs, '_blank', 'noopener');
-  } catch (e) { toastError(e); }
-}
 
 export { MONTHS_GEN };
+
+// «Цели месяца» (бывшая карта недели) — под календарём.
+function goalsCard(ctx) {
+  const card = h('button', { type: 'button', class: 'card tinted c-lav goals-card' },
+    h('span', { class: 'goals-grid', 'aria-hidden': 'true' }, Array.from({ length: 9 }, (_, i) => h('i', { class: i === 4 ? 'mid' : '' }))),
+    h('span', { class: 'grow' },
+      h('span', { class: 'card-title', style: { display: 'block', margin: 0 } }, '🎯 Цели месяца'),
+      h('span', { class: 'small bold', style: { display: 'block', marginTop: '4px' } }, '9 целей на месяц: собирай линии и получай XP')),
+    h('span', { class: 'bold', 'aria-hidden': 'true' }, '›'));
+  card.addEventListener('click', () => { haptic.tap(); ctx.go('board'); });
+  return card;
+}

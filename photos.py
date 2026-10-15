@@ -222,7 +222,7 @@ def _row_view(user_id: int, r: dict) -> dict:
     if not label and r.get("plan_title"):
         label = r["plan_title"]
     if not label and r["target_type"] == "board":
-        label = "Карта недели"
+        label = "Цели месяца"
     return {
         "id": r["id"], "target": r["target_type"], "quest_history_id": r["quest_history_id"],
         "plan_id": r["plan_id"], "plan_date": r["plan_date"], "day": r["day"] or r["plan_date"] or r["created_at"][:10],
@@ -266,8 +266,9 @@ def list_photos(user_id: int, filters: dict) -> list:
         where.append("COALESCE(p.day, p.plan_date) = ?")
         args.append(str(filters["day"])[:10])
     if filters.get("board_cell") not in (None, ""):
-        where.append("p.board_week = ?")
-        args.append(storage.get_current_week_key(game.local_today(storage.get_user(user_id))))
+        keys = storage.board_keys(game.local_today(storage.get_user(user_id)))
+        where.append("p.board_week IN (?, ?)")
+        args.extend(keys)
     for key, op in (("from", ">="), ("to", "<=")):  # диапазон дней — для недели в календаре
         if filters.get(key):
             where.append(f"COALESCE(p.day, p.plan_date, substr(p.created_at, 1, 10)) {op} ?")

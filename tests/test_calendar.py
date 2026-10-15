@@ -358,3 +358,25 @@ class UncompletePlanTest(TempDBTestCase):
         self.assertEqual(plans.occurrence(1, p["id"], date.fromisoformat(self.today))["status"], "planned")
         with self.assertRaises(game.QuestError):
             plans.uncomplete_plan(1, p["id"], self.today)  # уже не выполнен
+
+
+class MonthGoalsTest(TempDBTestCase):
+    def test_board_is_monthly_keeps_legacy_week_and_titles(self):
+        import json
+        from datetime import date
+        storage.ensure_user(1)
+        today = date(2026, 10, 15)
+        # карта, сохранённая ещё как недельная, остаётся картой этого месяца
+        conn = storage.connect()
+        conn.execute("INSERT INTO weekly_boards (user_id, week_key, board_json) VALUES (1, ?, ?)",
+                     (storage.week_key_for(today), json.dumps({"cells": ["Бег"] + [""] * 8})))
+        conn.commit()
+        conn.close()
+        self.assertEqual(storage.get_weekly_board(1, today)["cells"][0], "Бег")
+        self.assertEqual(storage.get_current_week_key(today), "2026-10")
+        board = storage.normalize_board({"cells": ["Бег"], "titles": ["Спорт  "], "done": [True]})
+        self.assertEqual(board["titles"][0], "Спорт")
+        self.assertEqual(len(board["titles"]), 9)
+        storage.save_weekly_board(1, board, today)
+        self.assertEqual(storage.get_weekly_board(1, date(2026, 10, 30))["titles"][0], "Спорт")
+        self.assertEqual(storage.get_weekly_board(1, date(2026, 11, 2))["cells"][0], "")  # новый месяц — новая карта
