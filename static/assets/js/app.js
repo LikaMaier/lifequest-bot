@@ -25,7 +25,7 @@ const SCREENS = {
   profile: { title: 'Профиль', sub: true, load: () => import('./screens/profile.js') },
   premium: { title: 'Premium', sub: true, load: () => import('./screens/profile.js'), entry: 'renderPremium' },
 };
-const TABS = ['home', 'quests', 'calendar', 'habits', 'progress'];
+const TABS = ['home', 'habits', 'calendar', 'quests', 'progress'];
 
 const root = document.getElementById('app');
 const mounted = {}; // name -> { el, module, dirty }
