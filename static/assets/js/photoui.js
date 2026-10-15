@@ -1,7 +1,7 @@
 // Фото: сжатие перед загрузкой, лента превью с прогрессом, ленивые
 // миниатюры, полноэкранный просмотр со свайпом и зумом, карточка «Поделиться».
 
-import { h, clear, fmtDay } from './dom.js';
+import { h, clear, fmtDay, plural } from './dom.js';
 import { api, uploadPhoto } from './api.js';
 import { handlePremiumError } from './premium.js';
 import { haptic, tg, pushBack } from './tg.js';
@@ -148,20 +148,37 @@ export function photoStrip(target, { title = 'Фото', onChange } = {}) {
   return box;
 }
 
-// ---------- Полноэкранный просмотр ----------
+// ---------- Полноэкранный просмотр: большой полароид на доске ----------
+const KIND = { quest: ['квест', 'lime'], plan: ['план', 'blue'], day: ['день', 'yellow'], board: ['цели месяца', 'orange'] };
+const LONG_DAY = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' });
+const VIEWER_ICONS = {
+  share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5M5 13v6a2 2 0 002 2h10a2 2 0 002-2v-6"/></svg>',
+  cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+  down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
+};
+const vIcon = name => h('span', { class: 'memo-ico', 'aria-hidden': 'true', html: VIEWER_ICONS[name] });
+
 export function openViewer(list, index, { onDelete } = {}) {
   let i = index;
   const img = h('img', { class: 'viewer-img', alt: '' });
-  const caption = h('div', { class: 'viewer-caption' });
-  const counter = h('div', { class: 'viewer-counter tiny bold' });
-  const stage = h('div', { class: 'viewer-stage' }, img);
+  const caption = h('div', { class: 'viewer-hand' });
+  const counter = h('div', { class: 'viewer-counter' });
+  const frame = h('div', { class: 'viewer-polaroid' }, h('span', { class: 'viewer-tape', 'aria-hidden': 'true' }),
+    h('div', { class: 'viewer-photo' }, img), caption);
+  const stage = h('div', { class: 'viewer-stage' }, h('div', { class: 'viewer-back', 'aria-hidden': 'true' }), frame);
+  const tags = h('div', { class: 'viewer-tags' });
+  const title = h('div', { class: 'viewer-title' });
+  const info = h('div', { class: 'viewer-info' }, tags, title);
+  const dots = h('div', { class: 'viewer-dots', 'aria-hidden': 'true' });
   const close = h('button', { type: 'button', class: 'viewer-btn', 'aria-label': 'Закрыть' }, '✕');
-  const download = h('button', { type: 'button', class: 'viewer-btn', 'aria-label': 'Скачать' }, '⬇︎');
-  const share = h('button', { type: 'button', class: 'viewer-btn', 'aria-label': 'Поделиться' }, '↗︎');
-  const del = h('button', { type: 'button', class: 'viewer-btn', 'aria-label': 'Удалить фото' }, '🗑');
+  const download = h('button', { type: 'button', class: 'viewer-btn', 'aria-label': 'Скачать' }, vIcon('down'));
+  const share = h('button', { type: 'button', class: 'memo-btn dark grow' }, vIcon('share'), 'Поделиться');
+  const toCal = h('button', { type: 'button', class: 'memo-btn accent grow' }, vIcon('cal'), 'В календарь');
+  const del = h('button', { type: 'button', class: 'viewer-del', 'aria-label': 'Удалить фото' }, vIcon('trash'));
   const overlay = h('div', { class: 'viewer', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Просмотр фото' },
-    h('div', { class: 'viewer-top' }, counter, h('div', { class: 'row', style: { gap: '8px' } }, download, share, del, close)),
-    stage, caption);
+    h('div', { class: 'viewer-top' }, close, counter, download),
+    stage, info, h('div', { class: 'viewer-actions' }, share, toCal, del), dots);
 
   // зум: щипок двумя пальцами и двойной тап; свайп — листание
   let scale = 1, tx = 0, ty = 0;
@@ -174,8 +191,19 @@ export function openViewer(list, index, { onDelete } = {}) {
     reset();
     img.src = p.url;
     img.alt = p.label || 'Фото';
-    caption.textContent = [p.label, fmtDay(p.day)].filter(Boolean).join(' · ');
-    counter.textContent = `${i + 1} / ${list.length}`;
+    const n = hashOf(p.id);
+    frame.style.setProperty('--tilt', `${(n % 5) - 2.5}deg`);
+    frame.className = `viewer-polaroid pc-${n % 5}`;
+    caption.textContent = LONG_DAY.format(new Date(`${p.day}T12:00:00`));
+    const [kind, color] = KIND[p.target] || ['фото', 'pink'];
+    clear(tags).append(h('span', { class: 'viewer-tag dark' }, fmtDay(p.day)), h('span', { class: `viewer-tag c-${color}` }, kind));
+    title.textContent = p.label || 'Хороший момент';
+    counter.textContent = `${i + 1} из ${list.length}`;
+    clear(dots);
+    if (list.length > 1) {
+      const from = Math.max(0, Math.min(i - 4, list.length - 9));
+      for (let k = from; k < Math.min(list.length, from + 9); k++) dots.append(h('span', { class: k === i ? 'on' : '' }));
+    }
   };
   stage.addEventListener('pointerdown', e => {
     stage.setPointerCapture(e.pointerId);
@@ -243,6 +271,13 @@ export function openViewer(list, index, { onDelete } = {}) {
     } catch (e) { toastError(e); }
     share.disabled = false;
   });
+  toCal.addEventListener('click', async () => {
+    haptic.tap();
+    const day = list[i].day;
+    shut();
+    const { openDaySheet } = await import('./planui.js');
+    openDaySheet(day);
+  });
   del.addEventListener('click', async () => {
     try {
       const p = list[i];
@@ -295,6 +330,61 @@ export async function photoShareCard(photo) {
   ctx.fillText(fmtDay(photo.day), 90, 1200);
   ctx.fillStyle = '#B23C6C'; ctx.font = '800 36px Nunito, sans-serif';
   ctx.fillText('LIFEQUEST', 90, 1270);
+  return c.toDataURL('image/jpeg', 0.88);
+}
+
+/** Карточка года 1080×1350: 12 месяцев с фото, лучший — со звездой. */
+export async function yearShareCard(year, byMonth, total, quests) {
+  await document.fonts.ready;
+  const load = src => new Promise(resolve => { const im = new Image(); im.onload = () => resolve(im); im.onerror = () => resolve(null); im.src = src; });
+  const W = 1080, H = 1350;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#FDF7DE'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(44,42,34,.08)';
+  for (let y = 10; y < H; y += 28) for (let x = 10; x < W; x += 28) { ctx.beginPath(); ctx.arc(x, y, 2.4, 0, 7); ctx.fill(); }
+  ctx.fillStyle = '#B23C6C'; ctx.font = '700 64px Caveat, cursive'; ctx.fillText(String(year), 80, 130);
+  ctx.fillStyle = '#2C2A22'; ctx.font = '800 64px Unbounded, sans-serif'; ctx.fillText('Мой год в фото', 80, 210);
+  ctx.fillStyle = '#6E6850'; ctx.font = '800 36px Nunito, sans-serif';
+  ctx.fillText(`${total} фото${quests ? ` · ${quests} ${plural(quests, 'квест', 'квеста', 'квестов')}` : ''}`, 80, 270);
+  let best = null;
+  for (const [k, v] of byMonth) if (!best || v.length > byMonth.get(best).length) best = k;
+  const tints = ['#EEE5FF', '#E6F0FF', '#FFE0EE', '#F7FBD0', '#FDF3B0', '#FFEBD4'];
+  const names = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+  const cw = 290, ch = 200, gx = 25, gy = 20, x0 = 80, y0 = 320;
+  for (let m = 0; m < 12; m++) {
+    const key = `${year}-${String(m + 1).padStart(2, '0')}`;
+    const photos = byMonth.get(key) || [];
+    const x = x0 + (m % 3) * (cw + gx), y = y0 + Math.floor(m / 3) * (ch + gy);
+    ctx.save();
+    roundRect(ctx, x, y, cw, ch, 32);
+    if (photos.length) { ctx.fillStyle = tints[m % tints.length]; ctx.fill(); } else { ctx.setLineDash([10, 10]); ctx.strokeStyle = '#D9CFAE'; ctx.lineWidth = 4; ctx.stroke(); }
+    ctx.restore();
+    const pics = await Promise.all(photos.slice(0, 2).map(p => load(p.thumb)));
+    pics.forEach((pic, k) => {
+      if (!pic) return;
+      ctx.save();
+      ctx.translate(x + 90 + k * 80, y + 80); ctx.rotate(k ? 0.12 : -0.14);
+      ctx.shadowColor = 'rgba(70,50,90,.25)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 6;
+      ctx.fillStyle = '#FFFEF9'; ctx.fillRect(-56, -56, 112, 126);
+      ctx.shadowColor = 'transparent';
+      const s = Math.min(pic.width, pic.height);
+      ctx.drawImage(pic, (pic.width - s) / 2, (pic.height - s) / 2, s, s, -48, -48, 96, 96);
+      ctx.restore();
+    });
+    ctx.fillStyle = photos.length ? '#2C2A22' : '#B5AC8C'; ctx.font = '700 50px Caveat, cursive'; ctx.fillText(names[m], x + 22, y + ch - 22);
+    ctx.fillStyle = '#6E6850'; ctx.font = '800 28px Nunito, sans-serif';
+    const cnt = photos.length ? String(photos.length) : '—';
+    ctx.fillText(cnt, x + cw - 22 - ctx.measureText(cnt).width, y + ch - 26);
+    if (key === best) {
+      ctx.save(); ctx.translate(x + cw - 40, y + 40); ctx.rotate(0.25);
+      ctx.fillStyle = '#FFD23F'; ctx.strokeStyle = '#C99A00'; ctx.lineWidth = 3; ctx.beginPath();
+      for (let k = 0; k < 10; k++) { const r = k % 2 ? 15 : 34, a = -Math.PI / 2 + k * Math.PI / 5; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+      ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+    }
+  }
+  ctx.fillStyle = '#B23C6C'; ctx.font = '800 36px Nunito, sans-serif'; ctx.fillText('LIFEQUEST', 80, H - 50);
   return c.toDataURL('image/jpeg', 0.88);
 }
 
