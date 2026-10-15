@@ -1,5 +1,6 @@
-// Милые наклейки на фоне ленты с фото — свой набор под каждый стиль
-// приложения. Слой лежит под полароидами и выглядывает из промежутков.
+// Милые наклейки на фоне ленты с фото. Только для стилей без своей
+// анимированной подложки (сейчас это «Классика»): у хэллоуина, леса, моря,
+// матрицы и космоса уже есть живой фон — их не трогаем.
 
 import { h } from './dom.js';
 
@@ -56,8 +57,12 @@ const SETS = {
   ],
 };
 
+const ANIMATED = new Set(['halloween', 'matrix', 'forest', 'ocean', 'space']);
+const decorOn = () => !ANIMATED.has(document.documentElement.dataset.theme);
+
 /** Слой наклеек для ленты высотой примерно rows «рядов» фото. */
 export function feedDecor(rows) {
+  if (!decorOn()) return null;
   const theme = document.documentElement.dataset.theme;
   const set = SETS[theme] || SETS.classic;
   const layer = h('div', { class: `feed-decor theme-${SETS[theme] ? theme : 'classic'}`, 'aria-hidden': 'true' });
@@ -87,6 +92,7 @@ export function feedDecor(rows) {
 
 /** Наклейка на уголок полароида — из набора текущего стиля. */
 export function cornerSticker(n) {
+  if (!decorOn()) return null;
   const theme = document.documentElement.dataset.theme;
   const set = SETS[theme] || SETS.classic;
   const corner = n % 2 ? 'tr' : 'bl';
