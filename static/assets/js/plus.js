@@ -15,6 +15,10 @@ export function openPlus({ go, onChange } = {}) {
   const input = h('input', { class: 'cal2-quick-input', type: 'text', maxlength: '120', placeholder: 'завтра в 19 кино с Машей', 'aria-label': 'Напиши, что запланировать' });
   const chips = h('div', { class: 'plus-chips', 'aria-live': 'polite' });
   const save = h('button', { type: 'button', class: 'cal2-save', disabled: true }, 'Напиши, что запланировать');
+  const inbox = h('button', { type: 'button', class: 'cal2-link', hidden: true }, '📥 Без даты — во входящие');
+  inbox.addEventListener('click', busy(inbox, async () => {
+    try { await api.addInbox(parsed.title); haptic.success(); toast('📥 Во входящих — разберёшь в календаре', 'good'); s.close(); onChange && onChange(); } catch (e) { toastError(e); }
+  }));
   let parsed = { title: '', date: null, time: null };
   const update = () => {
     parsed = parsePhrase(input.value, today);
@@ -26,6 +30,7 @@ export function openPlus({ go, onChange } = {}) {
       h('span', { class: 'plus-chip' }, `«${parsed.title}»`),
     ].filter(Boolean) : []));
     save.disabled = !parsed.title;
+    inbox.hidden = !parsed.title || Boolean(parsed.date);
     save.textContent = parsed.title ? `Добавить на ${date === today ? 'сегодня' : fmtDay(date)}` : 'Напиши, что запланировать';
   };
   input.addEventListener('input', update);
@@ -53,7 +58,7 @@ export function openPlus({ go, onChange } = {}) {
     h('h2', null, 'Что добавим?'),
     h('div', null, h('div', { class: 'cal2-label' }, 'Напиши как есть — я разберусь'),
       h('div', { class: 'cal2-quick' }, input), chips),
-    save,
+    save, inbox,
     h('div', { class: 'plus-grid' },
       kind('Привычка', 'ритуал на каждый день', 'lime', async () => (await import('./habitui.js')).openHabitEditor(null, { onSaved: onChange })),
       kind('План', 'дело на дату и время', 'blue', async () => (await import('./screens/calendar.js')).openQuickAdd(today, { onChange })),

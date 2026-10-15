@@ -140,6 +140,15 @@ export function openPlanSheet(o, { onChange } = {}) {
       }),
       act('✏️ Изменить', 'ghost grow', async () => { s.close(); openPlanEditor({ plan: o, onChange }); })));
   }
+  if (!done && o.status !== 'skipped' && o.date >= todayIso()) {
+    body.append(act(o.focus ? '🎯 Снять «главное дело»' : '🎯 Сделать главным делом дня', 'ghost block', async () => {
+      await api.focusPlan(o.focus ? null : o.id, o.date);
+      haptic.success();
+      toast(o.focus ? 'Главное дело снято' : '🎯 Это главное сегодня — у тебя получится!', 'good');
+      s.close();
+      changed(onChange);
+    }));
+  }
   if (photosEnabled() && o.date <= todayIso()) {
     body.append(h('div', null, h('h3', { style: { marginBottom: '8px' } }, '📷 Фото'),
       photoStrip({ target: 'plan', plan_id: o.id, plan_date: o.date }, { onChange: () => onChange && onChange() })));

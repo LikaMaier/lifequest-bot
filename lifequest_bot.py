@@ -8,7 +8,7 @@ import html
 import json
 import os
 import random
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.exceptions import TelegramBadRequest
@@ -387,19 +387,60 @@ def plans_lines(items: list) -> str:
     return "\n".join(lines)
 
 
+def morning_plan_keyboard(user_id: int, items: list, habit_items: list) -> list:
+    """Кнопки «готово / на завтра» для планов и «сделано» для привычек — прямо в чате."""
+    rows = []
+    for o in [x for x in items if x["status"] == "planned"][:4]:
+        title = (o["title"][:22] + "…") if len(o["title"]) > 23 else o["title"]
+        rows.append([InlineKeyboardButton(text=f"✅ {title}", callback_data=f"pd:{o['id']}:{o['date']}"),
+                     InlineKeyboardButton(text="➡️ На завтра", callback_data=f"pt:{o['id']}:{o['date']}")])
+    hb_buttons = [InlineKeyboardButton(text=f"{h['emoji']} {h['title'][:16]}", callback_data=f"hd:{h['id']}")
+                  for h in habit_items[:4]]
+    for i in range(0, len(hb_buttons), 2):
+        rows.append(hb_buttons[i:i + 2])
+    return rows
+
+
 async def send_morning_plans(user_id: int):
-    """Утренняя сводка планов (если включена в профиле и планы есть)."""
+    """Утренняя сводка: главное дело, планы и привычки дня с кнопками
+    «готово / на завтра» (если включена в профиле и есть что показать)."""
     user = storage.get_user(user_id)
     if not user.get("morning_plans", 1):
         return
     items = plans.today_plans(user_id)
-    if not items:
+    hb = [h for h in habits.habits_view(user_id) if h["kind"] == "build" and h["due_today"] and not h["done_today"] and h["target"] == 1]
+    if not items and not hb:
         return
     ctx = nudges.context(user_id)
-    head = nudges.pick("plans_today", user_id, ctx["today"], m=ctx["m"])
-    markup = InlineKeyboardMarkup(inline_keyboard=app_row("calendar")) if MINIAPP_URL else None
-    await ops.safe_send(user_id, f"🗓️ <b>Сегодня у тебя в планах</b>\n{head}\n\n" + plans_lines(items),
-                           parse_mode="HTML", reply_markup=markup)
+    lines = []
+    focus = next((o for o in items if o.get("focus")), None)
+    if focus:
+        lines.append(f"🎯 <b>Главное сегодня:</b> {html.escape(focus['title'])}")
+    if items:
+        head = nudges.pick("plans_today", user_id, ctx["today"], m=ctx["m"])
+        lines.append(f"🗓️ <b>Сегодня у тебя в планах</b>\n{head}\n\n" + plans_lines(items))
+    if hb:
+        lines.append(f"🌱 <b>Привычки на сегодня:</b> {len(hb)} — отмечай кнопками ниже")
+    rows = morning_plan_keyboard(user_id, items, hb)
+    if MINIAPP_URL:
+        rows += app_row("calendar")
+    await ops.safe_send(user_id, "\n\n".join(lines), parse_mode="HTML",
+                        reply_markup=InlineKeyboardMarkup(inline_keyboard=rows) if rows else None)
+
+
+def _drop_button(markup, data: str):
+    """Убирает из клавиатуры строку с нажатой кнопкой (или саму кнопку)."""
+    if not markup:
+        return None
+    rows = []
+    for row in markup.inline_keyboard:
+        if any(b.callback_data == data for b in row):
+            rest = [b for b in row if b.callback_data != data] if data.startswith("hd:") else []
+            if rest:
+                rows.append(rest)
+            continue
+        rows.append(row)
+    return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
 
 
 async def send_plan_reminders():
@@ -689,6 +730,45 @@ async def send_streak_alarms():
                 await ops.safe_send(user_id, text, parse_mode="HTML", reply_markup=kb)
         except Exception as e:
             await ops.alert("streak alarm", e, f"user {user_id}")
+
+
+@dp.callback_query(F.data.regexp(r"^p[dt]:\d+:\d{4}-\d{2}-\d{2}$"))
+async def morning_plan_button(callback: CallbackQuery):
+    kind, plan_id, day = callback.data.split(":")
+    uid = callback.from_user.id
+    try:
+        if kind == "pd":
+            plans.complete_plan(uid, int(plan_id), day)
+            note = "✅ Готово! Так держать"
+        else:
+            tomorrow = (date.fromisoformat(day) + timedelta(days=1)).isoformat()
+            plans.move_plan(uid, int(plan_id), day, tomorrow)
+            note = "➡️ Перенесено на завтра — без чувства вины 🌿"
+    except game.QuestError as e:
+        await callback.answer(str(e), show_alert=True)
+        return
+    await callback.answer(note)
+    try:
+        await callback.message.edit_reply_markup(reply_markup=_drop_button(callback.message.reply_markup, callback.data))
+    except Exception:
+        pass
+
+
+@dp.callback_query(F.data.regexp(r"^hd:\d+$"))
+async def morning_habit_button(callback: CallbackQuery):
+    uid = callback.from_user.id
+    try:
+        hb = habits.habit_view(uid, int(callback.data[3:]))
+        res = habits.log_habit(uid, hb["id"], count=hb["target"])
+    except game.QuestError as e:
+        await callback.answer(str(e), show_alert=True)
+        return
+    xp = f" · +{res['xp']} XP" if res.get("xp") else ""
+    await callback.answer(f"{hb['emoji']} {hb['title']} — сделано!{xp}")
+    try:
+        await callback.message.edit_reply_markup(reply_markup=_drop_button(callback.message.reply_markup, callback.data))
+    except Exception:
+        pass
 
 
 @dp.callback_query(F.data == "xp_freeze")
