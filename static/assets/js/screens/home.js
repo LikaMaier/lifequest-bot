@@ -83,7 +83,18 @@ export function render(el, ctx) {
     plan.addEventListener('click', () => { haptic.tap(); openPlus({ go, onChange: rerender }); });
     el.append(plan);
   } else {
-    el.append(h('div', { class: 'stack-sm' }, state.plans_today.slice(0, 4).map(o => planRow(o, { compact: true }))));
+    const focus = state.plans_today.find(o => o.focus);
+    if (focus) {
+      const done = focus.status === 'done';
+      const fc = h('button', { type: 'button', class: `home2-focus ${done ? 'done' : ''}` },
+        h('span', { class: 'grow' }, h('span', { class: 'home2-kicker' }, done ? '🎯 Главное сделано!' : '🎯 Главное сегодня'),
+          h('span', { class: 'bold', style: { display: 'block', fontSize: '16px' } }, focus.title),
+          focus.time ? h('span', { class: 'small bold', style: { display: 'block' } }, `в ${focus.time}${focus.end_time ? `–${focus.end_time}` : ''}`) : null),
+        h('span', { class: 'home2-focus-dot', 'aria-hidden': 'true' }, done ? '✓' : ''));
+      fc.addEventListener('click', () => { haptic.tap(); go('calendar'); });
+      el.append(fc);
+    }
+    el.append(h('div', { class: 'stack-sm' }, state.plans_today.filter(o => !o.focus).slice(0, 4).map(o => planRow(o, { compact: true }))));
   }
 
   // Активный челлендж

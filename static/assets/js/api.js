@@ -95,6 +95,12 @@ export const api = {
   skipPlan: (id, date) => request('POST', `api/plans/${id}/skip`, { date }),
   uncompletePlan: (id, date) => request('POST', `api/plans/${id}/uncomplete`, { date }),
   movePlan: (id, date, to) => request('POST', `api/plans/${id}/move`, { date, to }),
+  subtaskPlan: (id, index, done) => request('POST', `api/plans/${id}/subtask`, { index, done }),
+  focusPlan: (id, date) => request('POST', 'api/plans/focus', { id, date }),
+  inbox: () => request('GET', 'api/inbox'),
+  addInbox: title => request('POST', 'api/inbox', { title }),
+  deleteInbox: id => request('DELETE', `api/inbox/${id}`),
+  scheduleInbox: (id, data) => request('POST', `api/inbox/${id}/schedule`, data),
   calendarSummary: month => request('GET', `api/calendar/summary?month=${month}`),
   exportLink: (from, to) => request('POST', 'api/calendar/export-link', { from, to }),
   searchQuests: ({ q = '', mode = '', sphere = '' } = {}) =>

@@ -9,6 +9,7 @@
 # ============================================================
 
 import re
+import json
 from datetime import date, datetime, timedelta
 
 import game
@@ -48,6 +49,25 @@ def _check_window(d: date, today: date):
 
 def _text(value, limit: int) -> str:
     return " ".join(str(value or "").split())[:limit]
+
+
+DURATION_MAX = 12 * 60
+SUBTASKS_MAX = 12
+SUBTASK_MAX = 60
+INBOX_MAX = 50
+
+
+def _clean_subtasks(value):
+    if not value:
+        return None
+    if not isinstance(value, list):
+        raise game.QuestError("Подпункты — списком")
+    items = []
+    for it in value[:SUBTASKS_MAX]:
+        t = _text(it.get("t") if isinstance(it, dict) else it, SUBTASK_MAX)
+        if t:
+            items.append({"t": t, "done": bool(it.get("done")) if isinstance(it, dict) else False})
+    return json.dumps(items, ensure_ascii=False) if items else None
 
 
 def _clean(data: dict, today: date, partial: bool) -> dict:
@@ -101,6 +121,14 @@ def _clean(data: dict, today: date, partial: bool) -> dict:
         if r not in REMINDS:
             raise game.QuestError("Неизвестное напоминание")
         f["remind"] = r
+    if not partial or "duration" in data:
+        try:
+            dur = int(data.get("duration") or 0)
+        except (TypeError, ValueError):
+            raise game.QuestError("Длительность — число минут")
+        f["duration"] = max(5, min(DURATION_MAX, dur)) if dur else None
+    if not partial or "subtasks" in data:
+        f["subtasks"] = _clean_subtasks(data.get("subtasks"))
     if not partial or "board_cell" in data:
         cell = data.get("board_cell")
         if cell is None or cell == "":
@@ -195,6 +223,14 @@ def _photo_counts(user_id: int) -> dict:
     return {(r[0], r[1]): r[2] for r in rows}
 
 
+def _end_time(time, duration):
+    if not time or not duration:
+        return None
+    hh, mm = map(int, time.split(":"))
+    total = min(23 * 60 + 59, hh * 60 + mm + duration)
+    return f"{total // 60:02d}:{total % 60:02d}"
+
+
 def _occurrence(plan: dict, d: date, exc: dict, today: date, photos: dict) -> dict:
     iso = d.isoformat()
     if (plan.get("repeat_rule") or "none") != "none":
@@ -212,6 +248,8 @@ def _occurrence(plan: dict, d: date, exc: dict, today: date, photos: dict) -> di
         "sphere": plan.get("sphere") or (q["sphere"] if q else None),
         "overdue": status == "planned" and d < today,
         "photos": photos.get((plan["id"], iso), 0),
+        "duration": plan.get("duration"), "end_time": _end_time(plan["time"], plan.get("duration")),
+        "subtasks": json.loads(plan["subtasks"]) if plan.get("subtasks") else [],
     }
 
 
@@ -228,7 +266,10 @@ def occurrences(user_id: int, start: date, end: date) -> list:
             o = _occurrence(p, d, exc, today, photos)
             if o["status"] != "moved":
                 items.append(o)
-    items.sort(key=lambda o: (o["date"], o["time"] or "99:99", o["id"]))
+    focus = storage.get_user(user_id).get("focus_plan") or ""
+    for o in items:
+        o["focus"] = focus == f"{o['id']}|{o['date']}"
+    items.sort(key=lambda o: (not o["focus"], o["date"], o["time"] or "99:99", o["id"]))
     return items
 
 
@@ -236,7 +277,9 @@ def occurrence(user_id: int, plan_id: int, d: date) -> dict:
     plan = _get(user_id, plan_id)
     if not occurs_on(plan, d):
         raise game.QuestError("В этот день плана нет")
-    return _occurrence(plan, d, _exceptions([plan_id]), _today(user_id), _photo_counts(user_id))
+    o = _occurrence(plan, d, _exceptions([plan_id]), _today(user_id), _photo_counts(user_id))
+    o["focus"] = (storage.get_user(user_id).get("focus_plan") or "") == f"{plan_id}|{d.isoformat()}"
+    return o
 
 
 def today_plans(user_id: int) -> list:
@@ -554,3 +597,76 @@ def export_ics(user_id: int, start: date, end: date) -> str:
         lines.append("END:VEVENT")
     lines.append("END:VCALENDAR")
     return "\r\n".join(_fold(line) for line in lines) + "\r\n"
+
+
+# ==================== ПОДПУНКТЫ, ГЛАВНОЕ ДЕЛО, ВХОДЯЩИЕ ====================
+def toggle_subtask(user_id: int, plan_id: int, index, done) -> dict:
+    plan = _get(user_id, plan_id)
+    items = json.loads(plan["subtasks"]) if plan.get("subtasks") else []
+    try:
+        index = int(index)
+        items[index]["done"] = bool(done)
+    except (TypeError, ValueError, IndexError):
+        raise game.QuestError("Такого подпункта нет")
+    conn = storage.connect()
+    conn.execute("UPDATE plans SET subtasks = ? WHERE id = ? AND user_id = ?",
+                 (json.dumps(items, ensure_ascii=False), plan_id, user_id))
+    conn.commit()
+    conn.close()
+    return {"subtasks": items}
+
+
+def set_focus(user_id: int, plan_id, day) -> dict:
+    """Главное дело дня — одно на пользователя; null снимает."""
+    if plan_id in (None, ""):
+        storage.update_user(user_id, focus_plan=None)
+        return {"focus": None}
+    plan_id = int(plan_id)
+    d = parse_date(day)
+    _get(user_id, plan_id)
+    storage.update_user(user_id, focus_plan=f"{plan_id}|{d.isoformat()}")
+    return {"focus": {"id": plan_id, "date": d.isoformat()}}
+
+
+def inbox_list(user_id: int) -> list:
+    conn = storage.connect(rows=True)
+    rows = [dict(r) for r in conn.execute("SELECT id, title, created_at FROM inbox WHERE user_id = ? ORDER BY id DESC",
+                                          (user_id,)).fetchall()]
+    conn.close()
+    return rows
+
+
+def inbox_add(user_id: int, title) -> dict:
+    t = _text(title, TITLE_MAX)
+    if not t:
+        raise game.QuestError("Напиши, что запомнить")
+    conn = storage.connect()
+    n = conn.execute("SELECT COUNT(*) FROM inbox WHERE user_id = ?", (user_id,)).fetchone()[0]
+    if n >= INBOX_MAX:
+        conn.close()
+        raise game.QuestError(f"Во входящих уже {INBOX_MAX} дел — разбери хотя бы пару 🙂")
+    cur = conn.execute("INSERT INTO inbox (user_id, title, created_at) VALUES (?, ?, ?)", (user_id, t, storage.utc_now_str()))
+    conn.commit()
+    conn.close()
+    return {"item": {"id": cur.lastrowid, "title": t}, "inbox": inbox_list(user_id)}
+
+
+def inbox_delete(user_id: int, item_id: int) -> dict:
+    conn = storage.connect()
+    conn.execute("DELETE FROM inbox WHERE id = ? AND user_id = ?", (item_id, user_id))
+    conn.commit()
+    conn.close()
+    return {"inbox": inbox_list(user_id)}
+
+
+def inbox_schedule(user_id: int, item_id: int, data: dict) -> dict:
+    """Дело из входящих — в план на дату (и время)."""
+    conn = storage.connect(rows=True)
+    row = conn.execute("SELECT title FROM inbox WHERE id = ? AND user_id = ?", (item_id, user_id)).fetchone()
+    conn.close()
+    if not row:
+        raise game.QuestError("Такого дела во входящих нет")
+    res = create_plan(user_id, {"title": row["title"], "date": data.get("date"), "time": data.get("time"),
+                                "duration": data.get("duration"), "remind": "none", "repeat_rule": "none"})
+    inbox_delete(user_id, item_id)
+    return {**res, "inbox": inbox_list(user_id)}

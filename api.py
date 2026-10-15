@@ -501,6 +501,39 @@ async def habit_log(request):
     return web.json_response(result)
 
 
+async def plan_subtask(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(plans.toggle_subtask(request["user_id"], _int(request.match_info["id"]), data.get("index"), data.get("done")))
+
+
+async def plan_focus(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(plans.set_focus(request["user_id"], data.get("id"), data.get("date")))
+
+
+async def get_inbox(request):
+    return web.json_response({"inbox": plans.inbox_list(request["user_id"])})
+
+
+async def add_inbox(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(plans.inbox_add(request["user_id"], data.get("title")))
+
+
+async def delete_inbox(request):
+    _limit(request, "write")
+    return web.json_response(plans.inbox_delete(request["user_id"], _int(request.match_info["id"])))
+
+
+async def schedule_inbox(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(plans.inbox_schedule(request["user_id"], _int(request.match_info["id"]), data))
+
+
 # ==================== ПЛАНЫ И КАЛЕНДАРЬ ====================
 def _range(request) -> tuple:
     start = plans.parse_date(request.query.get("from"), "дата начала")
@@ -737,6 +770,12 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_post("/api/habits", habit_create)
     app.router.add_post("/api/habits/update", habit_update)
     app.router.add_post("/api/habits/many", habit_create_many)
+    app.router.add_post("/api/plans/{id:[0-9]+}/subtask", plan_subtask)
+    app.router.add_post("/api/plans/focus", plan_focus)
+    app.router.add_get("/api/inbox", get_inbox)
+    app.router.add_post("/api/inbox", add_inbox)
+    app.router.add_delete("/api/inbox/{id:[0-9]+}", delete_inbox)
+    app.router.add_post("/api/inbox/{id:[0-9]+}/schedule", schedule_inbox)
     app.router.add_post("/api/habits/skip", habit_skip)
     app.router.add_get("/api/habits/{id:[0-9]+}/stats", habit_stats)
     app.router.add_post("/api/habits/pause", habit_pause)
