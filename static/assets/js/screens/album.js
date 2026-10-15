@@ -1,34 +1,40 @@
-// Доска воспоминаний: скрапбук по месяцам — полароиды на скотче и кнопках,
-// стикеры-месяцы, дудлы и заметки; «в этот день», фильтры по типу,
-// «Мой год в фото» и полноэкранный просмотр-полароид.
+// Воспоминания: фотокалендарь месяца (дни с фото — миниатюрами), фото
+// выбранного дня, «фото месяца» и журнальная сетка всех фото месяца;
+// фильтры по типу, «Мой год в фото» и полноэкранный просмотр.
 
-import { h, append, clear, fmtMonth, plural } from '../dom.js';
+import { h, append, clear, fmtDay, plural } from '../dom.js';
 import { api } from '../api.js';
 import { haptic } from '../tg.js';
 import { myMascot } from '../mascot.js';
 import { skeleton, emptyState, sheet, toast, toastError } from '../ui.js';
-import { polaroid, openViewer, yearShareCard } from '../photoui.js';
-import { openDaySheet, todayIso, addDays } from '../planui.js';
+import { lazyThumb, openViewer, yearShareCard } from '../photoui.js';
+import { openDaySheet, todayIso } from '../planui.js';
 
 const MONTH_COLORS = ['lav', 'blue', 'pink', 'lime', 'yellow', 'orange'];
 const SHORT_MONTHS = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 const FILTERS = [['all', 'Все'], ['quest', 'Квесты'], ['plan', 'Планы'], ['day', 'Дни'], ['board', 'Цели']];
-const PER_MONTH = 7;
+const KIND = { quest: 'Квест', plan: 'План', day: 'День', board: 'Цели месяца' };
 
 const DOODLES = {
   star: '<svg viewBox="0 0 24 24"><path d="M12 2l2.6 6.5L21 9l-5 4.4L17.5 21 12 17.3 6.5 21 8 13.4 3 9l6.4-.5z" fill="#FFD23F" stroke="#C99A00" stroke-width="1.2" stroke-linejoin="round"/></svg>',
-  heart: '<svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.6-7 10-7 10z" fill="#F3619C"/></svg>',
-  arrow: '<svg viewBox="0 0 70 40"><path d="M4 30 C 18 6, 30 36, 44 14 S 60 10, 64 22" fill="none" stroke="#6B4B9E" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1 6"/><path d="M58 16 l7 6 -9 3" fill="none" stroke="#6B4B9E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  spark: '<svg viewBox="0 0 24 24"><path d="M12 3v6M12 15v6M3 12h6M15 12h6" stroke="#93ABD8" stroke-width="2.6" stroke-linecap="round"/></svg>',
 };
 const ICONS = {
-  dice: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="9" r="1.3" fill="currentColor"/><circle cx="15" cy="15" r="1.3" fill="currentColor"/><circle cx="15" cy="9" r="1.3" fill="currentColor"/><circle cx="9" cy="15" r="1.3" fill="currentColor"/></svg>',
+  shuffle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h3c4 0 6 10 10 10h5M18 14l3 3-3 3M3 17h3c1.5 0 2.6-1.4 3.6-3M14.4 10C15.4 8.4 16.5 7 18 7h3M18 4l3 3-3 3"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  left: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
+  right: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
   camera: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
   grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>',
 };
 const icon = name => h('span', { class: 'memo-ico', 'aria-hidden': 'true', html: ICONS[name] });
+const iconBtn = (name, label, dark) => h('button', { type: 'button', class: `memo-icon-btn ${dark ? 'dark' : ''}`, 'aria-label': label }, icon(name));
 
 let filter = 'all';
+let month = null;   // 'YYYY-MM', который показан
+let selected = null; // выбранный день 'YYYY-MM-DD'
 
 export async function render(el, ctx) {
   clear(el);
@@ -40,7 +46,7 @@ export async function render(el, ctx) {
   }
   const body = h('div', { class: 'memo-page' });
   el.append(body);
-  body.append(skeleton(190), h('div', { style: { height: '12px' } }), skeleton(300));
+  body.append(skeleton(120), h('div', { style: { height: '12px' } }), skeleton(320));
   let data;
   try {
     data = await api.photos();
@@ -51,59 +57,154 @@ export async function render(el, ctx) {
   clear(body);
   const all = data.photos;
   const reload = () => render(el, ctx);
-  const addToday = h('button', { type: 'button', class: 'memo-btn light' }, icon('camera'), 'Фото дня');
-  addToday.addEventListener('click', () => { haptic.tap(); openDaySheet(todayIso(), { onChange: reload }); });
+  const today = todayIso();
+  const thisMonth = today.slice(0, 7);
+
+  const random = iconBtn('shuffle', 'Случайное фото');
+  random.disabled = !all.length;
+  random.addEventListener('click', () => { haptic.tap('medium'); openViewer(all, Math.floor(Math.random() * all.length), { onDelete: reload }); });
+  const add = iconBtn('plus', 'Добавить фото дня', true);
+  add.addEventListener('click', () => { haptic.tap(); openDaySheet(selected || today, { onChange: reload }); });
+
+  const months = new Set(all.map(p => p.day.slice(0, 7)));
+  const quests = new Set(all.filter(p => p.target === 'quest').map(p => p.quest_history_id)).size;
+  const first = all.length ? all.reduce((m, p) => (p.day < m ? p.day : m), all[0].day) : today;
+  const sub = all.length
+    ? [`${all.length} ${plural(all.length, 'фото', 'фото', 'фото')}`, quests ? `${quests} ${plural(quests, 'квест', 'квеста', 'квестов')}` : null,
+      `с ${MONTHS_GEN[+first.slice(5, 7) - 1]}`].filter(Boolean).join(' · ')
+    : 'Твоя доска пока пустая';
+  body.append(h('header', { class: 'memo-head' }, h('h1', null, 'Воспоминания'),
+    h('div', { class: 'memo-head-row' }, h('p', null, sub), h('div', { class: 'memo-head-actions' }, random, add))));
 
   if (!all.length) {
-    body.append(hero(all, null, addToday),
-      h('div', { class: 'card', style: { marginTop: '14px' } },
-        emptyState('Здесь будут твои воспоминания: фото с квестов, планов и просто хороших дней. Добавь первое!', { expr: 'love' })));
+    body.append(h('div', { class: 'card', style: { marginTop: '14px' } },
+      emptyState('Здесь будут твои воспоминания: фото с квестов, планов и просто хороших дней. Добавь первое!', { expr: 'love' })));
     return;
   }
 
-  const random = h('button', { type: 'button', class: 'memo-btn dark' }, icon('dice'), 'Случайное');
-  random.addEventListener('click', () => { haptic.tap('medium'); openViewer(all, Math.floor(Math.random() * all.length), { onDelete: reload }); });
-  body.append(hero(all, random, addToday));
+  const firstMonth = first.slice(0, 7);
+  if (!month || month < firstMonth || month > thisMonth) month = months.has(thisMonth) ? thisMonth : [...months].sort().pop();
 
-  const flash = onThisDay(all, reload);
-  if (flash) body.append(flash);
-
-  const boards = h('div');
   const present = new Set(all.map(p => p.target));
+  if (!present.has(filter)) filter = 'all';
+  const view = h('div');
+  const draw = () => {
+    clear(view);
+    const list = filter === 'all' ? all : all.filter(p => p.target === filter);
+    const inMonth = list.filter(p => p.day.startsWith(month));
+    const byDay = new Map();
+    for (const p of inMonth) {
+      if (!byDay.has(p.day)) byDay.set(p.day, []);
+      byDay.get(p.day).push(p);
+    }
+    if (!selected || !selected.startsWith(month)) selected = [...byDay.keys()].sort().pop() || null;
+
+    const go = step => {
+      haptic.select();
+      const [y, m] = month.split('-').map(Number);
+      const d = new Date(y, m - 1 + step, 1);
+      month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      selected = null;
+      draw();
+    };
+    const prev = iconBtn('left', 'Предыдущий месяц');
+    const next = iconBtn('right', 'Следующий месяц');
+    prev.disabled = month <= firstMonth;
+    next.disabled = month >= thisMonth;
+    prev.addEventListener('click', () => go(-1));
+    next.addEventListener('click', () => go(1));
+    const [y, m] = month.split('-').map(Number);
+    const daysWith = byDay.size;
+
+    const grid = h('div', { class: 'memo-cal-grid' });
+    const offset = (new Date(y, m - 1, 1).getDay() + 6) % 7;
+    for (let i = 0; i < offset; i++) grid.append(h('span', { class: 'memo-cal-cell blank', 'aria-hidden': 'true' }));
+    const last = new Date(y, m, 0).getDate();
+    for (let d = 1; d <= last; d++) {
+      const iso = `${month}-${String(d).padStart(2, '0')}`;
+      const photos = byDay.get(iso) || [];
+      const future = iso > today;
+      const cell = h('button', { type: 'button', disabled: future,
+        class: `memo-cal-cell ${photos.length ? 'has' : ''} ${future ? 'future' : ''} ${iso === today ? 'today' : ''} ${iso === selected ? 'on' : ''}`,
+        'aria-label': `${fmtDay(iso)}${photos.length ? `, ${photos.length} фото` : ''}`, 'aria-pressed': String(iso === selected) },
+        photos.length ? lazyThumb(photos[0]) : null,
+        h('span', { class: 'memo-cal-num' }, String(d)));
+      cell.addEventListener('click', () => { haptic.select(); selected = iso; draw(); });
+      grid.append(cell);
+    }
+    view.append(h('section', { class: 'memo-cal' },
+      h('div', { class: 'memo-cal-head' }, prev,
+        h('div', { class: 'center' }, h('div', { class: 'memo-cal-title' }, `${MONTHS[m - 1]} ${y}`),
+          h('div', { class: 'memo-cal-sub' }, daysWith ? `${daysWith} ${plural(daysWith, 'день', 'дня', 'дней')} с фото` : 'Пока без фото')),
+        next),
+      h('div', { class: 'memo-cal-grid wd', 'aria-hidden': 'true' }, WEEKDAYS.map(w => h('span', null, w))),
+      grid));
+
+    if (selected) view.append(dayPanel(selected, byDay.get(selected) || [], reload));
+    if (!inMonth.length) return;
+
+    const hero = pickHero(inMonth);
+    const heroBtn = h('button', { type: 'button', class: 'memo-hero-photo', 'aria-label': `Фото месяца: ${hero.label || fmtDay(hero.day)}` },
+      lazyThumb(hero),
+      h('span', { class: 'memo-pill' }, 'Фото месяца'),
+      h('span', { class: 'memo-hero-cap' },
+        h('span', { class: 'memo-hero-kicker' }, `${MONTHS[m - 1]} ${y}`),
+        h('span', { class: 'memo-hero-title' }, hero.label || fmtDay(hero.day))));
+    heroBtn.addEventListener('click', () => { haptic.tap(); openViewer(inMonth, inMonth.indexOf(hero), { onDelete: reload }); });
+
+    const tiles = h('div', { class: 'memo-grid' });
+    const isTall = i => i % 5 === 0 && inMonth.length - i >= 3;
+    const cells = inMonth.reduce((n, _p, i) => n + (isTall(i) ? 2 : 1), 0);
+    inMonth.forEach((p, i) => {
+      const size = isTall(i) ? 'tall' : (cells % 2 && i === inMonth.length - 1 ? 'wide' : '');
+      const t = h('button', { type: 'button', class: `memo-tile ${size}`, 'aria-label': p.label || fmtDay(p.day) },
+        lazyThumb(p), p.label ? h('span', { class: 'memo-pill small' }, p.label) : null);
+      t.addEventListener('click', () => { haptic.tap(); openViewer(inMonth, i, { onDelete: reload }); });
+      tiles.append(t);
+    });
+    view.append(heroBtn,
+      h('div', { class: 'memo-sec-head' }, h('h2', null, MONTHS[m - 1]), h('span', null, `${inMonth.length} ${plural(inMonth.length, 'фото', 'фото', 'фото')}`)),
+      tiles);
+  };
+
   const chips = h('div', { class: 'memo-chips', role: 'tablist', 'aria-label': 'Фильтр фото' });
   const drawChips = () => {
     clear(chips);
     for (const [key, label] of FILTERS) {
       if (key !== 'all' && !present.has(key)) continue;
       const b = h('button', { type: 'button', role: 'tab', class: `memo-chip ${filter === key ? 'on' : ''}`, 'aria-selected': String(filter === key) }, label);
-      b.addEventListener('click', () => { haptic.select(); filter = key; drawChips(); drawBoards(); });
+      b.addEventListener('click', () => { haptic.select(); filter = key; drawChips(); draw(); });
       chips.append(b);
     }
   };
   const yearBtn = h('button', { type: 'button', class: 'memo-year-btn' }, icon('grid'), 'Мой год в фото');
-  const jump = key => {
-    filter = 'all';
-    drawChips();
-    drawBoards();
-    const target = document.getElementById(`memo-${key}`);
-    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-  yearBtn.addEventListener('click', () => { haptic.tap(); openYear(all, jump); });
-
-  const drawBoards = () => {
-    clear(boards);
-    const list = filter === 'all' || !present.has(filter) ? all : all.filter(p => p.target === filter);
-    const byMonth = groupByMonth(list);
-    let i = 0;
-    for (const [key, photos] of byMonth) {
-      boards.append(monthBlock(key, photos, i++, reload));
-    }
-  };
-  if (!present.has(filter)) filter = 'all';
+  yearBtn.addEventListener('click', () => { haptic.tap(); openYear(all, key => { month = key; selected = null; filter = 'all'; drawChips(); draw(); }); });
   drawChips();
-  drawBoards();
-  body.append(h('div', { class: 'memo-tools' }, chips, yearBtn), boards,
-    h('p', { class: 'memo-foot' }, `🔒 ${data.count} из ${data.limit} фото · видишь их только ты`));
+  draw();
+  body.append(chips, view, yearBtn, h('p', { class: 'memo-foot' }, `🔒 ${data.count} из ${data.limit} фото · видишь их только ты`));
+}
+
+/** Фото месяца: последнее фото с квеста, иначе последнее с подписью, иначе последнее. */
+function pickHero(list) {
+  return list.find(p => p.target === 'quest') || list.find(p => p.label) || list[0];
+}
+
+/** Фото выбранного дня под календарём. */
+function dayPanel(day, photos, reload) {
+  const add = h('button', { type: 'button', class: 'memo-btn light small' }, icon('camera'), photos.length ? 'Ещё фото' : 'Добавить фото');
+  add.addEventListener('click', () => { haptic.tap(); openDaySheet(day, { onChange: reload }); });
+  const head = h('div', { class: 'memo-sec-head' }, h('h2', null, fmtDay(day)), add);
+  if (!photos.length) return h('section', { class: 'memo-day' }, head, h('p', { class: 'memo-day-empty' }, 'В этот день фото нет'));
+  const pics = h('div', { class: `memo-day-pics n${Math.min(photos.length, 3)}` }, photos.slice(0, 3).map((p, i) => {
+    const b = h('button', { type: 'button', class: 'memo-tile', 'aria-label': p.label || 'Фото' }, lazyThumb(p),
+      i === 2 && photos.length > 3 ? h('span', { class: 'memo-more-count' }, `+${photos.length - 3}`) : null);
+    b.addEventListener('click', () => { haptic.tap(); openViewer(photos, i, { onDelete: reload }); });
+    return b;
+  }));
+  const labels = [...new Map(photos.filter(p => p.label).map(p => [p.label, p])).values()].slice(0, 3);
+  return h('section', { class: 'memo-day' }, head, pics, labels.map(p => h('div', { class: 'memo-day-item' },
+    h('span', { class: `memo-day-ico k-${p.target}`, 'aria-hidden': 'true' }, p.target === 'quest' ? '✓' : '•'),
+    h('div', { class: 'grow' }, h('div', { class: 'bold' }, p.label), h('div', { class: 'tiny muted bold' }, KIND[p.target] || 'Фото')))));
 }
 
 function groupByMonth(list) {
@@ -116,92 +217,6 @@ function groupByMonth(list) {
   return byMonth;
 }
 
-function hero(all, random, addToday) {
-  const months = new Set(all.map(p => p.day.slice(0, 7))).size;
-  const quests = new Set(all.filter(p => p.target === 'quest').map(p => p.quest_history_id)).size;
-  const chip = (text, dark) => h('span', { class: `memo-stat ${dark ? 'dark' : ''}` }, text);
-  return h('section', { class: 'memo-hero' },
-    h('div', { class: 'memo-hero-pet' }, myMascot('love', { size: 68, cls: 'jump' })),
-    h('div', { class: 'memo-hand light' }, 'моя доска'),
-    h('h1', null, 'Воспоминания'),
-    all.length
-      ? h('div', { class: 'memo-stats' },
-        chip(`${all.length} ${plural(all.length, 'фото', 'фото', 'фото')}`),
-        chip(`${months} ${plural(months, 'месяц', 'месяца', 'месяцев')}`),
-        quests ? chip(`${quests} ${plural(quests, 'квест', 'квеста', 'квестов')}`, true) : null)
-      : h('p', { class: 'bold', style: { margin: '4px 0 0' } }, 'Твоя доска пока пустая'),
-    h('div', { class: 'memo-hero-actions' }, random, addToday));
-}
-
-/** Одна страница месяца: стикер, коллаж из полароидов, дудлы и заметка. */
-function monthBlock(key, photos, index, reload) {
-  const color = MONTH_COLORS[index % MONTH_COLORS.length];
-  const tilt = index % 2 ? 1.5 : -2;
-  const board = h('div', { class: 'memo-collage' });
-  const head = h('div', { class: 'memo-month', id: `memo-${key}` },
-    h('span', { class: `memo-sticker c-${color}`, style: { '--tilt': `${tilt}deg` } }, fmtMonth(`${key}-01`)),
-    h('span', { class: 'memo-month-count' }, `${photos.length} ${plural(photos.length, 'фото', 'фото', 'фото')}`));
-
-  const draw = limit => {
-    clear(board);
-    const shown = photos.slice(0, limit);
-    shown.forEach((p, i) => {
-      board.append(polaroid(p, { onOpen: () => openViewer(photos, i, { onDelete: reload }) }));
-      if (i === 2 || (shown.length < 3 && i === shown.length - 1)) board.append(note(photos, index));
-    });
-    const doodles = ['star', 'heart', 'arrow', 'spark'];
-    const spots = [['47%', '24%', 14], ['88%', '8%', -10], ['8%', '62%', 0], ['50%', '78%', 20]];
-    spots.slice(0, Math.min(4, 1 + Math.floor(shown.length / 2))).forEach(([x, y, r], i) => {
-      const d = doodles[(i + index) % doodles.length];
-      board.append(h('span', { class: `memo-doodle ${d}`, 'aria-hidden': 'true', style: { left: x, top: y, '--r': `${r}deg` }, html: DOODLES[d] }));
-    });
-    if (photos.length > limit) {
-      const more = h('button', { type: 'button', class: 'memo-more' }, `ещё ${photos.length - limit} →`);
-      more.addEventListener('click', () => { haptic.tap(); draw(photos.length); });
-      board.append(more);
-    }
-  };
-  draw(PER_MONTH);
-  return h('section', { class: 'memo-month-block' }, head, board);
-}
-
-/** Стикер-заметка месяца: маленький итог от руки. */
-function note(photos, index) {
-  const quests = new Set(photos.filter(p => p.target === 'quest').map(p => p.quest_history_id)).size;
-  const days = new Set(photos.map(p => p.day)).size;
-  let text;
-  if (quests >= 3) text = `${quests} ${plural(quests, 'квест', 'квеста', 'квестов')} с фото — вот это месяц!`;
-  else if (quests) text = `${quests} ${plural(quests, 'квест', 'квеста', 'квестов')} на память ✨`;
-  else text = `${days} ${plural(days, 'яркий день', 'ярких дня', 'ярких дней')}`;
-  const colors = ['lime', 'yellow', 'pink', 'blue'];
-  return h('div', { class: `memo-note c-${colors[index % colors.length]}`, 'aria-hidden': 'true' }, text);
-}
-
-/** «Неделю / месяц / год назад» — если в тот день были фото. */
-function onThisDay(list, reload) {
-  const today = todayIso();
-  const marks = [
-    [addDays(today, -7), 'Неделю назад'],
-    [shiftMonths(today, -1), 'Месяц назад'],
-    [shiftMonths(today, -12), 'Год назад'],
-  ];
-  for (const [day, label] of marks) {
-    const photos = list.filter(p => p.day === day);
-    if (photos.length) {
-      const d = new Date(`${day}T12:00:00`);
-      return h('section', { class: 'memo-flash' },
-        h('div', { class: 'memo-flash-head' },
-          h('div', null, h('div', { class: 'memo-kicker' }, 'В этот день'), h('div', { class: 'memo-flash-title' }, label)),
-          h('div', { class: 'memo-stamp', 'aria-hidden': 'true' },
-            h('b', null, String(d.getDate())), h('span', null, `${SHORT_MONTHS[d.getMonth()]} ${d.getFullYear()}`))),
-        h('div', { class: 'memo-flash-row' }, photos.slice(0, 3).map((p, i) =>
-          polaroid(p, { small: true, onOpen: () => openViewer(photos, i, { onDelete: reload }) }))));
-    }
-  }
-  return null;
-}
-
-/** «Мой год в фото»: 12 месяцев мини-коллажами, лучший месяц со звездой. */
 function openYear(all, jump) {
   const years = [...new Set(all.map(p => p.day.slice(0, 4)))].sort().reverse();
   let year = years[0];
@@ -235,6 +250,7 @@ function openYear(all, jump) {
           haptic.tap();
           s.close();
           jump(key);
+          window.scrollTo({ top: 0, behavior: "smooth" });
         });
       }
       grid.append(tile);
@@ -260,14 +276,4 @@ function openYear(all, jump) {
       grid, cardBtn]);
   };
   draw();
-}
-
-function shiftMonths(iso, n) {
-  const d = new Date(`${iso}T12:00:00`);
-  const day = d.getDate();
-  d.setDate(1);
-  d.setMonth(d.getMonth() + n);
-  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-  d.setDate(Math.min(day, last));
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
