@@ -46,21 +46,6 @@ class PlansServiceTest(PhotoDirMixin, TempDBTestCase):
         self.today = game.local_today(storage.get_user(1))
         self.monday = self.today - timedelta(days=self.today.weekday())
 
-    def test_plan_category_counts_in_spheres(self):
-        p = plans.create_plan(1, {"title": "Зарядка", "date": self.today.isoformat(), "sphere": "Энергия"})
-        self.assertEqual(p["sphere"], "Энергия")
-        bad = plans.create_plan(1, {"title": "Что-то", "date": self.today.isoformat(), "sphere": "Котики"})
-        self.assertIsNone(bad["sphere"])
-        q = plans.create_plan(1, {"quest_key": "no_list", "date": self.today.isoformat()})
-        self.assertEqual(q["sphere"], "Дисциплина")  # у задания из банка — его сфера
-        plans.complete_plan(1, p["id"])
-        plans.complete_plan(1, q["id"])  # уже считается в квестах — в планах не дублируется
-        self.assertEqual(plans.done_by_sphere(1, self.today, self.today), {"Энергия": 1})
-        upd = plans.update_plan(1, bad["id"], {"sphere": "Творчество"})
-        self.assertEqual(plans.occurrence(1, bad["id"], self.today)["sphere"], "Творчество")
-        plans.update_plan(1, bad["id"], {"sphere": None})
-        self.assertIsNone(plans.occurrence(1, bad["id"], self.today)["sphere"])
-
     def test_notes_range_and_month_marks(self):
         import notes
         notes.create_note(1, {"text": "Итог дня", "day": self.today.isoformat()})

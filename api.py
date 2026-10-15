@@ -219,16 +219,16 @@ async def get_stats(request):
     if rng not in ("7", "14", "30", "all"):
         rng = "7"
     data = game.get_stats(request["user_id"], rng)
-    # Ползунки сфер: квесты + свои планы с категорией.
+    # Ползунки сфер: квесты + выполненные привычки со сферой.
     series = data["series"]
     if series:
         from datetime import date as _date
-        by_plan = plans.done_by_sphere(request["user_id"], _date.fromisoformat(series[0]["date"]),
-                                       _date.fromisoformat(series[-1]["date"]))
+        by_habit = habits.done_by_sphere(request["user_id"], _date.fromisoformat(series[0]["date"]),
+                                         _date.fromisoformat(series[-1]["date"]))
         for item in data["spheres"]:
-            item["plans"] = by_plan.get(item["sphere"], 0)
+            item["habits"] = by_habit.get(item["sphere"], 0)
             item["quests"] = item["count"]
-            item["count"] += item["plans"]
+            item["count"] += item["habits"]
     return web.json_response(data)
 
 

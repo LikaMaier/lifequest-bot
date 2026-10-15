@@ -215,17 +215,6 @@ def _occurrence(plan: dict, d: date, exc: dict, today: date, photos: dict) -> di
     }
 
 
-def done_by_sphere(user_id: int, start: date, end: date) -> dict:
-    """Сколько своих планов (не заданий из банка — они уже в квестах)
-    выполнено по каждой сфере за период: для ползунков статистики."""
-    start = max(start, end - timedelta(days=RANGE_MAX_DAYS))
-    counts = {}
-    for o in occurrences(user_id, start, end):
-        if o["status"] == "done" and o["sphere"] and not o["quest_key"]:
-            counts[o["sphere"]] = counts.get(o["sphere"], 0) + 1
-    return counts
-
-
 def occurrences(user_id: int, start: date, end: date) -> list:
     if (end - start).days > RANGE_MAX_DAYS:
         raise game.QuestError("Слишком большой период")
