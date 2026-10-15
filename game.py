@@ -640,8 +640,8 @@ ACHIEVEMENTS = [
     ("streak_30", "Месяц без пауз", "Держи серию 30 дней", "👑", "purple", "streak_best", 30),
     ("all_spheres", "Все грани", "Закрой задания во всех 6 сферах", "🌈", "lav", "spheres", 6),
     ("board_line", "Первая линия", "Собери линию на карте недели", "➖", "blue", "board_lines", 1),
-    ("board_full", "Бинго!", "Закрой всю карту недели", "🎉", "pink", "board_full", 1),
-    ("board_full_4", "Карта покорена", "Закрой карту недели 4 раза", "🗺️", "purple", "board_full", 4),
+    ("board_full", "Бинго!", "Закрой все цели месяца", "🎉", "pink", "board_full", 1),
+    ("board_full_4", "Карта покорена", "Закрой цели месяца 4 раза", "🗺️", "purple", "board_full", 4),
     ("pair_first", "Вдвоём веселее", "Выполни задание для двоих", "💞", "pink", "pair", 1),
     ("pair_10", "Идеальная пара", "Выполни 10 заданий для двоих", "💘", "red", "pair", 10),
     ("company_first", "Душа компании", "Выполни задание для компании", "👯", "orange", "company", 1),
@@ -816,13 +816,13 @@ def get_board(user_id: int) -> dict:
     user = storage.get_user(user_id)
     today = local_today(user)
     board = storage.get_weekly_board(user_id, today)
-    return {"board": board, "week_range": storage.get_week_range_label(today),
+    return {"board": board, "week_range": storage.get_board_period_label(today),
             "week_key": storage.get_current_week_key(today), "progress": board_progress(board)}
 
 
 def save_board(user_id: int, raw) -> dict:
     """Сохраняет карту и начисляет XP за новые клетки, линии и полную карту
-    (каждая награда — один раз за неделю)."""
+    (каждая награда — один раз за месяц)."""
     user = storage.get_user(user_id)
     today = local_today(user)
     wk = storage.get_current_week_key(today)
@@ -835,6 +835,10 @@ def save_board(user_id: int, raw) -> dict:
     if prog["full"]:
         wanted.append(("full", BOARD_FULL_XP, "Полная карта"))
     conn = storage.connect()
+    # клетки, уже вознаграждённые на недельной карте этого месяца, второй раз XP не дают
+    legacy = {r[0] for r in conn.execute("SELECT kind FROM board_awards WHERE user_id = ? AND week_key = ?",
+                                          (user_id, storage.week_key_for(today))).fetchall()}
+    wanted = [w for w in wanted if w[0] not in legacy]
     awarded = []
     for kind, xp, label in wanted:
         cur = conn.execute("INSERT OR IGNORE INTO board_awards (user_id, week_key, kind, xp, created_at) VALUES (?, ?, ?, ?, ?)",

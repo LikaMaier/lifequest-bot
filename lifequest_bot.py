@@ -244,12 +244,12 @@ def build_board_keyboard(user_id: int) -> ReplyKeyboardMarkup:
 async def show_weekly_board_entry(message: Message, user_id: int):
     if MINIAPP_URL:
         await message.answer(
-            "🗺️ <b>Карта недели</b>\n\n"
-            "Впиши 9 своих задач на неделю, отмечай выполненное и собирай линии — "
+            "🎯 <b>Цели месяца</b>\n\n"
+            "Впиши 9 своих целей на месяц, отмечай выполненное и собирай линии — "
             "за каждую линию и полную карту начисляется XP.",
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [build_miniapp_button("🗺️ Открыть карту недели", "board")]
+                [build_miniapp_button("🎯 Открыть цели месяца", "board")]
             ])
         )
         return
@@ -280,18 +280,18 @@ async def handle_miniapp_data(message: Message):
     filled = sum(1 for c in board["cells"] if c.strip())
     done = sum(1 for c, d in zip(board["cells"], board["done"]) if d and c.strip())
     if filled == BOARD_CELLS and done == BOARD_CELLS:
-        text = "🎉 <b>Бинго! Карта недели закрыта полностью.</b>"
+        text = "🎉 <b>Бинго! Цели месяца закрыты полностью.</b>"
         if board["reward"].strip():
             text += f"\n\nТвоя награда: {html.escape(board['reward'])} — она честно заработана!"
     else:
-        text = f"✅ Карта недели сохранена. Выполнено {done} из {BOARD_CELLS}."
+        text = f"✅ Цели месяца сохранены. Выполнено {done} из {BOARD_CELLS}."
     if result["xp"]:
         text += f"\n+{result['xp']} XP"
 
     if MINIAPP_URL:
         # Старая карта больше не нужна — убираем её клавиатуру, дальше всё в приложении.
         await message.answer(text, parse_mode="HTML", reply_markup=ReplyKeyboardRemove())
-        await message.answer("Карта недели теперь живёт в приложении 👇",
+        await message.answer("Цели месяца теперь живут в приложении — в разделе «Календарь» 👇",
                              reply_markup=InlineKeyboardMarkup(inline_keyboard=[[build_miniapp_button("🗺️ Открыть карту", "board")]]))
     else:
         await message.answer(text, parse_mode="HTML", reply_markup=build_board_keyboard(user_id))

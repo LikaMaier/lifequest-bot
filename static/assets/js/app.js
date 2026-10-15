@@ -13,7 +13,7 @@ const SCREENS = {
   home: { title: 'Главная', icon: ICONS.home, load: () => import('./screens/home.js') },
   quests: { title: 'Квесты', icon: ICONS.quests, load: () => import('./screens/quests.js') },
   habits: { title: 'Привычки', icon: ICONS.habits, load: () => import('./screens/habits.js') },
-  board: { title: 'Карта', icon: ICONS.board, load: () => import('./screens/board.js') },
+  board: { title: 'Цели месяца', sub: true, load: () => import('./screens/board.js') },
   progress: { title: 'Прогресс', icon: ICONS.progress, load: () => import('./screens/progress.js') },
   calendar: { title: 'Календарь', icon: ICONS.calendar, load: () => import('./screens/calendar.js') },
   awards: { title: 'Награды', sub: true, load: () => import('./screens/awards.js') },
@@ -25,7 +25,7 @@ const SCREENS = {
   profile: { title: 'Профиль', sub: true, load: () => import('./screens/profile.js') },
   premium: { title: 'Premium', sub: true, load: () => import('./screens/profile.js'), entry: 'renderPremium' },
 };
-const TABS = ['home', 'quests', 'calendar', 'habits', 'board', 'progress'];
+const TABS = ['home', 'quests', 'calendar', 'habits', 'progress'];
 
 const root = document.getElementById('app');
 const mounted = {}; // name -> { el, module, dirty }
