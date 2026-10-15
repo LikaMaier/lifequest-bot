@@ -733,11 +733,11 @@ p { margin: 0; }
 .memo-sec-head h2 { margin: 0; font-family: 'Unbounded', sans-serif; font-weight: 800; font-size: 19px; }
 .memo-sec-head > span { font-weight: 800; font-size: 13px; color: var(--muted); }
 .memo-day-empty { margin: 0; padding: 18px; text-align: center; font-weight: 700; color: var(--muted); background: var(--white); border-radius: 20px; }
-.memo-day-pics { display: grid; gap: 8px; height: 200px; }
-.memo-day-pics.n1 { grid-template-columns: 1fr; }
-.memo-day-pics.n2 { grid-template-columns: 3fr 2fr; }
-.memo-day-pics.n3 { grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; }
-.memo-day-pics.n3 > :first-child { grid-row: span 2; }
+.memo-day-pics { display: flex; gap: 8px; height: 220px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+.memo-day-pics::-webkit-scrollbar { display: none; }
+.memo-day-pics .memo-tile { height: 100%; flex-shrink: 0; }
+.memo-day-pics.one { height: auto; max-height: 460px; }
+.memo-day-pics.one .memo-tile { width: 100%; height: auto; max-height: 460px; }
 .memo-day-item { display: flex; align-items: center; gap: 12px; margin-top: 10px; background: var(--white); border-radius: 20px; padding: 12px 14px; box-shadow: 0 4px 0 var(--line); }
 .memo-day-ico { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: 800; background: var(--yellow); flex-shrink: 0; }
 .memo-day-ico.k-quest { background: var(--lime); }
@@ -745,22 +745,22 @@ p { margin: 0; }
 .memo-tile {
   position: relative; border: 0; padding: 0; border-radius: 20px; overflow: hidden; background: var(--cream-2); min-height: 0;
 }
-.memo-tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.memo-tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 35%; display: block; }
 .memo-tile:active { transform: scale(.97); }
 .memo-more-count { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(44,42,34,.55); color: #FFFDF4; font-weight: 800; font-size: 20px; }
 .memo-pill { position: absolute; left: 12px; top: 12px; background: var(--white); color: var(--ink); border-radius: 999px; padding: 6px 12px; font-weight: 800; font-size: 12px; z-index: 1; }
 .memo-pill.small { top: auto; left: 8px; bottom: 8px; padding: 4px 10px; max-width: calc(100% - 16px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .memo-hero-photo {
-  position: relative; display: block; width: 100%; height: 300px; margin-top: 22px; border: 0; padding: 0;
+  position: relative; display: block; width: 100%; max-height: 460px; margin-top: 22px; border: 0; padding: 0;
   border-radius: 28px; overflow: hidden; background: var(--cream-2); text-align: left; font-family: inherit;
 }
-.memo-hero-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.memo-hero-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 35%; display: block; }
 .memo-hero-cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 16px 18px; background: rgba(44,42,34,.72); color: #FFFDF4; display: flex; flex-direction: column; gap: 4px; }
 .memo-hero-kicker { font-weight: 800; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #DBFA40; }
 .memo-hero-title { font-family: 'Unbounded', sans-serif; font-weight: 800; font-size: 18px; line-height: 1.2; }
-.memo-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 120px; grid-auto-flow: dense; gap: 10px; }
-.memo-grid .memo-tile.tall { grid-row: span 2; }
-.memo-grid .memo-tile.wide { grid-column: span 2; }
+.memo-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: start; }
+.memo-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.memo-col .memo-tile { width: 100%; }
 .memo-page .memo-chips { margin-top: 2px; }
 .memo-page .memo-year-btn { width: 100%; margin-top: 22px; }
 .memo-year-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
