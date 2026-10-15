@@ -1,7 +1,6 @@
-// Фишки фотоальбома: сторис-слайдшоу месяца, «цвета месяца» из фото,
-// коллаж месяца для отправки друзьям и «в этот день».
+// Фишки фотоальбома: сторис-слайдшоу месяца, коллаж месяца для отправки друзьям и «в этот день».
 
-import { h, clear, fmtDay } from './dom.js';
+import { h, fmtDay } from './dom.js';
 import { haptic, pushBack } from './tg.js';
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -121,60 +120,6 @@ export function playStories(list, title) {
   release = pushBack(shut);
   haptic.tap('medium');
   show();
-}
-
-// ---------- Цвета месяца: средний цвет каждого фото ----------
-const colorCache = new Map();
-
-async function photoColor(p) {
-  if (colorCache.has(p.id)) return colorCache.get(p.id);
-  const im = await load(p.thumb);
-  let rgb = null;
-  if (im) {
-    try {
-      const c = document.createElement('canvas');
-      c.width = 12; c.height = 12;
-      const ctx = c.getContext('2d', { willReadFrequently: true });
-      ctx.drawImage(im, 0, 0, 12, 12);
-      const d = ctx.getImageData(0, 0, 12, 12).data;
-      // берём самые «живые» пиксели, а не серое среднее
-      const px = [];
-      for (let k = 0; k < d.length; k += 4) {
-        const [r, g, b] = [d[k], d[k + 1], d[k + 2]];
-        px.push({ r, g, b, s: Math.max(r, g, b) - Math.min(r, g, b) });
-      }
-      px.sort((a, b) => b.s - a.s);
-      const top = px.slice(0, 40);
-      rgb = ['r', 'g', 'b'].map(ch => Math.round(top.reduce((s, q) => s + q[ch], 0) / top.length));
-    } catch (e) { rgb = null; }
-  }
-  colorCache.set(p.id, rgb);
-  return rgb;
-}
-
-/** Полоска «цвета месяца»: заполняется, когда миниатюры загрузятся. */
-export function monthPalette(list, monthIdx) {
-  const strip = h('div', { class: 'memo-palette', 'aria-hidden': 'true' });
-  const box = h('div', { class: 'memo-palette-box' },
-    h('div', { class: 'memo-palette-title' }, `Цвета: ${MONTHS[monthIdx].toLowerCase()}`), strip);
-  const sample = list.slice(0, 14);
-  Promise.all(sample.map(photoColor)).then(colors => {
-    const ok = colors.filter(Boolean);
-    if (!ok.length) { box.remove(); return; }
-    clear(strip);
-    ok.sort((a, b) => hue(a) - hue(b));
-    for (const [r, g, b] of ok) strip.append(h('span', { style: { background: `rgb(${r}, ${g}, ${b})` } }));
-  });
-  return box;
-}
-
-function hue([r, g, b]) {
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  if (max === min) return 0;
-  const d = max - min;
-  let hh = max === r ? (g - b) / d : max === g ? 2 + (b - r) / d : 4 + (r - g) / d;
-  hh *= 60;
-  return hh < 0 ? hh + 360 : hh;
 }
 
 // ---------- Коллаж месяца 1080×1350 ----------

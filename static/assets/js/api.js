@@ -96,6 +96,7 @@ export const api = {
     request('GET', `api/quests/search?q=${encodeURIComponent(q)}&mode=${mode}&sphere=${encodeURIComponent(sphere)}`),
   photos: (filters = {}) => request('GET', `api/photos?${new URLSearchParams(Object.entries(filters).filter(([, v]) => v !== null && v !== undefined && v !== ''))}`),
   deletePhoto: id => request('DELETE', `api/photos/${id}`),
+  captionPhoto: (id, caption) => request('PATCH', `api/photos/${id}`, { caption }),
   deleteMyPhotos: () => request('POST', 'api/me/delete-photos', {}),
   deleteAllData: () => request('POST', 'api/me/delete-all', { confirm: 'DELETE' }),
 };

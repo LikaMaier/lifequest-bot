@@ -8,7 +8,7 @@ import { haptic, tg, pushBack } from './tg.js';
 import { store, refreshState } from './store.js';
 import { mascotSVG } from './mascot.js';
 import { celebrate } from './celebrate.js';
-import { toast, toastError, sheet } from './ui.js';
+import { toast, toastError, sheet, busy } from './ui.js';
 
 const MAX_SIDE = 1280;
 const PER_ITEM = 5;
@@ -159,10 +159,11 @@ const VIEWER_ICONS = {
 };
 const vIcon = name => h('span', { class: 'memo-ico', 'aria-hidden': 'true', html: VIEWER_ICONS[name] });
 
-export function openViewer(list, index, { onDelete } = {}) {
+export function openViewer(list, index, { onDelete, onChange } = {}) {
   let i = index;
+  let edited = false;
   const img = h('img', { class: 'viewer-img', alt: '' });
-  const caption = h('div', { class: 'viewer-hand' });
+  const caption = h('button', { type: 'button', class: 'viewer-hand' });
   const counter = h('div', { class: 'viewer-counter' });
   const frame = h('div', { class: 'viewer-polaroid' }, h('span', { class: 'viewer-tape', 'aria-hidden': 'true' }),
     h('div', { class: 'viewer-photo' }, img), caption);
@@ -194,7 +195,9 @@ export function openViewer(list, index, { onDelete } = {}) {
     const n = hashOf(p.id);
     frame.style.setProperty('--tilt', `${(n % 5) - 2.5}deg`);
     frame.className = `viewer-polaroid pc-${n % 5}`;
-    caption.textContent = LONG_DAY.format(new Date(`${p.day}T12:00:00`));
+    caption.textContent = p.caption || '＋ добавить подпись';
+    caption.classList.toggle('empty', !p.caption);
+    caption.setAttribute('aria-label', p.caption ? `Подпись: ${p.caption}. Изменить` : 'Добавить подпись');
     const [kind, color] = KIND[p.target] || ['фото', 'pink'];
     clear(tags).append(h('span', { class: 'viewer-tag dark' }, fmtDay(p.day)), h('span', { class: `viewer-tag c-${color}` }, kind));
     title.textContent = p.label || 'Хороший момент';
@@ -205,7 +208,29 @@ export function openViewer(list, index, { onDelete } = {}) {
       for (let k = from; k < Math.min(list.length, from + 9); k++) dots.append(h('span', { class: k === i ? 'on' : '' }));
     }
   };
+  caption.addEventListener('click', () => {
+    haptic.tap();
+    const p = list[i];
+    const input = h('input', { class: 'input', type: 'text', maxlength: '120', value: p.caption || '', placeholder: 'Например: лучший закат осени', 'aria-label': 'Подпись к фото' });
+    const save = h('button', { type: 'button', class: 'btn block' }, 'Сохранить подпись');
+    const s2 = sheet(h('div', { class: 'stack' }, h('h2', null, '✍️ Подпись на полароиде'), input, save), { label: 'Подпись к фото' });
+    s2.panel.parentElement.style.zIndex = '80'; // поверх просмотра
+    const submit = busy(save, async () => {
+      try {
+        const res = await api.captionPhoto(p.id, input.value);
+        Object.assign(p, { caption: res.photo.caption, label: res.photo.label });
+        edited = true;
+        haptic.success();
+        s2.close();
+        show();
+      } catch (e) { toastError(e); }
+    });
+    save.addEventListener('click', submit);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+    setTimeout(() => input.focus(), 200);
+  });
   stage.addEventListener('pointerdown', e => {
+    if (e.target.closest('.viewer-hand')) return;
     stage.setPointerCapture(e.pointerId);
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pts.size === 2) {
@@ -245,7 +270,10 @@ export function openViewer(list, index, { onDelete } = {}) {
   stage.addEventListener('pointercancel', up);
 
   let release;
-  const shut = () => { overlay.remove(); release && release(); document.removeEventListener('keydown', onKey); };
+  const shut = () => {
+    overlay.remove(); release && release(); document.removeEventListener('keydown', onKey);
+    if (edited && onChange) onChange();
+  };
   const onKey = e => {
     if (e.key === 'Escape') shut();
     if (e.key === 'ArrowRight') { i = (i + 1) % list.length; show(); }
