@@ -441,28 +441,14 @@ def plans_lines(items: list) -> str:
     return "\n".join(lines)
 
 
-def morning_plan_keyboard(user_id: int, items: list, habit_items: list) -> list:
-    """Кнопки «готово / на завтра» для планов и «сделано» для привычек — прямо в чате."""
-    rows = []
-    for o in [x for x in items if x["status"] == "planned"][:4]:
-        title = (o["title"][:22] + "…") if len(o["title"]) > 23 else o["title"]
-        rows.append([InlineKeyboardButton(text=f"✅ {title}", callback_data=f"pd:{o['id']}:{o['date']}"),
-                     InlineKeyboardButton(text="➡️ На завтра", callback_data=f"pt:{o['id']}:{o['date']}")])
-    hb_buttons = [InlineKeyboardButton(text=f"{h['emoji']} {h['title'][:16]}", callback_data=f"hd:{h['id']}")
-                  for h in habit_items[:4]]
-    for i in range(0, len(hb_buttons), 2):
-        rows.append(hb_buttons[i:i + 2])
-    return rows
-
-
 async def send_morning_plans(user_id: int):
-    """Утренняя сводка: главное дело, планы и привычки дня с кнопками
-    «готово / на завтра» (если включена в профиле и есть что показать)."""
+    """Утренняя сводка: главное дело, планы по времени и привычки дня
+    (если включена в профиле и есть что показать). Без кнопок — только «Открыть LifeQuest»."""
     user = storage.get_user(user_id)
     if not user.get("morning_plans", 1):
         return
-    items = plans.today_plans(user_id)
-    hb = [h for h in habits.habits_view(user_id) if h["kind"] == "build" and h["due_today"] and not h["done_today"] and h["target"] == 1]
+    items = sorted(plans.today_plans(user_id), key=lambda o: o.get("time") or "99")
+    hb = [h for h in habits.habits_view(user_id) if h["kind"] == "build" and h["due_today"] and not h["done_today"]]
     if not items and not hb:
         return
     ctx = nudges.context(user_id)
@@ -474,10 +460,8 @@ async def send_morning_plans(user_id: int):
         head = nudges.pick("plans_today", user_id, ctx["today"], m=ctx["m"])
         lines.append(f"🗓️ <b>Сегодня у тебя в планах</b>\n{head}\n\n" + plans_lines(items))
     if hb:
-        lines.append(f"🌱 <b>Привычки на сегодня:</b> {len(hb)} — отмечай кнопками ниже")
-    rows = morning_plan_keyboard(user_id, items, hb)
-    if MINIAPP_URL:
-        rows += app_row("calendar")
+        lines.append("🌱 <b>Привычки на сегодня:</b> " + ", ".join(f"{h['emoji']} {html.escape(h['title'])}" for h in hb))
+    rows = app_row("calendar") if MINIAPP_URL else []
     await ops.safe_send(user_id, "\n\n".join(lines), parse_mode="HTML",
                         reply_markup=InlineKeyboardMarkup(inline_keyboard=rows) if rows else None)
 
