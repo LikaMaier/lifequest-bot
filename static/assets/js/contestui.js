@@ -86,6 +86,30 @@ export function contestRow(c, { go }) {
   return b;
 }
 
+/** Как у дуэли: квадраты «Ты VS соперник» с маскотами, счётом и «✓ сегодня».
+ *  Двое — «Ты VS друг»; больше — топ-3 квадратами с медалями. */
+function contestVs(c, medals) {
+  const box = (m, lead) => h('div', { class: `dsp-side ${lead ? 'lead' : ''}` },
+    h('div', { class: 'dsp-pet' }, mascot(m.mascot || 'cat-purple', m.all_today ? 'happy' : 'wink', { size: 64, acc: m.accessory }),
+      lead ? h('span', { class: 'dsp-crown', 'aria-hidden': 'true' }, '👑') : null),
+    h('div', { class: 'dsp-name' }, m.me ? 'Ты' : m.name),
+    h('div', { class: 'dsp-score' }, String(m.score)),
+    h('div', { class: `dsp-today ${m.all_today ? 'ok' : ''}` }, m.all_today ? '✓ сегодня' : 'ещё нет'));
+  const top = c.top;
+  const best = Math.max(...top.map(m => m.score));
+  const isLead = m => best > 0 && m.score === best && top.filter(x => x.score === best).length === 1;
+  if (top.length === 2) {
+    const me = top.find(m => m.me) || top[0];
+    const rival = top.find(m => m !== me);
+    return h('div', { class: 'dsp-vs' }, box(me, isLead(me)), h('div', { class: 'dsp-mid', 'aria-hidden': 'true' }, 'VS'), box(rival, isLead(rival)));
+  }
+  return h('div', { class: 'dsp-vs3' }, top.slice(0, 3).map(m => {
+    const b = box(m, isLead(m));
+    b.prepend(h('span', { class: 'dsp-medal', 'aria-hidden': 'true' }, best > 0 ? medals[Math.min(m.place, 3) - 1] : ''));
+    return b;
+  }));
+}
+
 /** Пьедестал: 2-е место слева, 1-е в центре (выше всех), 3-е справа. */
 function podium(top, medals) {
   const order = top.length >= 3 ? [top[1], top[0], top[2]] : top.length === 2 ? [top[1], top[0]] : top;
@@ -111,7 +135,7 @@ export function contestSpotlight(c, { go }) {
   card.addEventListener('keydown', e => { if (e.key === 'Enter') open(); });
   if (c.status === 'lobby') {
     card.append(
-      h('div', { class: 'dsp-top' }, h('span', { class: 'dsp-kicker' }, `🏆 ${c.days} ${dayWord(c.days).toUpperCase()}`),
+      h('div', { class: 'dsp-top' }, h('span', { class: 'dsp-kicker' }, `🏆 СОРЕВНОВАНИЕ · ${c.days} ${dayWord(c.days).toUpperCase()}`),
         h('span', { class: 'dsp-badge wait' }, 'Идёт настройка')),
       h('div', { class: 'dsp-title' }, `${c.emoji || '🏆'} ${c.title}`),
       h('div', { class: 'cts-pets' }, c.top.map(m => h('div', { class: 'cts-pet' },
@@ -124,14 +148,22 @@ export function contestSpotlight(c, { go }) {
   const left = c.items - c.done_today;
   card.append(
     h('div', { class: 'dsp-top' },
-      h('span', { class: 'dsp-kicker' }, c.not_started ? '🏆 СТАРТ ЗАВТРА' : `🏆 ДЕНЬ ${c.day || 1} ИЗ ${c.days}`),
-      c.place && c.score > 0 ? h('span', { class: 'dsp-badge' }, c.place === 1 ? '👑 Ты лидер!' : `Ты на ${c.place}-м месте`) : null),
+      h('span', { class: 'dsp-kicker' }, c.not_started ? '🏆 СОРЕВНОВАНИЕ · СТАРТ ЗАВТРА' : `🏆 СОРЕВНОВАНИЕ · ДЕНЬ ${c.day || 1} ИЗ ${c.days}`),
+      left && !c.not_started ? h('span', { class: 'dsp-badge' }, 'Твой ход!') : null),
     h('div', { class: 'dsp-title' }, `${c.emoji || '🏆'} ${c.title}`),
-    podium(c.top.slice(0, 3), medals));
-  const btn = h('button', { type: 'button', class: 'dsp-btn' }, c.not_started ? 'Открыть правила'
-    : left ? `✓ Отметить сегодня · ${c.done_today}/${c.items}` : 'Сегодня всё отмечено ✓ · Таблица');
-  btn.addEventListener('click', e => { e.stopPropagation(); open(); });
-  card.append(h('div', { class: 'dsp-actions' }, btn));
+    contestVs(c, medals));
+  const me = c.top.find(m => m.me);
+  const others = c.top.filter(m => !m.me);
+  const bestOther = others.length ? Math.max(...others.map(m => m.score)) : 0;
+  if (left || c.not_started) {
+    const btn = h('button', { type: 'button', class: 'dsp-btn' }, c.not_started ? 'Открыть правила' : `✓ Отметить сегодня · ${c.done_today}/${c.items}`);
+    btn.addEventListener('click', e => { e.stopPropagation(); open(); });
+    card.append(h('div', { class: 'dsp-actions' }, btn));
+  } else {
+    const diff = me ? me.score - bestOther : 0;
+    card.append(h('div', { class: 'dsp-actions' }, h('span', { class: 'dsp-line' },
+      diff > 0 ? `Ты впереди на ${diff} — так держать!` : diff < 0 ? `Догоняй: −${-diff}` : 'Пока ничья — сделай рывок!')));
+  }
   return card;
 }
 
