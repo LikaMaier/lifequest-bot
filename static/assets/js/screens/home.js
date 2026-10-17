@@ -12,7 +12,7 @@ import { planRow } from '../planui.js';
 import { openPlus, plusFab } from '../plus.js';
 import { chestRow } from '../chest.js';
 import { duelRow, duelSpotlight, duelPendingCard } from '../duelui.js';
-import { contestRow } from '../contestui.js';
+import { contestSpotlight } from '../contestui.js';
 
 const DATE_FMT = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -68,6 +68,8 @@ export function render(el, ctx) {
     el.append(duelSpotlight(sorted[0], { go, state }));
     for (const d of sorted.slice(1, 3)) el.append(duelRow(d, { go }));
   }
+  // Соревнования — так же ярко, как дуэли: лидеры, твоё место, отметка на сегодня
+  for (const c of (state.contests || []).slice(0, 3)) el.append(contestSpotlight(c, { go }));
   // Свои отправленные вызовы — сразу после создания, пока друг не ответил
   if (du && du.outgoing.length) for (const d of du.outgoing.slice(0, 2)) el.append(duelPendingCard(d, { go, state }));
 
@@ -96,8 +98,6 @@ export function render(el, ctx) {
   }
   el.append(habitsCard);
 
-  // Идущие соревнования: место и что осталось отметить сегодня
-  for (const c of (state.contests || []).slice(0, 3)) el.append(contestRow(c, { go }));
 
   // План дня
   const calLink = h('button', { type: 'button', class: 'home2-link' }, 'Календарь');

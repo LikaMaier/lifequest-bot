@@ -317,3 +317,17 @@ class ContestsTest(TempDBTestCase):
         res = contests.launch(2, c["id"])  # стартует участник, а не создатель
         self.assertEqual(res["contest"]["status"], "active")
         self.assertTrue(all("Запустил(а)" in m[1] for m in res["messages"]))
+
+    def test_summary_for_home(self):
+        cid = self._ready()
+        lobby = contests.summary(2)
+        self.assertEqual(lobby[0]["status"], "lobby")
+        self.assertTrue(lobby[0]["can_launch"])
+        contests.launch(1, cid)
+        item = contests.view(cid, 1)["items"][0]["id"]
+        contests.log(2, cid, item, 1)
+        s = contests.summary(1)[0]
+        self.assertEqual(s["status"], "active")
+        self.assertEqual(s["top"][0]["id"], 2)  # лидер — первым
+        self.assertTrue(any(t["me"] for t in s["top"]))
+        self.assertEqual((s["place"], s["day"], s["days"]), (2, 1, 7))

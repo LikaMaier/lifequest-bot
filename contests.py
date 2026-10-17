@@ -636,11 +636,22 @@ def templates() -> list:
 
 
 def summary(user_id: int) -> list:
-    """Коротко для главной: идущие соревнования и что осталось на сегодня."""
-    return [{"id": x["id"], "title": x["title"], "emoji": x["emoji"], "place": x["me"]["place"],
-             "score": x["me"]["score"], "done_today": x["me"]["done_today"], "items": len(x["items"]),
-             "count": x["members_count"]}
-            for x in list_view(user_id)["active"] if x["member"]]
+    """Для главной: идущие соревнования (яркая карточка с лидерами) и лобби."""
+    out = []
+    lv = list_view(user_id)
+    for x in [*lv["active"], *lv["lobby"]]:
+        if not x["member"]:
+            continue
+        me = x["me"] or {}
+        top = [{"id": r["id"], "name": r["name"], "mascot": r["mascot"], "accessory": r["accessory"],
+                "score": r["score"], "place": r["place"], "all_today": r["all_today"], "me": r["id"] == user_id}
+               for r in x["board"] if not r["left"]][:4]
+        out.append({"id": x["id"], "status": x["status"], "title": x["title"], "emoji": x["emoji"], "days": x["days"],
+                    "day": x.get("day"), "not_started": x.get("not_started", False),
+                    "place": me.get("place"), "score": me.get("score", 0), "done_today": me.get("done_today", 0),
+                    "items": len(x["items"]), "count": x["members_count"], "top": top, "mine": x["mine"],
+                    "can_launch": x.get("can_launch", False), "creator": x["creator"]["name"]})
+    return out
 
 
 # ---------- планировщик ----------
