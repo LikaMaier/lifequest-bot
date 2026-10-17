@@ -264,7 +264,7 @@ async function drawDayTab(body, el, ctx) {
     return;
   }
   if (view.mode !== 'day' || view.day !== date) return;
-  drawTimeline(host, date, plans, today, onChange, habitsOn(ctx, date, today));
+  drawTimeline(host, date, plans, today, onChange); // привычки в календаре не показываем — они на «Привычках» и Главной
   // свайп влево/вправо — соседний день
   let sx = null, sy = null;
   host.addEventListener('touchstart', e => { if (e.touches.length === 1) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; } }, { passive: true });
@@ -424,17 +424,14 @@ async function drawWeek(body, el, ctx) {
     buttons.push(btn);
     strip.append(btn);
   }
-  // вся неделя сразу: по каждому дню — его дела и привычки
+  // вся неделя сразу: по каждому дню — его дела
   const agenda = h('div', { class: 'cal2-agenda' });
   for (let i = 0; i < 7; i++) {
     const date = addDays(from, i);
     const list = byDay(date);
-    const hbs = habitsOn(ctx, date, today);
-    const hbDone = hbs.filter(x => x.done).length;
     const head = h('button', { type: 'button', class: 'cal2-agenda-head', 'aria-label': `${WD_FULL[i]}, ${parseDate(date).getDate()}: открыть день по часам` },
       h('span', { class: 'cal2-agenda-date' }, h('b', null, String(parseDate(date).getDate())), h('span', null, WD[i])),
       h('span', { class: 'grow' }, date === today ? 'Сегодня' : date === addDays(today, 1) ? 'Завтра' : WD_FULL[i]),
-      hbs.length && date <= today ? h('span', { class: 'cal2-agenda-hb' }, `🌱 ${hbDone}/${hbs.length}`) : null,
       h('span', { class: 'cal2-agenda-go', 'aria-hidden': 'true' }, '›'));
     head.addEventListener('click', () => { haptic.tap(); view.day = date; view.mode = 'day'; render(el, ctx); });
     agenda.append(h('section', { class: `cal2-agenda-day ${date === today ? 'today' : ''} ${date < today ? 'past' : ''}` }, head,
@@ -472,16 +469,6 @@ async function drawWeek(body, el, ctx) {
 const HABIT_AT = { morning: '08:00', day: '13:00', evening: '21:00' };
 
 /** Привычки «делать» на этот день — с временем (напоминание или время дня). */
-function habitsOn(ctx, date, today) {
-  const items = (ctx.state.habits && ctx.state.habits.items) || [];
-  const wd = wdIndex(date);
-  return items.filter(hb => hb.kind === 'build' && (hb.schedule !== 'days' || (hb.days || '1111111')[wd] === '1'))
-    .map(hb => {
-      const day = hb.week.find(d => d.date === date);
-      return { hb, time: hb.remind_time || HABIT_AT[hb.time_of_day] || null, done: day ? day.done : false, today: date === today };
-    });
-}
-
 function habitChip(x, onChange) {
   const b = h('button', { type: 'button', class: `cal2-habit ${x.done ? 'done' : ''}`, disabled: !x.today, 'aria-pressed': String(x.done),
     'aria-label': `Привычка: ${x.hb.title}${x.done ? ', сделано' : ''}` },

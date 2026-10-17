@@ -12,7 +12,7 @@ import storage
 class DuelsTest(TempDBTestCase):
     def setUp(self):
         super().setUp()
-        for uid, name in ((1, "Аня"), (2, "Маша"), (3, "Чужой")):
+        for uid, name in ((1, "Аня"), (2, "Вера"), (3, "Чужой")):
             storage.ensure_user(uid)
             storage.update_user(uid, first_name=name)
         friends.add_friend(1, 2)
@@ -135,7 +135,7 @@ class DuelsTest(TempDBTestCase):
         self.assertEqual(duels.habit_badges(1), {})
         d = duels.list_view(1)["outgoing"][0]
         duels.accept(2, d["id"])
-        self.assertEqual(duels.habit_badges(1)[str(self.h1)]["with"], "Маша")
+        self.assertEqual(duels.habit_badges(1)[str(self.h1)]["with"], "Вера")
 
     def test_hat_reward_then_xp_when_all_owned(self):
         pool = set(duels.HATS)
