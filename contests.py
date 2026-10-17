@@ -424,10 +424,11 @@ def _pending(contest_id: int) -> list:
 
 # ---------- запуск и заморозка ----------
 def launch(user_id: int, contest_id: int, force: bool = False) -> dict:
-    """Старт: минимум 1 пункт и 2 участника. Незакрытые предложения —
-    сначала спрашиваем (code=proposals), с force=True отклоняем их."""
+    """Старт: нажать может любой участник в любой момент, если есть хотя бы
+    1 пункт и 2 участника. Незакрытые предложения — сначала спрашиваем
+    (code=proposals), с force=True отклоняем их."""
     c = _row(contest_id)
-    _require(c, user_id, creator=True, status="lobby")
+    _require(c, user_id, status="lobby")
     items = _items(contest_id)
     members = _member_ids(contest_id)
     if not items:
@@ -461,8 +462,9 @@ def launch(user_id: int, contest_id: int, force: bool = False) -> dict:
     if not cur.rowcount:
         raise game.QuestError("Соревнование уже запущено")
     rules = "\n".join(f"{html.escape(i['emoji'])} {html.escape(i['title'])} — {_rule_text(i)}" for i in items)
+    who = "" if user_id == c["creator_id"] else f"🚀 Запустил(а): {html.escape(_name(user_id))}\n"
     for uid in members:
-        messages.append((uid, f"🔥 <b>Соревнование «{_title(c)}» началось!</b>\n"
+        messages.append((uid, f"🔥 <b>Соревнование «{_title(c)}» началось!</b>\n{who}"
                               f"{_dmy(start)} — {_dmy(end)}, {c['days']} {_plural(c['days'], 'день', 'дня', 'дней')}, "
                               f"участников: {len(members)}.\n\n<b>Правила</b> 🔒\n{rules}\n\n"
                               f"Отмечай пункты каждый день в приложении. Удачи!"))
@@ -602,7 +604,7 @@ def view(contest_id: int, user_id: int) -> dict:
         created = datetime.strptime(c["created_at"], "%Y-%m-%d %H:%M:%S")
         left = LOBBY_DAYS - (datetime.utcnow() - created).days
         out["lobby_days_left"] = max(0, left)
-        out["can_launch"] = bool(items) and out["members_count"] >= MIN_MEMBERS
+        out["can_launch"] = bool(items) and out["members_count"] >= MIN_MEMBERS and bool(me and not me["left"])
     if c["start_date"] and me:
         today = date.fromisoformat(me["today_iso"])
         out["day"] = min(c["days"], max(1, (today - date.fromisoformat(c["start_date"])).days + 1))

@@ -153,7 +153,7 @@ class ContestsTest(TempDBTestCase):
             contests.launch(1, c2["id"])  # нет пунктов
         contests.join(2, c["id"])
         with self.assertRaises(game.QuestError):
-            contests.launch(2, c["id"])  # не создатель
+            contests.launch(4, c["id"])  # не участник
         res = contests.launch(1, c["id"])
         self.assertEqual(res["contest"]["status"], "active")
         self.assertEqual({m[0] for m in res["messages"]}, {1, 2})
@@ -307,3 +307,13 @@ class ContestsTest(TempDBTestCase):
         with self.assertRaises(game.QuestError):
             contests.view(cid, 2)
         self.assertEqual(contests.view(other, 2)["members_count"], 1)
+
+
+    def test_any_member_can_launch_with_one_item(self):
+        c = self._contest()
+        contests.join(2, c["id"])
+        contests.add_item(1, c["id"], CHECK)  # всего один пункт
+        self.assertTrue(contests.view(c["id"], 2)["can_launch"])
+        res = contests.launch(2, c["id"])  # стартует участник, а не создатель
+        self.assertEqual(res["contest"]["status"], "active")
+        self.assertTrue(all("Запустил(а)" in m[1] for m in res["messages"]))
