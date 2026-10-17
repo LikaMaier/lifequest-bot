@@ -19,6 +19,7 @@ from aiohttp import web
 import re
 
 import aiquest
+import albums
 import billing
 import spheres
 import chest
@@ -339,14 +340,18 @@ async def _send_quiet(user_id: int, text: str, kwargs: dict):
         print(f"notify {user_id} failed: {e}")
 
 
+MINIAPP_URL = ""  # задаёт бот при старте (lifequest_bot.main)
+
+
 def _notify(messages):
-    """Отправить в Telegram сообщения вида (user_id, text[, [(кнопка, callback), …]])."""
-    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    """Отправить в Telegram сообщения вида (user_id, text[, …]). Под сообщением —
+    только кнопка «Открыть LifeQuest»: отвечать на вызовы и т. п. — в приложении."""
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
     for m in messages or []:
         kwargs = {"parse_mode": "HTML"}
-        if len(m) > 2 and m[2]:
-            kwargs["reply_markup"] = InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text=t, callback_data=c) for t, c in m[2]]])
+        if MINIAPP_URL:
+            kwargs["reply_markup"] = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
+                text="✨ Открыть LifeQuest", web_app=WebAppInfo(url=MINIAPP_URL + "#friends"))]])
         task = asyncio.get_running_loop().create_task(_send_quiet(m[0], m[1], kwargs))
         _NOTIFY_TASKS.add(task)
         task.add_done_callback(_NOTIFY_TASKS.discard)
@@ -461,6 +466,53 @@ async def contest_leave(request):
     result = _with_notify(contests.leave(request["user_id"], _contest_id(request)))
     result["contests"] = contests.list_view(request["user_id"])
     return web.json_response(result)
+
+
+# ---------- общие альбомы и доступ к моему альбому (albums.py) ----------
+async def get_albums(request):
+    return web.json_response(albums.list_view(request["user_id"]))
+
+
+async def album_create(request):
+    _limit(request, "write")
+    return web.json_response(albums.create(request["user_id"], await _body(request)))
+
+
+async def get_album(request):
+    return web.json_response({"album": albums.view(request["user_id"], _int(request.match_info["id"]))})
+
+
+async def album_invite(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(_with_notify(albums.invite(request["user_id"], _int(request.match_info["id"]),
+                                                        _int(data.get("friend_id"), "друг"))))
+
+
+async def album_leave(request):
+    _limit(request, "write")
+    return web.json_response(_with_notify(albums.leave(request["user_id"], _int(request.match_info["id"]))))
+
+
+async def album_photo_delete(request):
+    _limit(request, "write")
+    return web.json_response(albums.delete_photo(request["user_id"], _int(request.match_info["id"]),
+                                                 request.match_info["pid"]))
+
+
+async def get_album_access(request):
+    return web.json_response({"access": albums.access_view(request["user_id"])})
+
+
+async def album_access(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(_with_notify(albums.set_access(request["user_id"], _int(data.get("friend_id"), "друг"),
+                                                            bool(data.get("on")))))
+
+
+async def get_friend_album(request):
+    return web.json_response(albums.friend_album(request["user_id"], _int(request.match_info["uid"])))
 
 
 async def friend_remove(request):
@@ -828,7 +880,8 @@ async def upload_photo(request):
             raw = await part.read(decode=False)
             if len(raw) > photos.MAX_BYTES:
                 raise game.QuestError("Фото больше 5 МБ — выбери поменьше")
-        elif part.name in ("target", "quest_history_id", "plan_id", "plan_date", "day", "board_cell", "caption"):
+        elif part.name in ("target", "quest_history_id", "plan_id", "plan_date", "day", "board_cell", "caption",
+                           "album_id"):
             fields[part.name] = (await part.text())[:200]
     return web.json_response(photos.save_upload(request["user_id"], raw, fields))
 
@@ -936,6 +989,15 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_post("/api/contests/{id:[0-9]+}/launch", contest_launch)
     app.router.add_post("/api/contests/{id:[0-9]+}/log", contest_log)
     app.router.add_post("/api/contests/{id:[0-9]+}/leave", contest_leave)
+    app.router.add_get("/api/albums", get_albums)
+    app.router.add_post("/api/albums", album_create)
+    app.router.add_get("/api/albums/access", get_album_access)
+    app.router.add_post("/api/albums/access", album_access)
+    app.router.add_get("/api/albums/friend/{uid:[0-9]+}", get_friend_album)
+    app.router.add_get("/api/albums/{id:[0-9]+}", get_album)
+    app.router.add_post("/api/albums/{id:[0-9]+}/invite", album_invite)
+    app.router.add_post("/api/albums/{id:[0-9]+}/leave", album_leave)
+    app.router.add_delete("/api/albums/{id:[0-9]+}/photos/{pid:[0-9a-f]{32}}", album_photo_delete)
     app.router.add_get("/api/friends", get_friends)
     app.router.add_post("/api/friends/remove", friend_remove)
     app.router.add_get("/api/ai/options", ai_options)

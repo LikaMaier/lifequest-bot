@@ -22,14 +22,15 @@ DAYS = (3, 7, 14, 30)
 ACTIVE_LIMIT = 5
 XP_WIN, XP_TIE, XP_LOSE = 50, 25, 10
 XP_TEAM_DAY, XP_TEAM_PERFECT = 5, 50
-# Награда за победу в дуэли — шапочка для маскота (из тех, что ещё нет)
-HATS = ("cap", "beanie", "beret", "party", "cowboy", "chef", "graduate", "tophat", "crown")
+# Награда за победу над другом — шапочка (головной убор) для маскота, которой ещё нет
+HATS = ("cap", "beanie", "beret", "party", "cowboy", "chef", "graduate", "tophat", "crown",
+        "acorn", "knithat", "leafwreath", "pumpkin", "santa")
 
 
 def winner_reward(user_id: int, rng=random) -> dict:
     """Шапочка, которой ещё нет у победителя; если собраны все — XP."""
     owned = game.owned_items(user_id)
-    left = [h for h in (*HATS, *game.AUTUMN_ACCESSORIES) if h not in owned]
+    left = [h for h in HATS if h not in owned]
     if not left:
         game.add_xp(user_id, XP_WIN, "duel", _today(user_id).isoformat())
         return {"kind": "xp", "text": f"+{XP_WIN} XP (все шапочки уже собраны 👑)"}
@@ -123,7 +124,8 @@ def invite_text(duel_id: int) -> str:
     who = html.escape(_name(d["creator_id"]))
     goal = f" ({d['target']} раз в день)" if (d["target"] or 1) > 1 else ""
     return (f"⚔️ <b>{who} вызывает тебя на привычку!</b>\n\n{html.escape(d['emoji'] or '✨')} "
-            f"<b>{html.escape(d['title'])}</b>{goal}\n{mode_text(d['mode'], d['days'])}.\n\nПринимаешь?")
+            f"<b>{html.escape(d['title'])}</b>{goal}\n{mode_text(d['mode'], d['days'])}.\n\n"
+            f"Принять вызов — в приложении, раздел «Друзья» 👇")
 
 
 def _habit_for(user_id: int, d: dict) -> int:
@@ -188,6 +190,8 @@ def give_up(user_id: int, duel_id: int) -> dict:
             finished_at=storage.utc_now_str())
     if d["mode"] == "duel":
         prize = winner_reward(rival)
+        if prize["kind"] == "hat":
+            _update(duel_id, prize=prize["id"])
         text = f"🏳️ {html.escape(_name(user_id))} сдаётся в дуэли «{html.escape(d['title'])}». Победа твоя!\n{prize['text']}"
     else:
         text = f"🌧 {html.escape(_name(user_id))} завершает совместный вызов «{html.escape(d['title'])}». Ничего, бывает!"
@@ -244,7 +248,8 @@ def view(d: dict, user_id: int) -> dict:
     rival = _side(d, rival_id, d["opponent_habit"] if mine else d["creator_habit"]) if rival_id else None
     out = {"id": d["id"], "mode": d["mode"], "title": d["title"], "emoji": d["emoji"], "target": d["target"],
            "days": d["days"], "status": d["status"], "start": d["start_date"], "end": d["end_date"],
-           "mine": mine, "me": me, "rival": rival, "winner": d.get("winner_id")}
+           "mine": mine, "me": me, "rival": rival, "winner": d.get("winner_id"),
+           "prize": _prize(d.get("prize"))}
     if d["start_date"]:
         out["day"] = min(d["days"], max(1, (date.fromisoformat(me["today"]) - date.fromisoformat(d["start_date"])).days + 1))
     if rival and d["start_date"]:
@@ -253,6 +258,13 @@ def view(d: dict, user_id: int) -> dict:
         out["can_nudge"] = (d["status"] == "active" and not rival["today_done"]
                             and not _pinged(d["id"], user_id, me["today"], "nudge"))
     return out
+
+
+def _prize(hat: str):
+    if not hat:
+        return None
+    name = next((a[1] for a in (*game.ACCESSORIES, *game.SEASONAL_ACCESSORIES) if a[0] == hat), hat)
+    return {"id": hat, "name": name}
 
 
 def list_view(user_id: int) -> dict:
@@ -358,7 +370,10 @@ def finalize_due() -> list:
             winner = a if sa > sb else b if sb > sa else None
             for uid, mine, theirs, rival in ((a, sa, sb, b), (b, sb, sa, a)):
                 if winner == uid:
-                    head, prize = "🏆 Победа!", html.escape(winner_reward(uid)["text"])
+                    won = winner_reward(uid)
+                    if won["kind"] == "hat":
+                        _update(d["id"], prize=won["id"])
+                    head, prize = "🏆 Победа!", html.escape(won["text"])
                 else:
                     xp = XP_TIE if winner is None else XP_LOSE
                     head = "🤝 Ничья!" if winner is None else "💪 В этот раз победа у соперника."

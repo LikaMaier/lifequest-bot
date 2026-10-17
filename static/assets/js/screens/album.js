@@ -8,9 +8,10 @@ import { haptic } from '../tg.js';
 import { myMascot } from '../mascot.js';
 import { skeleton, emptyState, sheet, toast, toastError } from '../ui.js';
 import { lazyThumb, openViewer, yearShareCard } from '../photoui.js';
-import { openDaySheet, todayIso } from '../planui.js';
+import { todayIso } from '../planui.js';
 import { feedDecor, cornerSticker } from '../decor.js';
 import { playStories, monthCollageCard, onThisDay, longestStreak } from '../memofun.js';
+import { sharedShelf, openDayPhotos } from '../albumui.js';
 
 const MONTH_COLORS = ['lav', 'blue', 'pink', 'lime', 'yellow', 'orange'];
 const SHORT_MONTHS = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
@@ -68,7 +69,7 @@ export async function render(el, ctx) {
   random.disabled = !all.length;
   random.addEventListener('click', () => { haptic.tap('medium'); openViewer(all, Math.floor(Math.random() * all.length), { onDelete: reload, onChange: reload }); });
   const add = iconBtn('plus', 'Добавить фото дня', true);
-  add.addEventListener('click', () => { haptic.tap(); openDaySheet(selected || today, { onChange: reload }); });
+  add.addEventListener('click', () => { haptic.tap(); openDayPhotos(today, all.filter(p => p.day === today), { onChange: reload, today }); });
 
   const months = new Set(all.map(p => p.day.slice(0, 7)));
   const quests = new Set(all.filter(p => p.target === 'quest').map(p => p.quest_history_id)).size;
@@ -80,11 +81,8 @@ export async function render(el, ctx) {
   body.append(h('header', { class: 'memo-head' }, h('h1', null, 'Воспоминания'),
     h('div', { class: 'memo-head-row' }, h('p', null, sub), h('div', { class: 'memo-head-actions' }, random, add))));
 
-  if (!all.length) {
-    body.append(h('div', { class: 'card', style: { marginTop: '14px' } },
-      emptyState('Здесь будут твои воспоминания: фото с квестов, планов и просто хороших дней. Добавь первое!', { expr: 'love' })));
-    return;
-  }
+  // Общие альбомы с друзьями и доступ к своему альбому
+  body.append(sharedShelf(ctx));
 
   const flash = onThisDay(all, today);
   if (flash) {
@@ -98,7 +96,7 @@ export async function render(el, ctx) {
   }
 
   const firstMonth = first.slice(0, 7);
-  if (!month || month < firstMonth || month > thisMonth) month = months.has(thisMonth) ? thisMonth : [...months].sort().pop();
+  if (!month || month < firstMonth || month > thisMonth) month = months.has(thisMonth) ? thisMonth : ([...months].sort().pop() || thisMonth);
 
   const present = new Set(all.map(p => p.target));
   if (!present.has(filter)) filter = 'all';
@@ -145,7 +143,13 @@ export async function render(el, ctx) {
         'aria-label': `${fmtDay(iso)}${photos.length ? `, ${photos.length} фото` : ''}`, 'aria-pressed': String(iso === selected) },
         photos.length ? lazyThumb(photos[0]) : null,
         h('span', { class: 'memo-cal-num' }, String(d)));
-      cell.addEventListener('click', () => { haptic.select(); selected = iso; draw(); });
+      // Тап по дню: фото этого дня или кнопки «Добавить фото дня»
+      cell.addEventListener('click', () => {
+        haptic.select();
+        selected = iso;
+        draw();
+        openDayPhotos(iso, all.filter(p => p.day === iso), { onChange: reload, today });
+      });
       grid.append(cell);
     }
     view.append(h('section', { class: 'memo-cal' },
@@ -157,6 +161,11 @@ export async function render(el, ctx) {
       h('div', { class: 'memo-cal-grid wd', 'aria-hidden': 'true' }, WEEKDAYS.map(w => h('span', null, w))),
       grid));
 
+    if (!all.length) {
+      view.append(h('div', { class: 'card', style: { marginTop: '14px' } },
+        emptyState('Нажми на любой день в календаре, чтобы добавить фото дня. Здесь соберутся фото с квестов, планов и просто хороших дней.', { expr: 'love' })));
+      return;
+    }
     if (selected) view.append(dayPanel(selected, byDay.get(selected) || [], reload));
     if (!inMonth.length) return;
 
@@ -212,7 +221,7 @@ export async function render(el, ctx) {
   yearBtn.addEventListener('click', () => { haptic.tap(); openYear(all, key => { month = key; selected = null; filter = 'all'; drawChips(); draw(); }); });
   drawChips();
   draw();
-  body.append(chips, view, yearBtn, h('p', { class: 'memo-foot' }, `🔒 ${data.count} из ${data.limit} фото · видишь их только ты`));
+  body.append(chips, view, yearBtn, h('p', { class: 'memo-foot' }, `📷 ${data.count} из ${data.limit} фото · кому видно — в «Доступ к моему альбому»`));
 }
 
 /** Фото месяца: последнее фото с квеста, иначе последнее с подписью, иначе последнее. */
@@ -223,7 +232,7 @@ function pickHero(list) {
 /** Фото выбранного дня под календарём. */
 function dayPanel(day, photos, reload) {
   const add = h('button', { type: 'button', class: 'memo-btn light small' }, icon('camera'), photos.length ? 'Ещё фото' : 'Добавить фото');
-  add.addEventListener('click', () => { haptic.tap(); openDaySheet(day, { onChange: reload }); });
+  add.addEventListener('click', () => { haptic.tap(); openDayPhotos(day, photos, { onChange: reload, today: todayIso() }); });
   const head = h('div', { class: 'memo-sec-head' }, h('h2', null, fmtDay(day)), add);
   if (!photos.length) return h('section', { class: 'memo-day' }, head, h('p', { class: 'memo-day-empty' }, 'В этот день фото нет'));
   const pics = h('div', { class: `memo-day-pics ${photos.length === 1 ? 'one' : ''}` }, photos.map((p, i) => {

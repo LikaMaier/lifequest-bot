@@ -23,6 +23,7 @@ const SCREENS = {
   contest: { title: 'Соревнование', sub: true, load: () => import('./screens/contest.js') },
   notes: { title: 'Заметки', sub: true, load: () => import('./screens/notes.js') },
   album: { title: 'Альбом', sub: true, load: () => import('./screens/album.js') },
+  shared: { title: 'Общий альбом', sub: true, load: () => import('./screens/shared.js') },
   profile: { title: 'Профиль', sub: true, load: () => import('./screens/profile.js') },
   premium: { title: 'Premium', sub: true, load: () => import('./screens/profile.js'), entry: 'renderPremium' },
 };

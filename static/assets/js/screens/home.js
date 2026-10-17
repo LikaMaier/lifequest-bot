@@ -11,7 +11,7 @@ import { habitRing, openTemplatePicker } from '../habitui.js';
 import { planRow } from '../planui.js';
 import { openPlus, plusFab } from '../plus.js';
 import { chestRow } from '../chest.js';
-import { duelRow } from '../duelui.js';
+import { duelRow, duelSpotlight } from '../duelui.js';
 import { contestRow } from '../contestui.js';
 
 const DATE_FMT = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -51,6 +51,24 @@ export function render(el, ctx) {
   const banner = streakBanner(state, go);
   if (banner) el.append(banner);
 
+  // Дуэли с друзьями — ярко и сразу под приветствием: кто ведёт и что сделать сегодня
+  const du = state.duels;
+  if (du && du.incoming.length) {
+    const inv = du.incoming[0];
+    const b = h('button', { type: 'button', class: 'dsp-invite' }, h('span', { class: 'dsp-invite-emoji', 'aria-hidden': 'true' }, '⚔️'),
+      h('span', { class: 'grow' }, h('b', null, `${inv.rival ? inv.rival.name : 'Друг'} бросает тебе вызов!`),
+        h('span', null, `${inv.emoji} ${inv.title} · ${inv.days} ${plural(inv.days, 'день', 'дня', 'дней')} — ответь`)),
+      h('span', { class: 'dsp-invite-go', 'aria-hidden': 'true' }, '›'));
+    b.addEventListener('click', () => { haptic.tap(); go('friends'); });
+    el.append(b);
+  }
+  if (du && du.active.length) {
+    // впереди — та, где сейчас «твой ход»
+    const sorted = [...du.active].sort((a, b) => (!b.me.today_done) - (!a.me.today_done));
+    el.append(duelSpotlight(sorted[0], { go, state }));
+    for (const d of sorted.slice(1, 3)) el.append(duelRow(d, { go }));
+  }
+
   // Привычки сегодня — кольцами
   const habitsCard = h('section', { class: 'home2-card' });
   const habitsLink = h('button', { type: 'button', class: 'home2-link' }, hs.items && hs.items.length ? 'Все' : 'Добавить');
@@ -76,20 +94,6 @@ export function render(el, ctx) {
   }
   el.append(habitsCard);
 
-  // Вызовы с друзьями: входящие приглашения и идущие дуэли
-  const du = state.duels;
-  if (du && (du.incoming.length || du.active.length)) {
-    if (du.incoming.length) {
-      const inv = du.incoming[0];
-      const b = h('button', { type: 'button', class: 'duel-row todo' }, h('span', { class: 'duel-row-emoji', 'aria-hidden': 'true' }, '📨'),
-        h('span', { class: 'grow' }, h('b', null, `${inv.rival ? inv.rival.name : 'Друг'} бросает тебе вызов!`),
-          h('span', null, `${inv.emoji} ${inv.title} · ${inv.days} ${plural(inv.days, 'день', 'дня', 'дней')}`)),
-        h('span', { class: 'duel-row-score' }, '›'));
-      b.addEventListener('click', () => { haptic.tap(); go('friends'); });
-      el.append(b);
-    }
-    for (const d of du.active.slice(0, 3)) el.append(duelRow(d, { go }));
-  }
   // Идущие соревнования: место и что осталось отметить сегодня
   for (const c of (state.contests || []).slice(0, 3)) el.append(contestRow(c, { go }));
 

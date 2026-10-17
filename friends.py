@@ -3,7 +3,8 @@
 
 Ссылки бота: t.me/<bot>?start=ref_<user_id> — просто позвать;
 t.me/<bot>?start=q_<quest_id>_<user_id> — позвать на квест;
-t.me/<bot>?start=c_<contest_id> — в лобби своего соревнования (contests.py)."""
+t.me/<bot>?start=c_<contest_id> — в лобби своего соревнования (contests.py);
+t.me/<bot>?start=a_<album_id> — в общий фотоальбом (albums.py)."""
 
 from datetime import timedelta
 
@@ -24,6 +25,12 @@ def parse_start(payload: str):
         import duels
         try:
             return "d", int(payload[2:]), duels.public_invite(int(payload[2:]))["creator_id"]
+        except game.QuestError:
+            return None
+    if payload.startswith("a_") and payload[2:].isdigit():
+        import albums
+        try:
+            return "a", int(payload[2:]), albums.public_invite(int(payload[2:]))["owner_id"]
         except game.QuestError:
             return None
     if payload.startswith("c_") and payload[2:].isdigit():
