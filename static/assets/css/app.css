@@ -1699,3 +1699,9 @@ p { margin: 0; }
 .alb-head-emoji { width: 56px; height: 56px; border-radius: 18px; background: var(--white); display: flex; align-items: center; justify-content: center; font-size: 32px; flex-shrink: 0; }
 .alb-head-pet { width: 56px; height: 52px; flex-shrink: 0; }
 .upl-status[hidden] { display: none; }
+
+/* Крестик «удалить вызов» */
+.duel-x { width: 36px; height: 36px; flex-shrink: 0; align-self: flex-start; border: 0; border-radius: 12px; background: var(--cream-2); color: var(--ink); font-family: inherit; font-size: 16px; font-weight: 900; padding: 0; position: relative; z-index: 2; }
+.duel-x:active { transform: scale(.92); }
+.dsp-top-right { display: inline-flex; align-items: center; gap: 6px; position: relative; z-index: 2; }
+.dsp .duel-x { width: 32px; height: 32px; background: rgba(255,255,255,.6); }

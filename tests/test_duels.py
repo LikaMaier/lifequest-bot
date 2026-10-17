@@ -146,3 +146,24 @@ class DuelsTest(TempDBTestCase):
         self.assertEqual(duels.winner_reward(1)["kind"], "xp")
         self.assertEqual(storage.get_user(1)["xp"], xp + duels.XP_WIN)
         self.assertTrue(all(h in game.ACCESSORY_IDS for h in pool))
+
+    def test_remove_with_cross(self):
+        # ожидающий: отменяется и пропадает
+        d = self._duel()["duel"]
+        res = duels.remove(1, d["id"])
+        self.assertEqual(res["messages"], [])
+        self.assertEqual(duels.list_view(1)["outgoing"], [])
+        self.assertEqual(duels.list_view(2)["incoming"], [])
+        # идущий: удаливший сдаётся, у соперника — итог с победой
+        d2 = self._duel()["duel"]
+        duels.accept(2, d2["id"])
+        res = duels.remove(2, d2["id"])
+        self.assertEqual(res["messages"][0][0], 1)
+        self.assertEqual(duels.list_view(2)["finished"], [])
+        mine = duels.list_view(1)["finished"]
+        self.assertEqual(mine[0]["winner"], 1)
+        # законченный: просто скрывается у того, кто нажал
+        duels.remove(1, d2["id"])
+        self.assertEqual(duels.list_view(1)["finished"], [])
+        with self.assertRaises(game.QuestError):
+            duels.remove(3, d2["id"])

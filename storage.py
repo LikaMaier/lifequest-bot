@@ -332,7 +332,9 @@ def init_db():
         mode TEXT DEFAULT 'duel', title TEXT NOT NULL, emoji TEXT, target INTEGER DEFAULT 1, days INTEGER DEFAULT 7,
         creator_habit INTEGER, opponent_habit INTEGER, status TEXT DEFAULT 'pending',
         start_date TEXT, end_date TEXT, winner_id INTEGER, created_at TEXT, finished_at TEXT)""")
-    _ensure_column(c, "habit_duels", "prize", "TEXT")  # шапочка, выигранная победителем
+    _ensure_column(c, "habit_duels", "prize", "TEXT")
+    _ensure_column(c, "habit_duels", "hidden_creator", "INTEGER DEFAULT 0")  # убрано крестиком из своего списка
+    _ensure_column(c, "habit_duels", "hidden_opponent", "INTEGER DEFAULT 0")  # шапочка, выигранная победителем
     c.execute("CREATE INDEX IF NOT EXISTS idx_duels_creator ON habit_duels(creator_id, status)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_duels_opponent ON habit_duels(opponent_id, status)")
     c.execute("""CREATE TABLE IF NOT EXISTS duel_pings (
