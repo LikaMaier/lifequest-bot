@@ -611,7 +611,7 @@ async def post_share(request):
 
 
 def _mark_duel_habits(user_id: int, items: list) -> list:
-    """Значок «⚔️ с Машей» у привычек, по которым идёт вызов."""
+    """Значок «⚔️ с Верой» у привычек, по которым идёт вызов."""
     badges = duels.habit_badges(user_id)
     for item in items:
         item["duel"] = badges.get(str(item["id"]))

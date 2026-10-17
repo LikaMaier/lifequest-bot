@@ -14,7 +14,7 @@ COUNT = {"title": "Отжимания", "emoji": "💪", "kind": "count", "unit"
 class ContestsTest(TempDBTestCase):
     def setUp(self):
         super().setUp()
-        for uid, name in ((1, "Аня"), (2, "Маша"), (3, "Оля"), (4, "Чужой")):
+        for uid, name in ((1, "Аня"), (2, "Вера"), (3, "Оля"), (4, "Чужой")):
             storage.ensure_user(uid)
             storage.update_user(uid, first_name=name)
 
@@ -122,7 +122,7 @@ class ContestsTest(TempDBTestCase):
         pid = res["contest"]["proposals"][0]["id"]
         out = contests.decide(1, c["id"], pid, True, {"title": "Планка", "kind": "count", "unit": "мин", "norm": 3})
         self.assertEqual(out["contest"]["items"][0]["norm"], 3)
-        self.assertEqual(out["contest"]["items"][0]["proposed_by"], "Маша")
+        self.assertEqual(out["contest"]["items"][0]["proposed_by"], "Вера")
         self.assertIn("с правкой", out["messages"][0][1])
         with self.assertRaises(game.QuestError):
             contests.decide(1, c["id"], pid, False)  # уже решено
@@ -301,7 +301,7 @@ class ContestsTest(TempDBTestCase):
 
     def test_delete_user_data(self):
         cid = self._ready()
-        other = contests.create(2, {"title": "Машино", "days": 3})["contest"]["id"]
+        other = contests.create(2, {"title": "Верино", "days": 3})["contest"]["id"]
         contests.join(1, other)
         storage.delete_user_data(1)
         with self.assertRaises(game.QuestError):

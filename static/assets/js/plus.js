@@ -12,7 +12,7 @@ import { todayIso } from './planui.js';
 export function openPlus({ go, onChange } = {}) {
   const today = todayIso();
   const s = sheet(h('div'), { label: 'Добавить' });
-  const input = h('input', { class: 'cal2-quick-input', type: 'text', maxlength: '120', placeholder: 'завтра в 19 кино с Машей', 'aria-label': 'Напиши, что запланировать' });
+  const input = h('input', { class: 'cal2-quick-input', type: 'text', maxlength: '120', placeholder: 'завтра в 19 кино с Ирой', 'aria-label': 'Напиши, что запланировать' });
   const chips = h('div', { class: 'plus-chips', 'aria-live': 'polite' });
   const save = h('button', { type: 'button', class: 'cal2-save', disabled: true }, 'Напиши, что запланировать');
   const inbox = h('button', { type: 'button', class: 'cal2-link', hidden: true }, '📥 Без даты — во входящие');

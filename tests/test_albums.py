@@ -26,7 +26,7 @@ class AlbumsTest(TempDBTestCase):
         photos.PHOTOS_DIR = self._pdir
         photos.reset_enabled_cache()
         photos.configure("123:abc")
-        for uid, name in ((1, "Лика"), (2, "Маша"), (3, "Оля"), (4, "Чужой")):
+        for uid, name in ((1, "Лика"), (2, "Вера"), (3, "Оля"), (4, "Чужой")):
             storage.ensure_user(uid)
             storage.update_user(uid, first_name=name)
         friends.add_friend(1, 2)
@@ -67,7 +67,7 @@ class AlbumsTest(TempDBTestCase):
         mine = photos.save_upload(1, jpeg(), {"target": "album", "album_id": a["id"]})["photo"]
         v = albums.view(1, a["id"])
         self.assertEqual(v["count"], 7)
-        self.assertEqual({p["by"] for p in v["photos"]}, {"Ты", "Маша"})
+        self.assertEqual({p["by"] for p in v["photos"]}, {"Ты", "Вера"})
         # фото общего альбома не попадают в личный альбом
         self.assertEqual(photos.list_photos(2, {}), [])
         # подписанная ссылка открывает файл загрузившего
@@ -125,11 +125,11 @@ class AlbumsTest(TempDBTestCase):
         albums.invite(1, a["id"], 2)
         photos.save_upload(2, jpeg(), {"target": "album", "album_id": a["id"]})
         albums.set_access(1, 2, True)
-        b = albums.create(2, {"title": "Машин"})["album"]
+        b = albums.create(2, {"title": "Верин"})["album"]
         albums.join(1, b["id"])
         photos.delete_all(1)
         storage.delete_user_data(1)
         self.assertEqual(albums.list_view(2)["albums"][0]["id"], b["id"])
         self.assertEqual(albums.list_view(2)["friends"], [])
-        self.assertEqual(photos.stats(2)["count"], 0)  # фото Маши в удалённом альбоме Лики
+        self.assertEqual(photos.stats(2)["count"], 0)  # фото Веры в удалённом альбоме Лики
         self.assertEqual(os.listdir(os.path.join(self._pdir, "2")), [])

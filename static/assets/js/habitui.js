@@ -39,8 +39,6 @@ export const TEMPLATES = [
   { pack: ['study'], emoji: '✍️', title: 'Дневник', sphere: 'Саморазвитие', target: 1, color: 'yellow', time_of_day: 'evening', hint: 'пара строк вечером' },
   { pack: ['study'], emoji: '🎧', title: 'Подкаст или лекция', sphere: 'Саморазвитие', target: 1, color: 'lav', schedule: 'weekly', per_week: 2, hint: '2 раза в неделю' },
   { pack: ['quit'], emoji: '📱', title: 'Телефон после 23:00', kind: 'quit', color: 'purple', hint: 'бросить' },
-  { pack: ['quit'], emoji: '🚭', title: 'Не курить', kind: 'quit', color: 'red', hint: 'бросить' },
-  { pack: ['quit'], emoji: '🍷', title: 'Без алкоголя', kind: 'quit', color: 'orange', hint: 'бросить' },
 ];
 
 const unitWord = (hb, n) => (hb.streak_unit === 'week' ? plural(n, 'неделя', 'недели', 'недель') : plural(n, 'день', 'дня', 'дней'));
