@@ -1,7 +1,7 @@
 // ④ Прогресс: период, столбики/линия по дням, сферы и форматы, тепловая
 // карта месяца, рекорды и лента выполненных заданий.
 
-import { h, clear, plural, fmtDay, fmtMonth } from '../dom.js';
+import { h, clear, plural, fmtDay } from '../dom.js';
 import { haptic } from '../tg.js';
 import { api } from '../api.js';
 import { myMascot } from '../mascot.js';
@@ -10,7 +10,7 @@ import { buildRecapCard } from '../share.js';
 import { openSphereManager } from '../sphereui.js';
 const RANGE_WORD = { 1: 'сегодня', 7: 'неделя', 30: 'месяц', all: 'всё время' };
 import { handlePremiumError } from '../premium.js';
-import { barChart, lineChart, hbars, heatmap } from '../charts.js';
+import { barChart, lineChart, hbars } from '../charts.js';
 import { openPhotoReport } from '../photoui.js';
 
 const view = { range: '7', kind: 'bar', stats: {} };
@@ -132,10 +132,6 @@ function draw(body, s, ctx) {
       s.spheres.some(x => x.count) ? h('p', { class: 'tiny muted bold', style: { marginTop: '8px' } }, 'Считаются выполненные квесты и дни, когда привычка со сферой выполнена') : null),
     sectionTitle('Форматы'),
     h('section', { class: 'card' }, hbars(modes, { label: 'Задания по форматам' })));
-
-  // Тепловая карта месяца
-  body.append(sectionTitle(fmtMonth(s.heatmap[0].date)),
-    h('section', { class: 'card' }, heatmap(s.heatmap, { today: ctx.state.today.date })));
 
   // Лента истории
   body.append(sectionTitle('История'));

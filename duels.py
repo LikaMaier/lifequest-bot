@@ -9,6 +9,7 @@
 (user_id, text) — отправляет вызывающий код (бот или API)."""
 
 import html
+import random
 from datetime import date, timedelta
 
 import friends
@@ -21,6 +22,26 @@ DAYS = (3, 7, 14, 30)
 ACTIVE_LIMIT = 5
 XP_WIN, XP_TIE, XP_LOSE = 50, 25, 10
 XP_TEAM_DAY, XP_TEAM_PERFECT = 5, 50
+# Награда за победу в дуэли — шапочка для маскота (из тех, что ещё нет)
+HATS = ("cap", "beanie", "beret", "party", "cowboy", "chef", "graduate", "tophat", "crown")
+
+
+def winner_reward(user_id: int, rng=random) -> dict:
+    """Шапочка, которой ещё нет у победителя; если собраны все — XP."""
+    owned = game.owned_items(user_id)
+    left = [h for h in HATS if h not in owned]
+    if not left:
+        game.add_xp(user_id, XP_WIN, "duel", _today(user_id).isoformat())
+        return {"kind": "xp", "text": f"+{XP_WIN} XP (все шапочки уже собраны 👑)"}
+    hat = rng.choice(left)
+    conn = storage.connect()
+    conn.execute("INSERT INTO purchases (user_id, item, price, created_at) VALUES (?, ?, 0, ?)",
+                 (user_id, hat, storage.utc_now_str()))
+    conn.commit()
+    conn.close()
+    name = next(a[1] for a in game.ACCESSORIES if a[0] == hat)
+    return {"kind": "hat", "id": hat, "name": name,
+            "text": f"🎩 Награда — «{name}» для маскота! Надень её в Магазине."}
 
 
 def _row(duel_id: int) -> dict:
@@ -166,8 +187,8 @@ def give_up(user_id: int, duel_id: int) -> dict:
     _update(duel_id, status="done", winner_id=rival if d["mode"] == "duel" else None,
             finished_at=storage.utc_now_str())
     if d["mode"] == "duel":
-        game.add_xp(rival, XP_WIN, "duel", _today(rival).isoformat())
-        text = f"🏳️ {html.escape(_name(user_id))} сдаётся в дуэли «{html.escape(d['title'])}». Победа твоя! +{XP_WIN} XP"
+        prize = winner_reward(rival)
+        text = f"🏳️ {html.escape(_name(user_id))} сдаётся в дуэли «{html.escape(d['title'])}». Победа твоя!\n{prize['text']}"
     else:
         text = f"🌧 {html.escape(_name(user_id))} завершает совместный вызов «{html.escape(d['title'])}». Ничего, бывает!"
     return {"ok": True, "messages": [(rival, text)]}
@@ -336,15 +357,15 @@ def finalize_due() -> list:
             sa, sb = va["me"]["score"], vb["me"]["score"]
             winner = a if sa > sb else b if sb > sa else None
             for uid, mine, theirs, rival in ((a, sa, sb, b), (b, sb, sa, a)):
-                if winner is None:
-                    xp, head = XP_TIE, "🤝 Ничья!"
-                elif winner == uid:
-                    xp, head = XP_WIN, "🏆 Победа!"
+                if winner == uid:
+                    head, prize = "🏆 Победа!", html.escape(winner_reward(uid)["text"])
                 else:
-                    xp, head = XP_LOSE, "💪 В этот раз победа у соперника."
-                game.add_xp(uid, xp, "duel", _today(uid).isoformat())
+                    xp = XP_TIE if winner is None else XP_LOSE
+                    head = "🤝 Ничья!" if winner is None else "💪 В этот раз победа у соперника."
+                    game.add_xp(uid, xp, "duel", _today(uid).isoformat())
+                    prize = f"+{xp} XP"
                 messages.append((uid, f"{head}\nДуэль «{title}» с {html.escape(_name(rival))} закончилась: "
-                                      f"<b>{mine}:{theirs}</b> из {d['days']} дн.\n+{xp} XP. Реванш? 😉"))
+                                      f"<b>{mine}:{theirs}</b> из {d['days']} дн.\n{prize}. Реванш? 😉"))
         else:
             joint = va["team"]["joint"]
             perfect = joint == d["days"]

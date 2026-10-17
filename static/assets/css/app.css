@@ -1014,7 +1014,7 @@ p { margin: 0; }
 .cal2-icon-btn.soft { background: var(--yellow); box-shadow: none; }
 .cal2-icon-btn.pink { background: var(--pink); box-shadow: none; }
 .cal2-icon-btn:active { transform: translateY(2px); }
-.cal2-seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 16px; background: var(--cream-2); margin-bottom: 14px; }
+.cal2-seg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 16px; background: var(--cream-2); margin-bottom: 14px; }
 .cal2-seg button { min-height: 40px; border: 0; border-radius: 12px; background: transparent; color: var(--ink); font-family: inherit; font-weight: 800; font-size: 14px; }
 .cal2-seg button[aria-pressed="true"] { background: var(--ink); color: var(--cream); }
 .cal2-pill { min-height: 44px; padding: 0 14px; border: 0; border-radius: 14px; flex-shrink: 0; font-family: inherit; font-weight: 800; font-size: 14px; background: var(--white); color: var(--ink); box-shadow: 0 3px 0 var(--line); }
@@ -1478,3 +1478,32 @@ p { margin: 0; }
 .hb2-duel { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: var(--lav); font-size: 11px; font-weight: 800; color: var(--ink); }
 .cal2-end { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
 .cal2-end .input { flex: 1; }
+
+/* ---------- Календарь: «Месяц» (краткий список) и «Неделя» (все 7 дней) ---------- */
+.cal2-mini-list { display: flex; flex-direction: column; gap: 6px; }
+.cal2-mini { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 8px 10px; border: 0; border-radius: 14px; background: var(--white); box-shadow: 0 2px 0 var(--line); font-family: inherit; font-weight: 700; font-size: 14px; text-align: left; color: var(--ink); }
+.cal2-mini.focus { background: #FBD3E2; }
+.cal2-mini.done .grow { text-decoration: line-through; opacity: .55; }
+.cal2-mini-time { min-width: 52px; padding: 3px 6px; border-radius: 8px; background: var(--lav); font-size: 12px; font-weight: 800; text-align: center; white-space: nowrap; }
+.cal2-mini-dot { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--ink); display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+.cal2-mini.done .cal2-mini-dot { background: var(--lime); }
+.cal2-open-day { display: flex; align-items: center; justify-content: space-between; width: 100%; margin: 10px 0; padding: 12px 14px; border-radius: 16px; border: 2px solid var(--ink); background: var(--yellow); font-family: inherit; font-weight: 800; font-size: 15px; color: var(--ink); }
+.cal2-agenda { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.cal2-agenda-day { padding: 10px; border-radius: 20px; background: var(--cream-2); }
+.cal2-agenda-day.today { background: var(--yellow); box-shadow: 0 3px 0 var(--yellow-deep); }
+.cal2-agenda-day.past { opacity: .7; }
+.cal2-agenda-head { display: flex; align-items: center; gap: 10px; width: 100%; margin-bottom: 8px; padding: 0; border: 0; background: none; font-family: inherit; font-weight: 800; font-size: 15px; text-align: left; color: var(--ink); }
+.cal2-agenda-date { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 42px; height: 42px; border-radius: 12px; background: var(--white); line-height: 1; }
+.cal2-agenda-date b { font-size: 17px; }
+.cal2-agenda-date span { font-size: 10px; color: var(--muted); }
+.cal2-agenda-hb { font-size: 12px; padding: 3px 8px; border-radius: 999px; background: var(--white); }
+.cal2-agenda-go { font-size: 20px; color: var(--muted); }
+.cal2-agenda-free { margin: 0 0 2px 52px; font-weight: 700; font-size: 13px; color: var(--muted); }
+.chest-svg { display: inline-flex; }
+.chest-svg svg { width: 100%; height: 100%; display: block; }
+.chest-ico.chest-svg { width: 40px; height: 36px; flex-shrink: 0; font-size: 0; }
+.chest-big { position: relative; width: 150px; height: 150px; margin: 0 auto; display: flex; align-items: flex-end; justify-content: center; font-size: 0; }
+.chest-big .chest-svg { width: 140px; height: 127px; }
+.chest-prize { position: absolute; top: -6px; left: 50%; transform: translateX(-50%); font-size: 52px; line-height: 1; animation: chest-rise .6s cubic-bezier(.2, 1.6, .4, 1); filter: drop-shadow(0 4px 0 rgba(0,0,0,.15)); }
+@keyframes chest-rise { from { transform: translate(-50%, 40px) scale(.3); opacity: 0; } to { transform: translate(-50%, 0) scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .chest-prize { animation: none; } }

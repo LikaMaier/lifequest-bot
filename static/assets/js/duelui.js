@@ -9,7 +9,7 @@ import { sheet, toast, toastError, busy, confetti } from './ui.js';
 import { refreshState } from './store.js';
 
 export const MODE_INFO = {
-  duel: { emoji: '⚔️', title: 'Дуэль', hint: 'Кто чаще выполнит привычку за срок — тот победил' },
+  duel: { emoji: '⚔️', title: 'Дуэль', hint: 'Кто чаще выполнит привычку — получит шапочку для маскота 🎩' },
   team: { emoji: '🤝', title: 'Вместе', hint: 'Общая серия: день засчитан, только если сделали оба' },
 };
 
@@ -103,7 +103,7 @@ export function duelCard(d, { state, onChange } = {}) {
   if (d.status === 'done') {
     let text;
     if (d.mode === 'team') text = d.team && d.team.joint === d.days ? '🌟 Идеально — все дни вместе!' : `🎉 Вместе ${d.team ? d.team.joint : 0} из ${d.days} дней`;
-    else text = d.winner == null ? '🤝 Ничья' : d.winner === d.me.id ? '🏆 Победа твоя!' : `💪 Победа у ${d.rival ? d.rival.name : 'соперника'}`;
+    else text = d.winner == null ? '🤝 Ничья' : d.winner === d.me.id ? '🏆 Победа твоя! 🎩 Новая шапочка — в Магазине' : `💪 Победа у ${d.rival ? d.rival.name : 'соперника'}`;
     card.append(h('div', { class: 'duel-result' }, text));
     return card;
   }
