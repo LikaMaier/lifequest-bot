@@ -1523,3 +1523,78 @@ p { margin: 0; }
 .login-x2 { position: absolute; top: -8px; right: -4px; padding: 0 4px; border-radius: 6px; background: var(--pink); color: #fff; font-size: 10px; font-weight: 900; }
 .chest-prize.pet { top: -34px; width: 72px; height: 68px; }
 .chest-prize.pet .mascot { width: 72px; height: 66px; }
+
+/* ---------- Свои соревнования (contest.js, contestui.js) ---------- */
+.duel-cta.ct-cta { background: var(--yellow); margin-bottom: 4px; }
+.ct-card { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border-radius: 20px; border: 2px solid var(--line); background: var(--white); font-family: inherit; text-align: left; color: var(--ink); cursor: pointer; }
+.ct-card.lobby { border-style: dashed; border-color: var(--ink); }
+.ct-card.todo { border-color: var(--ink); box-shadow: 0 3px 0 var(--ink); }
+.ct-card b { display: block; font-size: 16px; line-height: 1.2; }
+.ct-card-line { display: block; font-size: 12.5px; font-weight: 700; color: var(--muted); margin-top: 2px; }
+.ct-card-emoji { width: 44px; height: 44px; border-radius: 14px; background: var(--yellow); display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0; }
+.ct-card.done .ct-card-emoji { background: var(--lime); }
+.ct-card-go { font-size: 22px; font-weight: 800; color: var(--muted); }
+.ct-kicker { display: block; font-size: 11.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+
+.ct-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding: 14px; border-radius: 24px; border: 2px solid var(--ink); background: var(--yellow); box-shadow: 0 4px 0 var(--ink); }
+.ct-head.lobby { background: var(--lav); }
+.ct-head.done { background: var(--lime); }
+.ct-head.cancelled { background: var(--cream-2); box-shadow: none; }
+.ct-head h1 { font-size: 22px; overflow-wrap: anywhere; }
+.ct-head p { margin: 4px 0 0; font-weight: 700; font-size: 13px; color: var(--ink-soft); }
+.ct-head .ct-kicker { color: var(--ink-soft); }
+.ct-head-emoji { width: 56px; height: 56px; border-radius: 18px; background: var(--white); display: flex; align-items: center; justify-content: center; font-size: 32px; flex-shrink: 0; }
+
+.ct-block { margin-top: 12px; padding: 14px; border-radius: 22px; background: var(--white); box-shadow: 0 3px 0 var(--line); }
+.ct-block h2 { font-size: 16px; }
+.ct-block > .spread { margin-bottom: 10px; }
+.ct-block.ct-foot { background: transparent; box-shadow: none; padding: 4px 0 0; display: flex; flex-direction: column; gap: 8px; }
+.ct-hint { margin: 8px 0 0; font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.ct-foot .ct-hint { margin: 0; }
+
+.ct-members { display: flex; flex-wrap: wrap; gap: 10px 8px; }
+.ct-member { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; width: 64px; font-size: 12px; font-weight: 800; text-align: center; }
+.ct-member span:not(.ct-crown) { max-width: 64px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-member-pet { width: 44px; height: 42px; }
+.ct-crown { position: absolute; top: -8px; right: 6px; font-size: 14px; }
+
+.ct-item, .ct-mark { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px; border-radius: 16px; background: var(--cream-2); }
+.ct-item .grow, .ct-mark .grow { min-width: 0; }
+.ct-mark.done { background: color-mix(in srgb, var(--lime) 45%, var(--white)); }
+.ct-item-emoji { width: 38px; height: 38px; border-radius: 12px; background: var(--white); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+.ct-item-title { font-weight: 800; font-size: 14.5px; line-height: 1.25; overflow-wrap: anywhere; }
+.ct-item-rule { font-weight: 700; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.ct-icon-btn { width: 40px; height: 40px; border-radius: 12px; border: 0; background: var(--white); font-size: 17px; flex-shrink: 0; padding: 0; }
+.ct-mark .hb2-bar { margin-left: 48px; background: var(--white); }
+.ct-num { min-width: 52px; min-height: 38px; padding: 0 6px; border: 0; border-radius: 10px; background: var(--white); font-family: inherit; font-weight: 800; font-size: 14px; color: var(--ink); }
+
+.ct-templates { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ct-template { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px; border-radius: 16px; border: 2px solid var(--line); background: var(--white); font-family: inherit; text-align: left; color: var(--ink); }
+.ct-template b { font-size: 14px; }
+.ct-template span:last-child { font-size: 11.5px; font-weight: 700; color: var(--muted); line-height: 1.25; }
+.ct-template-emoji { font-size: 22px; }
+
+.ct-proposals { background: color-mix(in srgb, var(--lav) 55%, var(--white)); }
+.ct-proposal { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 18px; background: var(--white); }
+.ct-proposal .ct-item { background: var(--cream-2); }
+.ct-proposal-by { font-size: 12.5px; font-weight: 800; color: var(--ink-soft); }
+.ct-proposal .duel-actions .cal2-pill.small { min-height: 40px; }
+
+.ct-launch-items { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; padding: 10px 12px; border-radius: 14px; background: var(--cream-2); font-size: 13.5px; font-weight: 700; text-align: left; }
+.ct-lock { margin-bottom: 12px; padding: 10px 12px; border-radius: 14px; background: var(--yellow); font-size: 13px; font-weight: 800; text-align: left; }
+
+.ct-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 18px; background: var(--white); box-shadow: 0 2px 0 var(--line); }
+.ct-row.me { background: #F4F0C8; }
+.ct-row.won { outline: 2px solid var(--yellow-deep); }
+.ct-row.left { opacity: .55; }
+.ct-row .grow { min-width: 0; }
+.ct-place { width: 26px; text-align: center; font-weight: 900; font-size: 16px; flex-shrink: 0; }
+.ct-row-pet { width: 40px; height: 38px; flex-shrink: 0; }
+.ct-row-name { font-weight: 800; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-row-sub { font-size: 12px; font-weight: 700; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-score { text-align: center; min-width: 48px; }
+.ct-score b { display: block; font-size: 22px; line-height: 1; font-family: var(--font-display, inherit); }
+.ct-score span { font-size: 10.5px; font-weight: 800; color: var(--muted); }
+
+.ct-rules { margin-top: 14px; padding: 12px 14px; border-radius: 20px; background: var(--white); box-shadow: 0 2px 0 var(--line); }
+.ct-rules summary { min-height: 28px; display: flex; align-items: center; font-weight: 800; font-size: 14.5px; cursor: pointer; }

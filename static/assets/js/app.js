@@ -20,6 +20,7 @@ const SCREENS = {
   shop: { title: 'Магазин', sub: true, load: () => import('./screens/shop.js') },
   challenges: { title: 'Челленджи', sub: true, load: () => import('./screens/challenges.js') },
   friends: { title: 'Друзья', sub: true, load: () => import('./screens/friends.js') },
+  contest: { title: 'Соревнование', sub: true, load: () => import('./screens/contest.js') },
   notes: { title: 'Заметки', sub: true, load: () => import('./screens/notes.js') },
   album: { title: 'Альбом', sub: true, load: () => import('./screens/album.js') },
   profile: { title: 'Профиль', sub: true, load: () => import('./screens/profile.js') },
@@ -68,8 +69,9 @@ async function mount(name) {
   return entry;
 }
 
-export async function go(name, { replace = false } = {}) {
+export async function go(name, { replace = false, fresh = false } = {}) {
   if (!SCREENS[name]) name = 'home';
+  if (fresh && mounted[name]) mounted[name].dirty = true; // тот же экран, но с другими данными
   hideMainButton();
   const def = SCREENS[name];
   const from = current;

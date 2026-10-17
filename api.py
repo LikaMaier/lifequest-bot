@@ -24,6 +24,7 @@ import spheres
 import chest
 import login_bonus
 import challenges
+import contests
 import duels
 import friends
 import game
@@ -175,6 +176,7 @@ def _state(request) -> dict:
     data["premium"] = billing.premium_view(user)
     data["user_spheres"] = spheres.list_spheres(request["user_id"])
     data["challenge"] = challenges.summary(request["user_id"])
+    data["contests"] = contests.summary(request["user_id"])
     return data
 
 
@@ -373,6 +375,91 @@ async def duel_action(request):
         raise web.HTTPNotFound()
     result = _with_notify(fn(request["user_id"], _int(request.match_info["id"])))
     result["duels"] = duels.list_view(request["user_id"])
+    return web.json_response(result)
+
+
+# ---------- свои соревнования (contests.py) ----------
+def _contest_id(request) -> int:
+    cid = _int(request.match_info["id"])
+    if not contests.was_member(cid, request["user_id"]):
+        raise game.QuestError("Соревнование не найдено")
+    return cid
+
+
+async def get_contests(request):
+    return web.json_response(contests.list_view(request["user_id"]))
+
+
+async def contest_create(request):
+    _limit(request, "write")
+    return web.json_response(contests.create(request["user_id"], await _body(request)))
+
+
+async def get_contest(request):
+    return web.json_response({"contest": contests.view(_contest_id(request), request["user_id"])})
+
+
+async def contest_item_add(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(contests.add_item(request["user_id"], _contest_id(request), data))
+
+
+async def contest_item_update(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(contests.update_item(request["user_id"], _contest_id(request),
+                                                  _int(request.match_info["item"]), data))
+
+
+async def contest_item_delete(request):
+    _limit(request, "write")
+    return web.json_response(contests.delete_item(request["user_id"], _contest_id(request),
+                                                  _int(request.match_info["item"])))
+
+
+async def contest_template(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(contests.apply_template(request["user_id"], _contest_id(request),
+                                                     str(data.get("template") or "")))
+
+
+async def contest_propose(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(_with_notify(contests.propose(request["user_id"], _contest_id(request), data)))
+
+
+async def contest_decide(request):
+    _limit(request, "write")
+    action = request.match_info["action"]
+    if action not in ("accept", "reject"):
+        raise web.HTTPNotFound()
+    data = await _body(request)
+    edits = data.get("item") if isinstance(data.get("item"), dict) else None
+    return web.json_response(_with_notify(contests.decide(request["user_id"], _contest_id(request),
+                                                          _int(request.match_info["pid"]), action == "accept", edits)))
+
+
+async def contest_launch(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(_with_notify(contests.launch(request["user_id"], _contest_id(request),
+                                                          force=bool(data.get("force")))))
+
+
+async def contest_log(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(contests.log(request["user_id"], _contest_id(request),
+                                          _int(data.get("item_id")), data.get("value")))
+
+
+async def contest_leave(request):
+    _limit(request, "write")
+    result = _with_notify(contests.leave(request["user_id"], _contest_id(request)))
+    result["contests"] = contests.list_view(request["user_id"])
     return web.json_response(result)
 
 
@@ -837,6 +924,18 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_get("/api/duels", get_duels)
     app.router.add_post("/api/duels", duel_create)
     app.router.add_post("/api/duels/{id}/{action}", duel_action)
+    app.router.add_get("/api/contests", get_contests)
+    app.router.add_post("/api/contests", contest_create)
+    app.router.add_get("/api/contests/{id:[0-9]+}", get_contest)
+    app.router.add_post("/api/contests/{id:[0-9]+}/items", contest_item_add)
+    app.router.add_patch("/api/contests/{id:[0-9]+}/items/{item:[0-9]+}", contest_item_update)
+    app.router.add_delete("/api/contests/{id:[0-9]+}/items/{item:[0-9]+}", contest_item_delete)
+    app.router.add_post("/api/contests/{id:[0-9]+}/template", contest_template)
+    app.router.add_post("/api/contests/{id:[0-9]+}/proposals", contest_propose)
+    app.router.add_post("/api/contests/{id:[0-9]+}/proposals/{pid:[0-9]+}/{action}", contest_decide)
+    app.router.add_post("/api/contests/{id:[0-9]+}/launch", contest_launch)
+    app.router.add_post("/api/contests/{id:[0-9]+}/log", contest_log)
+    app.router.add_post("/api/contests/{id:[0-9]+}/leave", contest_leave)
     app.router.add_get("/api/friends", get_friends)
     app.router.add_post("/api/friends/remove", friend_remove)
     app.router.add_get("/api/ai/options", ai_options)

@@ -12,6 +12,7 @@ import { planRow } from '../planui.js';
 import { openPlus, plusFab } from '../plus.js';
 import { chestRow } from '../chest.js';
 import { duelRow } from '../duelui.js';
+import { contestRow } from '../contestui.js';
 
 const DATE_FMT = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -89,6 +90,8 @@ export function render(el, ctx) {
     }
     for (const d of du.active.slice(0, 3)) el.append(duelRow(d, { go }));
   }
+  // Идущие соревнования: место и что осталось отметить сегодня
+  for (const c of (state.contests || []).slice(0, 3)) el.append(contestRow(c, { go }));
 
   // План дня
   const calLink = h('button', { type: 'button', class: 'home2-link' }, 'Календарь');

@@ -30,6 +30,7 @@ import billing
 import card
 import challenges
 import compliments
+import contests
 import duels
 import friends
 import game
@@ -176,12 +177,39 @@ async def handle_duel_link(message: Message, duel_id: int, inviter_id: int, is_n
     await send_duel_messages(result["messages"])
 
 
+async def handle_contest_link(message: Message, contest_id: int, inviter_id: int, is_new: bool):
+    """Пришли по ссылке на соревнование: дружим с создателем и заходим в лобби."""
+    user_id = message.from_user.id
+    res = friends.handle_join(user_id, inviter_id, is_new)
+    gift = "\n\n🧊 В подарок — по заморозке серии вам обоим." if res.get("gift") else ""
+    open_app = InlineKeyboardMarkup(inline_keyboard=[[build_miniapp_button("🏆 Открыть соревнование", "friends")]]) \
+        if MINIAPP_URL else None
+    try:
+        result = contests.join(user_id, contest_id)
+    except game.QuestError as e:
+        await message.answer(f"{html.escape(str(e))}{gift}", parse_mode="HTML", reply_markup=build_start_menu_keyboard())
+        return
+    c = result["contest"]
+    title = f"{html.escape(c['emoji'] or '🏆')} <b>{html.escape(c['title'])}</b>"
+    if result.get("already"):
+        await message.answer(f"Ты уже в соревновании {title} 🙂", parse_mode="HTML", reply_markup=open_app)
+        return
+    status = ("Сейчас создатель настраивает правила — можешь предложить свой пункт. "
+              "Как только соревнование запустят, придёт сообщение." if c["status"] == "lobby" else "")
+    await message.answer(
+        f"🏆 <b>Ты в лобби!</b>\n\n{title} — {c['days']} дн., участников: {c['members_count']}.\n{status}{gift}",
+        parse_mode="HTML", reply_markup=open_app)
+    await send_duel_messages(result["messages"])
+
 async def handle_invite(message: Message, invite, is_new: bool):
     """Пришли по ссылке друга: дружим, дарим заморозки новичку и пригласившему,
     а если звали на конкретный квест — сразу кладём его в «Мои квесты»."""
     kind, quest_id, inviter_id = invite
     if kind == "d":
         await handle_duel_link(message, quest_id, inviter_id, is_new)
+        return
+    if kind == "c":
+        await handle_contest_link(message, quest_id, inviter_id, is_new)
         return
     user_id = message.from_user.id
     res = friends.handle_join(user_id, inviter_id, is_new)
@@ -858,6 +886,16 @@ async def send_duel_updates():
         await ops.alert("duels", e)
 
 
+async def send_contest_updates():
+    """Каждый час: итоги соревнований, таймаут лобби и вечерние напоминания."""
+    try:
+        await send_duel_messages(contests.finalize_due())
+        await send_duel_messages(contests.lobby_timeouts())
+        await send_duel_messages(contests.evening_alerts())
+    except Exception as e:
+        await ops.alert("contests", e)
+
+
 @dp.callback_query(F.data == "xp_freeze")
 async def xp_freeze(callback: CallbackQuery):
     try:
@@ -1064,6 +1102,7 @@ async def main():
     scheduler.add_job(send_daily_reminders, "cron", minute=0)
     scheduler.add_job(send_owner_compliment, "cron", minute=0, second=30)
     scheduler.add_job(send_duel_updates, "cron", minute=3)
+    scheduler.add_job(send_contest_updates, "cron", minute=4)
     scheduler.add_job(send_evening_reminders, "cron", minute=0)
     scheduler.add_job(send_monthly_recap, "cron", day=1, hour=10, minute=0)
     scheduler.add_job(send_plan_reminders, "interval", minutes=1)
