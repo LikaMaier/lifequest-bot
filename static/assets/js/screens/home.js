@@ -11,6 +11,7 @@ import { habitRing, openTemplatePicker } from '../habitui.js';
 import { planRow } from '../planui.js';
 import { openPlus, plusFab } from '../plus.js';
 import { chestRow } from '../chest.js';
+import { duelRow } from '../duelui.js';
 
 const DATE_FMT = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -73,6 +74,21 @@ export function render(el, ctx) {
     if (ch) habitsCard.append(ch);
   }
   el.append(habitsCard);
+
+  // Вызовы с друзьями: входящие приглашения и идущие дуэли
+  const du = state.duels;
+  if (du && (du.incoming.length || du.active.length)) {
+    if (du.incoming.length) {
+      const inv = du.incoming[0];
+      const b = h('button', { type: 'button', class: 'duel-row todo' }, h('span', { class: 'duel-row-emoji', 'aria-hidden': 'true' }, '📨'),
+        h('span', { class: 'grow' }, h('b', null, `${inv.rival ? inv.rival.name : 'Друг'} бросает тебе вызов!`),
+          h('span', null, `${inv.emoji} ${inv.title} · ${inv.days} ${plural(inv.days, 'день', 'дня', 'дней')}`)),
+        h('span', { class: 'duel-row-score' }, '›'));
+      b.addEventListener('click', () => { haptic.tap(); go('friends'); });
+      el.append(b);
+    }
+    for (const d of du.active.slice(0, 3)) el.append(duelRow(d, { go }));
+  }
 
   // План дня
   const calLink = h('button', { type: 'button', class: 'home2-link' }, 'Календарь');

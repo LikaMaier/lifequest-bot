@@ -5,6 +5,7 @@
 # X-Telegram-Init-Data; user_id берётся только из проверенной подписи.
 # ============================================================
 
+import asyncio
 import base64
 import binascii
 import json
@@ -22,6 +23,7 @@ import billing
 import spheres
 import chest
 import challenges
+import duels
 import friends
 import game
 import ops
@@ -161,6 +163,8 @@ def _state(request) -> dict:
     data["bot_username"] = request.app.get(BOT_USERNAME_KEY)
     data["habits"] = habits.summary(request["user_id"])
     data["chest"] = chest.status(request["user_id"], data["habits"])
+    data["duels"] = duels.list_view(request["user_id"])
+    _mark_duel_habits(request["user_id"], data["habits"]["items"])
     data["plans_today"] = plans.today_plans(request["user_id"])
     data["plans_overdue"] = len(plans.overdue_plans(request["user_id"]))
     data["photos"] = photos.stats(request["user_id"])
@@ -321,6 +325,55 @@ async def get_friends(request):
     return web.json_response(friends.list_view(request["user_id"]))
 
 
+_NOTIFY_TASKS = set()
+
+
+async def _send_quiet(user_id: int, text: str, kwargs: dict):
+    try:
+        await ops.safe_send(user_id, text, **kwargs)
+    except Exception as e:  # уведомление — не повод ронять запрос
+        print(f"notify {user_id} failed: {e}")
+
+
+def _notify(messages):
+    """Отправить в Telegram сообщения вида (user_id, text[, [(кнопка, callback), …]])."""
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    for m in messages or []:
+        kwargs = {"parse_mode": "HTML"}
+        if len(m) > 2 and m[2]:
+            kwargs["reply_markup"] = InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text=t, callback_data=c) for t, c in m[2]]])
+        task = asyncio.get_running_loop().create_task(_send_quiet(m[0], m[1], kwargs))
+        _NOTIFY_TASKS.add(task)
+        task.add_done_callback(_NOTIFY_TASKS.discard)
+
+
+def _with_notify(result: dict) -> dict:
+    _notify(result.pop("messages", None))
+    return result
+
+
+async def get_duels(request):
+    return web.json_response(duels.list_view(request["user_id"]))
+
+
+async def duel_create(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(_with_notify(duels.create(request["user_id"], data)))
+
+
+async def duel_action(request):
+    _limit(request, "write")
+    action = request.match_info["action"]
+    fn = {"accept": duels.accept, "decline": duels.decline, "nudge": duels.nudge, "giveup": duels.give_up}.get(action)
+    if not fn:
+        raise web.HTTPNotFound()
+    result = _with_notify(fn(request["user_id"], _int(request.match_info["id"])))
+    result["duels"] = duels.list_view(request["user_id"])
+    return web.json_response(result)
+
+
 async def friend_remove(request):
     _limit(request, "write")
     data = await _body(request)
@@ -415,8 +468,17 @@ async def post_share(request):
     return web.json_response({"ok": True})
 
 
+def _mark_duel_habits(user_id: int, items: list) -> list:
+    """Значок «⚔️ с Машей» у привычек, по которым идёт вызов."""
+    badges = duels.habit_badges(user_id)
+    for item in items:
+        item["duel"] = badges.get(str(item["id"]))
+    return items
+
+
 async def get_habits(request):
-    return web.json_response({"habits": habits.habits_view(request["user_id"]), "limit": habits.HABITS_LIMIT,
+    return web.json_response({"habits": _mark_duel_habits(request["user_id"], habits.habits_view(request["user_id"])),
+                              "limit": habits.HABITS_LIMIT,
                               "colors": list(habits.COLORS), "pause": habits.current_pause(request["user_id"])})
 
 
@@ -500,6 +562,8 @@ async def habit_log(request):
     days_after = billing.habit_days(uid)
     result["trial_offer"] = (days_before < billing.TRIAL_AFTER_HABIT_DAYS <= days_after
                              and billing.trial_available(storage.get_user(uid)))
+    if result.get("just_done"):
+        _notify(duels.on_habit_done(uid, _int(data.get("id"))))
     return web.json_response(result)
 
 
@@ -762,6 +826,9 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_post("/api/challenges/quit", challenge_quit)
     app.router.add_get("/api/packs", get_packs)
     app.router.add_post("/api/chest/open", chest_open)
+    app.router.add_get("/api/duels", get_duels)
+    app.router.add_post("/api/duels", duel_create)
+    app.router.add_post("/api/duels/{id}/{action}", duel_action)
     app.router.add_get("/api/friends", get_friends)
     app.router.add_post("/api/friends/remove", friend_remove)
     app.router.add_get("/api/ai/options", ai_options)

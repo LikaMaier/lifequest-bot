@@ -101,11 +101,11 @@ async function applyLog(hb, opts, onUpdate) {
 export function habitCard(hb, { compact = false, onChanged } = {}) {
   const off = hb.kind === 'build' && !hb.due_today && !hb.done_today;
   const card = h('div', { class: `hb2-card ${hb.kind === 'quit' ? 'quit' : ''} ${hb.done_today ? 'done' : ''} ${off ? 'off' : ''} ${compact ? 'compact' : ''}` });
-  const redraw = next => { const fresh = habitCard(next, { compact, onChanged }); card.replaceWith(fresh); onChanged && onChanged(next); };
+  const redraw = next => { next = { ...next, duel: next.duel ?? hb.duel }; const fresh = habitCard(next, { compact, onChanged }); card.replaceWith(fresh); onChanged && onChanged(next); };
 
   const info = h('button', { type: 'button', class: 'hb2-info', 'aria-label': `${hb.title}. Открыть карточку привычки` },
     h('span', { class: `hb2-icon c-${hb.color}`, 'aria-hidden': 'true' }, hb.emoji),
-    h('span', { class: 'grow' }, h('span', { class: 'hb2-title' }, hb.title),
+    h('span', { class: 'grow' }, h('span', { class: 'hb2-title' }, hb.title, hb.duel ? h('span', { class: 'hb2-duel' }, `${hb.duel.mode === 'team' ? '🤝' : '⚔️'} ${hb.duel.with}`) : null),
       h('span', { class: 'hb2-meta' }, h('b', null, streakText(hb)), compact || hb.kind === 'quit' ? null : h('span', null, scheduleText(hb)),
         hb.kind === 'quit' && hb.best ? h('span', null, `рекорд ${hb.best}`) : null)));
   info.addEventListener('click', () => { haptic.tap(); openHabitDetail(hb, { onChanged: redraw }); });
