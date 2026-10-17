@@ -323,6 +323,17 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, title TEXT NOT NULL, created_at TEXT)""")
     _ensure_column(c, "habit_logs", "skipped", "INTEGER DEFAULT 0")  # пропуск с причиной — не рвёт серию
     _ensure_column(c, "habit_logs", "note", "TEXT")
+    # Вызовы привычек с друзьями: дуэль (кто больше дней) или «вместе» (общая серия)
+    c.execute("""CREATE TABLE IF NOT EXISTS habit_duels (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, creator_id INTEGER NOT NULL, opponent_id INTEGER,
+        mode TEXT DEFAULT 'duel', title TEXT NOT NULL, emoji TEXT, target INTEGER DEFAULT 1, days INTEGER DEFAULT 7,
+        creator_habit INTEGER, opponent_habit INTEGER, status TEXT DEFAULT 'pending',
+        start_date TEXT, end_date TEXT, winner_id INTEGER, created_at TEXT, finished_at TEXT)""")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_duels_creator ON habit_duels(creator_id, status)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_duels_opponent ON habit_duels(opponent_id, status)")
+    c.execute("""CREATE TABLE IF NOT EXISTS duel_pings (
+        duel_id INTEGER NOT NULL, user_id INTEGER NOT NULL, date TEXT NOT NULL, kind TEXT NOT NULL,
+        PRIMARY KEY (duel_id, user_id, date, kind))""")
     c.execute("""CREATE TABLE IF NOT EXISTS habit_pauses (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, start TEXT NOT NULL, end TEXT NOT NULL)""")
     c.execute("""CREATE TABLE IF NOT EXISTS user_spheres (
@@ -808,7 +819,8 @@ def delete_user_data(user_id: int):
         conn.execute(f"DELETE FROM plan_exceptions WHERE plan_id IN ({q})", plan_ids)
         conn.execute(f"DELETE FROM plan_reminders WHERE plan_id IN ({q})", plan_ids)
     conn.execute("DELETE FROM friends WHERE friend_id = ?", (user_id,))
-    for table in ("inbox", "habit_pauses", "user_spheres", "friends", "ai_quests", "user_challenges", "notes", "purchases", "plans", "photos", "habit_logs", "habits", "quest_history", "quest_offers", "favorites",
+    conn.execute("DELETE FROM habit_duels WHERE creator_id = ? OR opponent_id = ?", (user_id, user_id))
+    for table in ("duel_pings", "inbox", "habit_pauses", "user_spheres", "friends", "ai_quests", "user_challenges", "notes", "purchases", "plans", "photos", "habit_logs", "habits", "quest_history", "quest_offers", "favorites",
                   "achievements_unlocked", "board_awards", "xp_log", "weekly_boards", "active_quests",
                   "completed_tasks", "survey_answers", "users"):
         conn.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))

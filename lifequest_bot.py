@@ -30,6 +30,7 @@ import billing
 import card
 import challenges
 import compliments
+import duels
 import friends
 import game
 import habits
@@ -145,10 +146,43 @@ async def clear_old_keyboard(user_id: int):
                         reply_markup=ReplyKeyboardRemove())
 
 
+async def send_duel_messages(messages):
+    """Сообщения вызовов: (user_id, text[, [(кнопка, callback), …]]) + кнопка приложения."""
+    for m in messages or []:
+        rows = [[InlineKeyboardButton(text=t, callback_data=c) for t, c in m[2]]] if len(m) > 2 and m[2] else []
+        rows += app_row("friends")
+        try:
+            await ops.safe_send(m[0], m[1], parse_mode="HTML",
+                                reply_markup=InlineKeyboardMarkup(inline_keyboard=rows) if rows else None)
+        except Exception as e:
+            await ops.alert("duel message", e, f"user {m[0]}")
+
+
+async def handle_duel_link(message: Message, duel_id: int, inviter_id: int, is_new: bool):
+    """Пришли по ссылке на вызов: дружим и сразу принимаем вызов."""
+    user_id = message.from_user.id
+    res = friends.handle_join(user_id, inviter_id, is_new)
+    gift = "\n\n🧊 В подарок — по заморозке серии вам обоим." if res.get("gift") else ""
+    try:
+        result = duels.accept(user_id, duel_id)
+    except game.QuestError as e:
+        await message.answer(f"{html.escape(str(e))}{gift}", parse_mode="HTML", reply_markup=build_start_menu_keyboard())
+        return
+    d = result["duel"]
+    await message.answer(
+        f"⚔️ <b>Вызов принят!</b>\n\n{html.escape(d['emoji'] or '')} <b>{html.escape(d['title'])}</b> — "
+        f"{duels.mode_text(d['mode'], d['days'])}.\nПривычка уже в твоём списке — отмечай её каждый день.{gift}",
+        parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=app_row("friends")) if MINIAPP_URL else None)
+    await send_duel_messages(result["messages"])
+
+
 async def handle_invite(message: Message, invite, is_new: bool):
     """Пришли по ссылке друга: дружим, дарим заморозки новичку и пригласившему,
     а если звали на конкретный квест — сразу кладём его в «Мои квесты»."""
     kind, quest_id, inviter_id = invite
+    if kind == "d":
+        await handle_duel_link(message, quest_id, inviter_id, is_new)
+        return
     user_id = message.from_user.id
     res = friends.handle_join(user_id, inviter_id, is_new)
     inviter = storage.get_user(inviter_id)
@@ -801,10 +835,43 @@ async def morning_habit_button(callback: CallbackQuery):
         return
     xp = f" · +{res['xp']} XP" if res.get("xp") else ""
     await callback.answer(f"{hb['emoji']} {hb['title']} — сделано!{xp}")
+    if res.get("just_done"):
+        await send_duel_messages(duels.on_habit_done(uid, hb["id"]))
     try:
         await callback.message.edit_reply_markup(reply_markup=_drop_button(callback.message.reply_markup, callback.data))
     except Exception:
         pass
+
+
+@dp.callback_query(F.data.regexp(r"^du:[ad]:\d+$"))
+async def duel_button(callback: CallbackQuery):
+    """Кнопки «Принимаю» / «Не сейчас» под приглашением на вызов."""
+    uid = callback.from_user.id
+    _, action, duel_id = callback.data.split(":")
+    try:
+        result = duels.accept(uid, int(duel_id)) if action == "a" else duels.decline(uid, int(duel_id))
+    except game.QuestError as e:
+        await callback.answer(str(e), show_alert=True)
+        return
+    try:
+        await callback.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(inline_keyboard=app_row("friends"))
+                                                 if MINIAPP_URL else None)
+    except Exception:
+        pass
+    if action == "a":
+        await callback.answer("Вызов принят! Привычка уже в твоём списке 💪", show_alert=True)
+    else:
+        await callback.answer("Хорошо, в другой раз")
+    await send_duel_messages(result.get("messages"))
+
+
+async def send_duel_updates():
+    """Каждый час: итоги закончившихся вызовов и вечерние напоминания."""
+    try:
+        await send_duel_messages(duels.finalize_due())
+        await send_duel_messages(duels.evening_alerts())
+    except Exception as e:
+        await ops.alert("duels", e)
 
 
 @dp.callback_query(F.data == "xp_freeze")
@@ -1012,6 +1079,7 @@ async def main():
 
     scheduler.add_job(send_daily_reminders, "cron", minute=0)
     scheduler.add_job(send_owner_compliment, "cron", minute=0, second=30)
+    scheduler.add_job(send_duel_updates, "cron", minute=3)
     scheduler.add_job(send_evening_reminders, "cron", minute=0)
     scheduler.add_job(send_monthly_recap, "cron", day=1, hour=10, minute=0)
     scheduler.add_job(send_plan_reminders, "interval", minutes=1)

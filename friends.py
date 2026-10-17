@@ -14,10 +14,17 @@ FRIENDS_LIMIT = 200
 
 
 def parse_start(payload: str):
-    """'ref_123' → ('ref', None, 123); 'q_no_list_123' → ('q', 'no_list', 123); иначе None."""
+    """'ref_123' → ('ref', None, 123); 'q_no_list_123' → ('q', 'no_list', 123);
+    'd_5' → ('d', 5, <автор вызова>); иначе None."""
     payload = (payload or "").strip()
     if payload.startswith("ref_") and payload[4:].isdigit():
         return "ref", None, int(payload[4:])
+    if payload.startswith("d_") and payload[2:].isdigit():
+        import duels
+        try:
+            return "d", int(payload[2:]), duels.public_invite(int(payload[2:]))["creator_id"]
+        except game.QuestError:
+            return None
     if payload.startswith("q_"):
         quest, _, uid = payload[2:].rpartition("_")
         if uid.isdigit() and quest in CATALOG:
