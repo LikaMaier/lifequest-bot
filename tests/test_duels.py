@@ -167,3 +167,20 @@ class DuelsTest(TempDBTestCase):
         self.assertEqual(duels.list_view(1)["finished"], [])
         with self.assertRaises(game.QuestError):
             duels.remove(3, d2["id"])
+
+    def test_accept_notifies_creator_and_invite_reminder(self):
+        d = self._duel()["duel"]
+        self.assertEqual(duels.invite_reminders(), [])  # ещё не прошли сутки
+        old = "2000-01-01 00:00:00"
+        conn = storage.connect()
+        conn.execute("UPDATE habit_duels SET created_at = ? WHERE id = ?", (old, d["id"]))
+        conn.commit()
+        conn.close()
+        msgs = duels.invite_reminders()
+        self.assertEqual([m[0] for m in msgs], [2])
+        self.assertIn("ждёт ответа", msgs[0][1])
+        self.assertEqual(duels.invite_reminders(), [])  # один раз
+        res = duels.accept(2, d["id"])
+        self.assertEqual(res["messages"][0][0], 1)
+        self.assertIn("принимает вызов", res["messages"][0][1])
+        self.assertEqual(duels.invite_reminders(), [])

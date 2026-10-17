@@ -256,6 +256,44 @@ export function duelSpotlight(d, { go, state } = {}) {
   return card;
 }
 
+/** Твой отправленный вызов на Главной: виден сразу после создания, пока друг не ответит. */
+export function duelPendingCard(d, { go, state } = {}) {
+  const info = MODE_INFO[d.mode] || MODE_INFO.duel;
+  const me = state && state.user;
+  const rival = d.rival;
+  const card = h('section', { class: `dsp pending ${d.mode}`, role: 'button', tabindex: '0',
+    'aria-label': `${info.title}: ${d.title}, ждёт ответа` });
+  const ask = h('div', { class: 'dsp-side' },
+    h('div', { class: 'dsp-pet' }, rival ? mascot(rival.mascot || 'cat-purple', 'surprised', { size: 64, acc: rival.accessory })
+      : h('span', { class: 'dsp-q', 'aria-hidden': 'true' }, '?')),
+    h('div', { class: 'dsp-name' }, rival ? rival.name : 'Кто-то из друзей'),
+    h('div', { class: 'dsp-today' }, '⏳ думает…'));
+  card.append(
+    h('div', { class: 'dsp-top' },
+      h('span', { class: 'dsp-kicker' }, `${info.emoji} ${info.title.toUpperCase()} · ${d.days} ${dayWord(d.days).toUpperCase()}`),
+      h('span', { class: 'dsp-top-right' }, h('span', { class: 'dsp-badge wait' }, 'Ждёт ответа'), removeButton(d))),
+    h('div', { class: 'dsp-title' }, `${d.emoji || '✨'} ${d.title}`),
+    h('div', { class: 'dsp-vs' },
+      h('div', { class: 'dsp-side' },
+        h('div', { class: 'dsp-pet' }, mascot((me && me.mascot) || 'cat-purple', 'happy', { size: 64, acc: me && me.accessory })),
+        h('div', { class: 'dsp-name' }, 'Ты'), h('div', { class: 'dsp-today ok' }, '✓ готов(а)')),
+      h('div', { class: 'dsp-mid', 'aria-hidden': 'true' }, 'VS'),
+      ask));
+  const actions = h('div', { class: 'dsp-actions' });
+  if (rival) {
+    actions.append(h('span', { class: 'dsp-line' }, `Вызов отправлен: ${rival.name}. Пришлём сообщение, как только ответит 📩`));
+  } else {
+    const share = h('button', { type: 'button', class: 'dsp-btn' }, '📨 Отправить ссылку другу');
+    share.addEventListener('click', e => { e.stopPropagation(); shareDuel(state, d); });
+    actions.append(share);
+  }
+  card.append(actions);
+  const open = () => { haptic.tap(); go && go('friends'); };
+  card.addEventListener('click', open);
+  card.addEventListener('keydown', e => { if (e.key === 'Enter') open(); });
+  return card;
+}
+
 /** Компактная строка вызова для главной. */
 export function duelRow(d, { go } = {}) {
   const info = MODE_INFO[d.mode] || MODE_INFO.duel;
@@ -319,7 +357,8 @@ export async function openDuelCreator(ctx, { friend = null, friends = null, onDo
       const res = await api.createDuel({ habit_id: form.habit, mode: form.mode, days: form.days, friend_id: form.friend });
       haptic.success();
       s.close();
-      if (form.friend) toast('Вызов отправлен — друг получит его в боте ⚔️', 'good', 2600);
+      refreshState().catch(() => {}); // вызов сразу появится на Главной со статусом «ждёт ответа»
+      if (form.friend) toast('Вызов отправлен! Он уже на Главной — пришлём сообщение, когда друг ответит ⚔️', 'good', 3200);
       else shareDuel(state, res.duel);
       onDone && onDone();
     } catch (e) { toastError(e); }

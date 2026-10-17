@@ -11,7 +11,7 @@ import { habitRing, openTemplatePicker } from '../habitui.js';
 import { planRow } from '../planui.js';
 import { openPlus, plusFab } from '../plus.js';
 import { chestRow } from '../chest.js';
-import { duelRow, duelSpotlight } from '../duelui.js';
+import { duelRow, duelSpotlight, duelPendingCard } from '../duelui.js';
 import { contestRow } from '../contestui.js';
 
 const DATE_FMT = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -68,6 +68,8 @@ export function render(el, ctx) {
     el.append(duelSpotlight(sorted[0], { go, state }));
     for (const d of sorted.slice(1, 3)) el.append(duelRow(d, { go }));
   }
+  // Свои отправленные вызовы — сразу после создания, пока друг не ответил
+  if (du && du.outgoing.length) for (const d of du.outgoing.slice(0, 2)) el.append(duelPendingCard(d, { go, state }));
 
   // Привычки сегодня — кольцами
   const habitsCard = h('section', { class: 'home2-card' });

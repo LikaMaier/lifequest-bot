@@ -1705,3 +1705,11 @@ p { margin: 0; }
 .duel-x:active { transform: scale(.92); }
 .dsp-top-right { display: inline-flex; align-items: center; gap: 6px; position: relative; z-index: 2; }
 .dsp .duel-x { width: 32px; height: 32px; background: rgba(255,255,255,.6); }
+
+/* Отправленный вызов на Главной — ждёт ответа друга */
+.dsp.pending { background: radial-gradient(circle at 15% 0%, #FFF6C2 0, transparent 45%), linear-gradient(135deg, #FFE27A 0%, #FFC2DA 100%); border-style: dashed; box-shadow: 0 5px 0 var(--ink); }
+.dsp-badge.wait { background: rgba(255,255,255,.85); color: var(--ink); animation: dsp-blink 1.6s ease-in-out infinite; }
+@keyframes dsp-blink { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .dsp-badge.wait { animation: none; } }
+.dsp-q { display: flex; align-items: center; justify-content: center; width: 60px; height: 56px; margin: 2px auto 0; border-radius: 50%; border: 2.5px dashed var(--ink); font-family: var(--font-display); font-weight: 900; font-size: 30px; }
+.dsp.pending .dsp-line { font-size: 14px; }
