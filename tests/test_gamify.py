@@ -13,6 +13,7 @@ class ChestTest(TempDBTestCase):
     def setUp(self):
         super().setUp()
         storage.ensure_user(1)
+        storage.update_user(1, chest_opens=7)  # первая неделя с вещами — в test_chest_week
         self.ids = [habits.create_habit(1, {"title": f"H{i}", "target": 1})["habit"]["id"] for i in range(4)]
 
     def test_needs_three_habits(self):

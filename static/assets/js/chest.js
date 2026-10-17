@@ -4,7 +4,8 @@
 import { h, plural } from './dom.js';
 import { api } from './api.js';
 import { haptic } from './tg.js';
-import { refreshState } from './store.js';
+import { store, refreshState } from './store.js';
+import { mascot } from './mascot.js';
 import { modal, toastError, confetti, busy } from './ui.js';
 import { showLevelUp } from './celebrate.js';
 
@@ -42,6 +43,8 @@ export function chestIcon(open = false, cls = '') {
 
 export function rewardText(r) {
   if (!r) return '';
+  if (r.kind === 'accessory') return `«${r.name}» для маскота 🎩`;
+  if (r.kind === 'theme') return `стиль «${r.name}» 🌌`;
   return r.kind === 'freeze' ? 'заморозка серии 🧊' : `+${r.amount} XP${r.jackpot ? ' — джекпот!' : ''}`;
 }
 
@@ -83,9 +86,17 @@ export function openChest() {
       opened = true;
       box.classList.remove('shake');
       box.classList.add('pop');
-      box.replaceChildren(h('span', { class: 'chest-prize' }, res.reward.kind === 'freeze' ? '🧊' : res.reward.jackpot ? '💎' : '⭐'), chestIcon(true));
-      title.textContent = res.reward.jackpot ? 'Джекпот!' : 'Награда!';
-      text.textContent = res.reward.kind === 'freeze' ? 'Заморозка серии — спасёт пропущенный день' : `+${res.reward.amount} XP`;
+      const r = res.reward;
+      const u = store.state && store.state.user;
+      const prize = r.kind === 'accessory' && u
+        ? h('span', { class: 'chest-prize pet' }, mascot(u.mascot, 'love', { size: 72, acc: r.id }))
+        : h('span', { class: 'chest-prize' }, r.kind === 'freeze' ? '🧊' : r.kind === 'theme' ? '🌌' : r.jackpot ? '💎' : '⭐');
+      box.replaceChildren(prize, chestIcon(true));
+      title.textContent = r.jackpot ? 'Джекпот!' : r.kind === 'accessory' ? 'Обновка для маскота!' : r.kind === 'theme' ? 'Новый стиль!' : 'Награда!';
+      text.textContent = r.kind === 'freeze' ? 'Заморозка серии — спасёт пропущенный день'
+        : r.kind === 'accessory' ? `«${r.name}» — твоя. Надень в Магазине 🛍️`
+        : r.kind === 'theme' ? `Стиль «${r.name}» открыт навсегда — включи в Профиле`
+        : `+${r.amount} XP`;
       btn.textContent = 'Забрать';
       haptic.success();
       confetti(res.reward.jackpot ? 160 : 80);
