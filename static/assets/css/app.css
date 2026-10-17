@@ -1766,3 +1766,11 @@ p { margin: 0; }
 .duel-card.active .duel-x { background: rgba(255,255,255,.7); }
 .duel-card.pending { background: linear-gradient(135deg, #FFF3B0 0%, #FFD6E6 100%); }
 .duel-card.done { background: linear-gradient(135deg, #E9F7C8 0%, #FFF1C2 100%); }
+
+/* Соревнование на Главной — один в один как дуэль */
+.dsp.contest { background: radial-gradient(circle at 15% 0%, #FFE27A 0, transparent 45%), linear-gradient(135deg, #FFB547 0%, #FF7A59 55%, #FF5C93 100%); }
+.dsp.contest .dsp-actions { border-top: 0; padding-top: 0; margin-top: 10px; }
+.dsp-vs3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
+.dsp-vs3 .dsp-side { position: relative; }
+.dsp-medal { position: absolute; top: 4px; left: 6px; font-size: 18px; }
+.dsp.contest.lobby { background: radial-gradient(circle at 15% 0%, #FFF6C2 0, transparent 45%), linear-gradient(135deg, #FFE27A 0%, #FFC2DA 100%); }
