@@ -162,8 +162,9 @@ def accept(user_id: int, duel_id: int) -> dict:
     if not cur.rowcount:
         raise game.QuestError("Этот вызов уже не ждёт ответа")
     me = html.escape(_name(user_id))
-    note = (f"🔥 {me} принимает вызов «{html.escape(d['title'])}»! "
-            + ("Держите общую серию вместе." if d["mode"] == "team" else "Поехали — кто кого?"))
+    note = (f"✅ <b>{me} принимает вызов!</b>\n\n{html.escape(d['emoji'] or '✨')} «{html.escape(d['title'])}» — "
+            f"{mode_text(d['mode'], d['days'])}. Старт сегодня, карточка уже на Главной. "
+            + ("Держите общую серию вместе 🔥" if d["mode"] == "team" else "Поехали — кто кого? ⚔️"))
     return {"duel": view(_row(duel_id), user_id), "messages": [(d["creator_id"], note)]}
 
 
@@ -424,6 +425,28 @@ def habit_badges(user_id: int) -> dict:
         out[str(hid)] = {"duel_id": r["id"], "mode": r["mode"],
                          "with": _name(r["opponent_id"] if mine else r["creator_id"])}
     return out
+
+
+INVITE_REMIND_HOURS = 24
+
+
+def invite_reminders() -> list:
+    """Вызов другу висит без ответа сутки — напоминаем ему один раз."""
+    from datetime import datetime
+    border = (datetime.utcnow() - timedelta(hours=INVITE_REMIND_HOURS)).strftime("%Y-%m-%d %H:%M:%S")
+    conn = storage.connect(rows=True)
+    rows = [dict(r) for r in conn.execute("""SELECT * FROM habit_duels WHERE status = 'pending'
+                                             AND opponent_id IS NOT NULL AND created_at <= ?""", (border,)).fetchall()]
+    conn.close()
+    messages = []
+    for d in rows:
+        if not storage.get_user(d["opponent_id"]) or not _ping(d["id"], d["opponent_id"], "-", "invite"):
+            continue
+        who = html.escape(_name(d["creator_id"]))
+        messages.append((d["opponent_id"], f"⏳ {who} ждёт ответа на вызов «{html.escape(d['emoji'] or '✨')} "
+                                           f"{html.escape(d['title'])}». Принять или отказаться — в приложении, "
+                                           f"раздел «Друзья»."))
+    return messages
 
 
 EVENING_HOUR = 21

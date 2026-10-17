@@ -891,6 +891,7 @@ async def send_duel_updates():
     try:
         await send_duel_messages(duels.finalize_due())
         await send_duel_messages(duels.evening_alerts())
+        await send_duel_messages(duels.invite_reminders())
     except Exception as e:
         await ops.alert("duels", e)
 
