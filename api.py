@@ -375,7 +375,8 @@ async def duel_create(request):
 async def duel_action(request):
     _limit(request, "write")
     action = request.match_info["action"]
-    fn = {"accept": duels.accept, "decline": duels.decline, "nudge": duels.nudge, "giveup": duels.give_up}.get(action)
+    fn = {"accept": duels.accept, "decline": duels.decline, "nudge": duels.nudge, "giveup": duels.give_up,
+          "remove": duels.remove}.get(action)
     if not fn:
         raise web.HTTPNotFound()
     result = _with_notify(fn(request["user_id"], _int(request.match_info["id"])))

@@ -198,6 +198,22 @@ def give_up(user_id: int, duel_id: int) -> dict:
     return {"ok": True, "messages": [(rival, text)]}
 
 
+def remove(user_id: int, duel_id: int) -> dict:
+    """Крестик на карточке: убрать дуэль из своего списка.
+    Ожидающая — отменяется (или отклоняется), идущая — засчитывается как
+    «сдался» (победа сопернику), законченная — просто скрывается."""
+    d = _row(duel_id)
+    if user_id not in (d["creator_id"], d["opponent_id"]):
+        raise game.QuestError("Вызов не найден")
+    messages = []
+    if d["status"] == "pending":
+        messages = decline(user_id, duel_id)["messages"]
+    elif d["status"] == "active":
+        messages = give_up(user_id, duel_id)["messages"]
+    _update(duel_id, **{"hidden_creator" if user_id == d["creator_id"] else "hidden_opponent": 1})
+    return {"ok": True, "messages": messages}
+
+
 # ---------- прогресс ----------
 def _done_dates(user_id: int, habit_id: int, start: str, end: str) -> set:
     if not habit_id:
@@ -269,7 +285,8 @@ def _prize(hat: str):
 
 def list_view(user_id: int) -> dict:
     conn = storage.connect(rows=True)
-    rows = conn.execute("""SELECT * FROM habit_duels WHERE (creator_id = ? OR opponent_id = ?)
+    rows = conn.execute("""SELECT * FROM habit_duels WHERE
+                           ((creator_id = ? AND COALESCE(hidden_creator, 0) = 0) OR (opponent_id = ? AND COALESCE(hidden_opponent, 0) = 0))
                            AND (status IN ('pending', 'active') OR (status = 'done' AND finished_at >= ?))
                            ORDER BY id DESC""",
                         (user_id, user_id, (date.today() - timedelta(days=7)).isoformat())).fetchall()

@@ -5,7 +5,7 @@ import { h, plural } from './dom.js';
 import { api } from './api.js';
 import { haptic, openTgLink } from './tg.js';
 import { mascot } from './mascot.js';
-import { sheet, toast, toastError, busy, confetti } from './ui.js';
+import { sheet, toast, toastError, busy, confetti, modal } from './ui.js';
 import { refreshState } from './store.js';
 
 export const MODE_INFO = {
@@ -41,6 +41,39 @@ function sideRow(side, { me, days, team, lead }) {
       h('div', { class: 'duel-name' }, me ? 'Ты' : side.name, side.today_done ? h('span', { class: 'duel-ok' }, ' ✓ сегодня') : null),
       cells(side, days, team)),
     h('div', { class: 'duel-score' }, h('b', null, String(side.score)), h('span', null, lead ? '👑' : `из ${days}`)));
+}
+
+/** Крестик: убрать дуэль. Ожидающая — отмена, идущая — «сдаюсь», законченная — скрыть. */
+export function removeButton(d, { onDone } = {}) {
+  const x = h('button', { type: 'button', class: 'duel-x', 'aria-label': `Удалить вызов «${d.title}»` }, '✕');
+  x.addEventListener('click', e => {
+    e.stopPropagation();
+    haptic.warning();
+    const rival = d.rival ? d.rival.name : 'Друг';
+    const [title, text, ok] = d.status === 'active'
+      ? ['Удалить дуэль?', d.mode === 'team'
+        ? `Совместный вызов с ${rival} закончится, а ${rival} получит сообщение.`
+        : `Это засчитается как «сдаюсь» — победа и шапочка достанутся ${rival}.`, 'Да, удалить']
+      : d.status === 'pending'
+        ? [d.mine ? 'Отменить вызов?' : 'Отклонить вызов?', d.mine ? 'Приглашение пропадёт.' : `${rival} узнает, что ты пока не готов(а).`, d.mine ? 'Да, отменить' : 'Да, отклонить']
+        : ['Убрать из списка?', 'Итог этого вызова пропадёт из твоего списка.', 'Да, убрать'];
+    const yes = h('button', { type: 'button', class: 'btn block' }, ok);
+    const no = h('button', { type: 'button', class: 'btn block ghost', style: { marginTop: '8px' } }, 'Оставить');
+    const m = modal(h('div', null, h('h2', null, title),
+      h('p', { class: 'bold muted', style: { margin: '6px 0 14px' } }, text), yes, no), { label: title });
+    no.addEventListener('click', () => m.close());
+    yes.addEventListener('click', busy(yes, async () => {
+      try {
+        const res = await api.duelAction(d.id, 'remove');
+        haptic.success();
+        m.close();
+        toast('Вызов удалён', 'good');
+        refreshState().catch(() => {});
+        onDone && onDone(res.duels);
+      } catch (err) { toastError(err); }
+    }));
+  });
+  return x;
 }
 
 /** Выигранная шапочка: маскот уже в ней и кнопка «Надеть». */
@@ -83,7 +116,8 @@ export function duelCard(d, { state, onChange } = {}) {
   card.append(h('div', { class: 'duel-head' },
     h('span', { class: 'duel-emoji', 'aria-hidden': 'true' }, d.emoji || '✨'),
     h('div', { class: 'grow' }, h('div', { class: 'duel-kicker' }, kicker),
-      h('div', { class: 'duel-title' }, d.title, d.target > 1 ? h('span', { class: 'duel-target' }, ` · ${d.target} раз в день`) : null))));
+      h('div', { class: 'duel-title' }, d.title, d.target > 1 ? h('span', { class: 'duel-target' }, ` · ${d.target} раз в день`) : null)),
+    removeButton(d, { onDone: onChange })));
 
   if (d.status === 'pending') {
     if (d.mine) {
@@ -177,7 +211,7 @@ export function duelSpotlight(d, { go, state } = {}) {
   card.append(
     h('div', { class: 'dsp-top' },
       h('span', { class: 'dsp-kicker' }, `${info.emoji} ${info.title.toUpperCase()} · ДЕНЬ ${d.day || 1} ИЗ ${d.days}`),
-      myTurn ? h('span', { class: 'dsp-badge' }, 'Твой ход!') : null),
+      h('span', { class: 'dsp-top-right' }, myTurn ? h('span', { class: 'dsp-badge' }, 'Твой ход!') : null, removeButton(d))),
     h('div', { class: 'dsp-title' }, `${d.emoji || '✨'} ${d.title}`),
     h('div', { class: 'dsp-vs' },
       side(d.me, 'Ты', !team && d.lead === 'me' && d.me.score > 0),
