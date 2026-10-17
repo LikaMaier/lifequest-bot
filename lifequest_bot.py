@@ -296,8 +296,13 @@ def resolve_miniapp_url() -> str:
 
 MINIAPP_URL = resolve_miniapp_url()
 
+def miniapp_url(section: str = "") -> str:
+    """Адрес приложения с версией: iPhone не подставит старую страницу из кэша."""
+    sep = "&" if "?" in MINIAPP_URL else "?"
+    return f"{MINIAPP_URL}{sep}v={api.asset_version()}" + (f"#{section}" if section else "")
+
 def build_miniapp_button(text: str = "✨ Открыть LifeQuest", section: str = "") -> InlineKeyboardButton:
-    url = MINIAPP_URL + (f"#{section}" if section else "")
+    url = miniapp_url(section)
     return InlineKeyboardButton(text=text, web_app=WebAppInfo(url=url))
 
 def app_row(section: str = "") -> list:
@@ -1093,7 +1098,7 @@ async def main():
     if MINIAPP_URL:
         try:
             await bot.set_chat_menu_button(menu_button=MenuButtonWebApp(
-                text="Открыть LifeQuest", web_app=WebAppInfo(url=MINIAPP_URL)))
+                text="Открыть LifeQuest", web_app=WebAppInfo(url=miniapp_url())))
         except Exception as e:
             print(f"Failed to set menu button: {e}")
     else:
