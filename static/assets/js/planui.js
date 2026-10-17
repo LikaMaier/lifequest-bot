@@ -200,6 +200,7 @@ export function openPlanEditor({ date, plan = null, onChange, boardCell = null, 
   const form = {
     title: src.title || '', note: src.note || '', date: plan ? plan.date : (date || todayIso()), time: src.time || '',
     color: src.color || 'yellow', repeat_rule: src.repeat_rule || 'none', remind: src.remind || 'none',
+    end: src.end_time || '',
   };
   const s = sheet(h('div'), { label: isNew ? 'Новый план' : 'Изменить план' });
   const draw = () => {
@@ -208,7 +209,9 @@ export function openPlanEditor({ date, plan = null, onChange, boardCell = null, 
     note.value = form.note;
     const dateIn = h('input', { class: 'input', type: 'date', value: form.date, 'aria-label': 'Дата' });
     const timeIn = h('input', { class: 'input', type: 'time', value: form.time, 'aria-label': 'Время (необязательно)' });
-    const sync = () => { form.title = title.value; form.note = note.value; form.date = dateIn.value; form.time = timeIn.value; };
+    const endIn = h('input', { class: 'input', type: 'time', value: form.end, disabled: !form.time, 'aria-label': 'До скольки (необязательно)' });
+    const sync = () => { form.title = title.value; form.note = note.value; form.date = dateIn.value; form.time = timeIn.value; form.end = form.time ? endIn.value : ''; };
+    endIn.addEventListener('change', () => { sync(); draw(); });
     const seg = (options, key, label, disabled = false) => h('div', { class: 'segmented wrap', role: 'group', 'aria-label': label },
       Object.entries(options).map(([k, text]) => {
         const b = h('button', { type: 'button', 'aria-pressed': String(form[key] === k), disabled }, text);
@@ -226,7 +229,11 @@ export function openPlanEditor({ date, plan = null, onChange, boardCell = null, 
       sync();
       haptic.tap();
       try {
-        const data = { ...form, time: form.time || null };
+        const mins = t => { const [a, b] = t.split(':').map(Number); return a * 60 + b; };
+        const duration = form.time && form.end ? mins(form.end) - mins(form.time) : 0;
+        if (form.time && form.end && duration <= 0) { toast('Окончание должно быть позже начала ⏰'); return; }
+        const { end, ...rest } = form;
+        const data = { ...rest, time: form.time || null, duration: duration || null };
         if (isNew && boardCell !== null && boardCell !== undefined) data.board_cell = boardCell;
         if (isNew) await api.createPlan(data);
         else await api.patchPlan(plan.id, { ...data, occurrence: plan.date });
@@ -240,8 +247,9 @@ export function openPlanEditor({ date, plan = null, onChange, boardCell = null, 
       h('h2', null, isNew ? 'Свой план' : 'Изменить план'),
       h('div', { class: 'field' }, h('span', { class: 'label' }, 'Что планируешь'), title),
       note,
-      h('div', { class: 'row' }, h('div', { class: 'field grow' }, h('span', { class: 'label' }, 'Дата'), dateIn),
-        h('div', { class: 'field grow' }, h('span', { class: 'label' }, 'Время'), timeIn)),
+      h('div', { class: 'field' }, h('span', { class: 'label' }, 'Дата'), dateIn),
+      h('div', { class: 'row' }, h('div', { class: 'field grow' }, h('span', { class: 'label' }, 'Начало'), timeIn),
+        h('div', { class: 'field grow' }, h('span', { class: 'label' }, form.time ? 'До скольки' : 'До (сначала начало)'), endIn)),
       h('div', { class: 'field' }, h('span', { class: 'label' }, 'Повтор'), seg(REPEAT_LABEL, 'repeat_rule', 'Повтор')),
       h('div', { class: 'field' }, h('span', { class: 'label' }, form.time ? 'Напоминание в чат' : 'Напоминание (сначала укажи время)'),
         seg(REMIND_LABEL, 'remind', 'Напоминание', !form.time)),

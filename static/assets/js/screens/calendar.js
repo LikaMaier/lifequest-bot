@@ -174,7 +174,7 @@ async function drawMonth(body, el, ctx) {
       cells.get(view.day)?.classList.remove('on');
       view.day = d.date;
       cell.classList.add('on');
-      drawDay(dayHost, d.date, today, onChange);
+      drawDay(dayHost, d.date, today, onChange, ctx);
     });
     cells.set(d.date, cell);
     grid.append(cell);
@@ -192,11 +192,11 @@ async function drawMonth(body, el, ctx) {
     h('span', null, h('i', { class: 'dot' }), 'планы'), h('span', null, h('i', { class: 'done' }), 'всё сделано'),
     h('span', null, ico('star'), 'квест'));
   clear(gridHost).append(grid, legend);
-  drawDay(dayHost, view.day, today, onChange);
+  drawDay(dayHost, view.day, today, onChange, ctx);
 }
 
-/** План выбранного дня под календарём. */
-async function drawDay(host, date, today, onChange) {
+/** План выбранного дня под календарём — той же лентой по времени, что и в «Неделе». */
+async function drawDay(host, date, today, onChange, ctx) {
   clear(host).append(skeleton(120));
   let plans;
   try {
@@ -206,22 +206,7 @@ async function drawDay(host, date, today, onChange) {
     return;
   }
   if (view.day !== date) return;
-  clear(host);
-  const done = plans.filter(o => o.status === 'done').length;
-  const open = h('button', { type: 'button', class: 'cal2-icon-btn soft', 'aria-label': 'Заметки и фото дня' }, ico('dots'));
-  open.addEventListener('click', () => { haptic.tap(); openDaySheet(date, { onChange }); });
-  host.append(h('div', { class: 'cal2-sec-head' },
-    h('h2', null, date === today ? `Сегодня, ${parseDate(date).getDate()} ${MONTHS_GEN[parseDate(date).getMonth()]}` : longDay(date)),
-    plans.length ? h('span', { class: 'cal2-count' }, `${done} из ${plans.length}`) : null, open));
-  if (plans.length) {
-    host.append(h('div', { class: 'cal2-progress', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': String(plans.length), 'aria-valuenow': String(done) },
-      h('i', { style: { width: `${Math.round((done / plans.length) * 100)}%` } })));
-  }
-  host.append(h('div', { class: 'cal2-plans' }, plans.map(o => planCard(o, today, onChange))));
-  if (!plans.length) host.append(h('p', { class: 'cal2-empty' }, date < today ? 'В этот день планов не было' : 'Пока свободно — самое время что-нибудь придумать'));
-  const free = freeEvening(plans, date, today);
-  if (free) host.append(free(onChange));
-  if (date >= today) host.append(quickInput(date, onChange), inboxBlock(date, onChange));
+  drawTimeline(host, date, plans, today, onChange, ctx ? habitsOn(ctx, date, today) : []);
 }
 
 /** Карточка плана: время, название, повтор/напоминание и круглая галочка. */
@@ -441,7 +426,8 @@ function drawTimeline(host, date, plans, today, onChange, habitItems = []) {
   const done = plans.filter(o => o.status === 'done').length;
   const open = h('button', { type: 'button', class: 'cal2-icon-btn soft', 'aria-label': 'Заметки и фото дня' }, ico('dots'));
   open.addEventListener('click', () => { haptic.tap(); openDaySheet(date, { onChange }); });
-  host.append(h('div', { class: 'cal2-sec-head' }, h('h2', null, longDay(date)),
+  host.append(h('div', { class: 'cal2-sec-head' },
+    h('h2', null, date === today ? `Сегодня, ${parseDate(date).getDate()} ${MONTHS_GEN[parseDate(date).getMonth()]}` : longDay(date)),
     plans.length ? h('span', { class: 'cal2-count lime' }, `${done} из ${plans.length}`) : null, open));
   const untimed = plans.filter(o => !o.time);
   const anyHabits = habitItems.filter(x => !x.time);
@@ -480,6 +466,14 @@ function drawTimeline(host, date, plans, today, onChange, habitItems = []) {
   if (date >= today) host.append(quickInput(date, onChange), inboxBlock(date, onChange));
 }
 const hhmm = min => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+/** «10:00» + 90 мин → «11:30» (не дальше 23:59). */
+export const endOf = (time, dur) => hhmm(Math.min(23 * 60 + 59, toMin(time) + dur));
+/** Длительность от начала до окончания в минутах; null — если окончание не позже начала. */
+export function durationTo(start, end) {
+  if (!start || !end) return null;
+  const d = toMin(end) - toMin(start);
+  return d > 0 ? d : null;
+}
 
 // ---------- Список ----------
 async function drawList(body, el, ctx) {
@@ -542,7 +536,8 @@ export function openQuickAdd(date, { onChange } = {}) {
   title.addEventListener('input', () => { form.title = title.value; });
   const draw = () => {
     title.value = form.title;
-    const when = [['Сегодня', today], ['Завтра', addDays(today, 1)], ['Выходные', sat]];
+    const when = [['Сегодня', today], ['Завтра', addDays(today, 1)], ['Выходные', sat]]
+      .filter(([, d], i, all) => all.findIndex(([, x]) => x === d) === i); // в пятницу и субботу «Выходные» совпадают с завтра/сегодня
     const isCustom = !when.some(([, d]) => d === form.date);
     const timeIn = h('input', { class: 'input', type: 'time', value: form.time, 'aria-label': 'Своё время' });
     timeIn.addEventListener('change', () => { form.time = timeIn.value; if (!form.time) form.remind = 'none'; draw(); });
@@ -575,6 +570,13 @@ export function openQuickAdd(date, { onChange } = {}) {
     subPlus.addEventListener('click', addSub);
     const subsList = h('div', { class: 'cal2-chips' }, form.subtasks.map((x, i) => chip(`✕ ${x}`, false, () => { form.subtasks.splice(i, 1); })));
     const durations = [[0, 'Без длительности'], [15, '15 мин'], [30, '30 мин'], [60, '1 ч'], [120, '2 ч']];
+    const presetDur = durations.some(([m]) => m === form.duration);
+    const endIn = h('input', { class: 'input', type: 'time', value: form.time && form.duration ? endOf(form.time, form.duration) : '', 'aria-label': 'До скольки' });
+    endIn.addEventListener('change', () => {
+      const d = durationTo(form.time, endIn.value);
+      if (d === null) { toast('Окончание должно быть позже начала ⏰'); return; }
+      form.duration = d; form.ownEnd = true; draw();
+    });
     const quest = h('button', { type: 'button', class: 'cal2-link' }, '🎯 Или выбрать задание из банка LifeQuest');
     quest.addEventListener('click', () => { haptic.tap(); s.close(); openQuestPicker(form.date, { onChange }); });
     const repeatBtn = h('button', { type: 'button', class: `cal2-toggle ${form.repeat_rule !== 'none' ? 'on' : ''}` }, ico('repeat'), REPEAT[form.repeat_rule]);
@@ -609,7 +611,9 @@ export function openQuickAdd(date, { onChange } = {}) {
         })),
         form.timeKey === 'own' ? h('div', { style: { marginTop: '8px' } }, timeIn) : null),
       form.time ? h('div', null, h('div', { class: 'cal2-label' }, 'Сколько займёт'),
-        h('div', { class: 'cal2-chips' }, durations.map(([m, t]) => chip(t, form.duration === m, () => { form.duration = m; })))) : null,
+        h('div', { class: 'cal2-chips' }, durations.map(([m, t]) => chip(t, form.duration === m && !form.ownEnd, () => { form.duration = m; form.ownEnd = false; })),
+          chip(form.ownEnd || (!presetDur && form.duration) ? `до ${endOf(form.time, form.duration)}` : 'До…', form.ownEnd || (!presetDur && Boolean(form.duration)), () => { form.ownEnd = true; })),
+        form.ownEnd ? h('div', { class: 'cal2-end' }, h('span', { class: 'bold' }, `с ${form.time} до`), endIn) : null) : null,
       h('div', null, h('div', { class: 'cal2-label' }, 'Подпункты'),
         form.subtasks.length ? subsList : null,
         h('div', { class: 'row', style: { gap: '8px', marginTop: form.subtasks.length ? '8px' : 0 } }, h('div', { class: 'grow' }, subInput), subPlus)),
