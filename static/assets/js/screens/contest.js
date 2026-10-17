@@ -175,8 +175,9 @@ function lobby(el, ctx, c) {
 
   // Запуск / выход
   const foot = h('section', { class: 'ct-block ct-foot' });
-  if (c.mine) {
-    const missing = !c.items.length ? 'Добавь хотя бы один пункт'
+  // Запустить может любой участник в любой момент — хватит и одного пункта
+  if (c.member) {
+    const missing = !c.items.length ? (c.mine ? 'Добавь хотя бы один пункт' : 'Ждём хотя бы один пункт — предложи свой')
       : c.members_count < c.limits.min_members ? 'Нужно хотя бы 2 участника' : '';
     const go = h('button', { type: 'button', class: 'btn block', disabled: Boolean(missing) }, '🚀 Запустить');
     go.addEventListener('click', () => { haptic.tap(); confirmLaunch(el, ctx, c); });
@@ -241,10 +242,12 @@ function confirmLaunch(el, ctx, c) {
 }
 
 function askProposals(el, ctx, c, text) {
-  const review = h('button', { type: 'button', class: 'btn block' }, 'Рассмотреть');
+  const review = h('button', { type: 'button', class: 'btn block' }, c.mine ? 'Рассмотреть' : 'Подождать');
   const skip = h('button', { type: 'button', class: 'btn block ghost', style: { marginTop: '8px' } }, 'Запустить без них');
+  const note = c.mine ? `${text} Если запустить сейчас, они будут отклонены.`
+    : `${c.creator.name} ещё не ответил(а) на предложения. Если запустить сейчас, они не войдут в правила.`;
   const m = modal(h('div', null, h('h2', null, '💡 Есть предложения'),
-    h('p', { class: 'bold muted', style: { margin: '6px 0 14px' } }, `${text} Если запустить сейчас, они будут отклонены.`),
+    h('p', { class: 'bold muted', style: { margin: '6px 0 14px' } }, note),
     review, skip), { label: 'Предложения без ответа' });
   review.addEventListener('click', () => {
     m.close();
