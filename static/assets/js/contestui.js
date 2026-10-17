@@ -7,6 +7,7 @@ import { api } from './api.js';
 import { haptic, openTgLink } from './tg.js';
 import { sheet, toast, toastError, busy } from './ui.js';
 import { ICONS } from './icons.js';
+import { mascot } from './mascot.js';
 
 export const dayWord = n => plural(n, 'день', 'дня', 'дней');
 export const pointsWord = n => plural(n, 'очко', 'очка', 'очков');
@@ -83,6 +84,44 @@ export function contestRow(c, { go }) {
     h('span', { class: 'duel-row-score' }, c.place ? `${c.place}/${c.count}` : '›'));
   b.addEventListener('click', () => openContest(go, c.id));
   return b;
+}
+
+/** Яркая карточка соревнования для Главной: идёт — лидеры и твоё место; лобби — «идёт настройка». */
+export function contestSpotlight(c, { go }) {
+  const medals = ['🥇', '🥈', '🥉'];
+  const card = h('section', { class: `dsp contest ${c.status}`, role: 'button', tabindex: '0',
+    'aria-label': `Соревнование ${c.title}` });
+  const open = () => openContest(go, c.id);
+  card.addEventListener('click', open);
+  card.addEventListener('keydown', e => { if (e.key === 'Enter') open(); });
+  if (c.status === 'lobby') {
+    card.append(
+      h('div', { class: 'dsp-top' }, h('span', { class: 'dsp-kicker' }, `🏆 ${c.days} ${dayWord(c.days).toUpperCase()}`),
+        h('span', { class: 'dsp-badge wait' }, 'Идёт настройка')),
+      h('div', { class: 'dsp-title' }, `${c.emoji || '🏆'} ${c.title}`),
+      h('div', { class: 'cts-pets' }, c.top.map(m => h('div', { class: 'cts-pet' },
+        mascot(m.mascot || 'cat-purple', 'happy', { size: 46, acc: m.accessory }), h('span', null, m.me ? 'Ты' : m.name)))),
+      h('div', { class: 'dsp-actions' }, h('span', { class: 'dsp-line' },
+        c.can_launch ? `${c.items} ${plural(c.items, 'пункт', 'пункта', 'пунктов')} готово — можно жать «Запустить» 🚀`
+          : c.count < 2 ? 'Ждём второго участника — отправь ссылку' : 'Добавьте хотя бы один пункт')));
+    return card;
+  }
+  const left = c.items - c.done_today;
+  card.append(
+    h('div', { class: 'dsp-top' },
+      h('span', { class: 'dsp-kicker' }, c.not_started ? '🏆 СТАРТ ЗАВТРА' : `🏆 ДЕНЬ ${c.day || 1} ИЗ ${c.days}`),
+      c.place && c.score > 0 ? h('span', { class: 'dsp-badge' }, c.place === 1 ? '👑 Ты лидер!' : `Ты на ${c.place}-м месте`) : null),
+    h('div', { class: 'dsp-title' }, `${c.emoji || '🏆'} ${c.title}`),
+    h('div', { class: 'cts-board' }, c.top.slice(0, 3).map(m => h('div', { class: `cts-row ${m.me ? 'me' : ''}` },
+      h('span', { class: 'cts-place' }, m.score > 0 && m.place <= 3 ? medals[m.place - 1] : String(m.place)),
+      h('span', { class: 'cts-mini' }, mascot(m.mascot || 'cat-purple', m.all_today ? 'happy' : 'wink', { size: 34, acc: m.accessory })),
+      h('b', { class: 'grow' }, m.me ? 'Ты' : m.name, m.all_today ? h('span', { class: 'cts-ok' }, ' ✓') : null),
+      h('span', { class: 'cts-score' }, String(m.score))))));
+  const btn = h('button', { type: 'button', class: 'dsp-btn' }, c.not_started ? 'Открыть правила'
+    : left ? `✓ Отметить сегодня · ${c.done_today}/${c.items}` : 'Сегодня всё отмечено ✓ · Таблица');
+  btn.addEventListener('click', e => { e.stopPropagation(); open(); });
+  card.append(h('div', { class: 'dsp-actions' }, btn));
+  return card;
 }
 
 function chips(items, get, set, render, cls = 'duel-chips') {

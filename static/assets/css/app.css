@@ -1713,3 +1713,18 @@ p { margin: 0; }
 @media (prefers-reduced-motion: reduce) { .dsp-badge.wait { animation: none; } }
 .dsp-q { display: flex; align-items: center; justify-content: center; width: 60px; height: 56px; margin: 2px auto 0; border-radius: 50%; border: 2.5px dashed var(--ink); font-family: var(--font-display); font-weight: 900; font-size: 30px; }
 .dsp.pending .dsp-line { font-size: 14px; }
+
+/* ---------- Соревнование на Главной — яркая карточка ---------- */
+.dsp.contest { background: radial-gradient(circle at 85% 0%, #FFF3A8 0, transparent 40%), linear-gradient(135deg, #8EE3C8 0%, #7FB8FF 55%, #B79CFF 100%); }
+.dsp.contest.lobby { background: radial-gradient(circle at 85% 0%, #FFFFFF 0, transparent 40%), linear-gradient(135deg, #E5D9FF 0%, #C9E7FF 100%); border-style: dashed; }
+.cts-board { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.cts-row { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 16px; background: rgba(255,255,255,.5); }
+.cts-row.me { background: rgba(255,255,255,.88); box-shadow: inset 0 0 0 2px var(--ink); }
+.cts-place { width: 24px; text-align: center; font-weight: 900; font-size: 16px; }
+.cts-mini { width: 34px; height: 32px; flex-shrink: 0; }
+.cts-row b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cts-ok { color: #1F5A0A; }
+.cts-score { font-family: var(--font-display); font-weight: 800; font-size: 22px; }
+.cts-pets { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+.cts-pet { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 8px; border-radius: 16px; background: rgba(255,255,255,.55); font-size: 12px; font-weight: 800; }
+.cts-pet .mascot, .cts-pet svg { width: 46px; height: 42px; }
