@@ -98,6 +98,7 @@ export const api = {
   subtaskPlan: (id, index, done) => request('POST', `api/plans/${id}/subtask`, { index, done }),
   focusPlan: (id, date) => request('POST', 'api/plans/focus', { id, date }),
   openChest: () => request('POST', 'api/chest/open'),
+  claimLogin: () => request('POST', 'api/login/claim'),
   duels: () => request('GET', 'api/duels'),
   createDuel: data => request('POST', 'api/duels', data),
   duelAction: (id, action) => request('POST', `api/duels/${id}/${action}`, {}),

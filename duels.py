@@ -29,7 +29,7 @@ HATS = ("cap", "beanie", "beret", "party", "cowboy", "chef", "graduate", "tophat
 def winner_reward(user_id: int, rng=random) -> dict:
     """Шапочка, которой ещё нет у победителя; если собраны все — XP."""
     owned = game.owned_items(user_id)
-    left = [h for h in HATS if h not in owned]
+    left = [h for h in (*HATS, *game.AUTUMN_ACCESSORIES) if h not in owned]
     if not left:
         game.add_xp(user_id, XP_WIN, "duel", _today(user_id).isoformat())
         return {"kind": "xp", "text": f"+{XP_WIN} XP (все шапочки уже собраны 👑)"}
@@ -39,7 +39,7 @@ def winner_reward(user_id: int, rng=random) -> dict:
                  (user_id, hat, storage.utc_now_str()))
     conn.commit()
     conn.close()
-    name = next(a[1] for a in game.ACCESSORIES if a[0] == hat)
+    name = next(a[1] for a in (*game.ACCESSORIES, *game.SEASONAL_ACCESSORIES) if a[0] == hat)
     return {"kind": "hat", "id": hat, "name": name,
             "text": f"🎩 Награда — «{name}» для маскота! Надень её в Магазине."}
 

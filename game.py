@@ -116,12 +116,18 @@ def level_info(xp: int) -> dict:
     }
 
 
-def unlocks(level: int, premium: bool = False) -> dict:
-    """С Premium все маскоты открыты сразу, без ожидания уровня."""
+def unlocks(level: int, premium: bool = False, owned: set = frozenset()) -> dict:
+    """С Premium все маскоты открыты сразу, без ожидания уровня. Premium-стиль,
+    выпавший из сундука (покупка "theme:<id>"), открыт навсегда."""
     return {
         "mascots": [{"id": k, "name": n, "level": lv, "unlocked": premium or level >= lv} for k, n, lv in MASCOTS],
-        "themes": [{"id": k, "name": n, "description": d, "premium": k in PREMIUM_THEMES} for k, n, d in THEMES],
+        "themes": [{"id": k, "name": n, "description": d, "premium": k in PREMIUM_THEMES and f"theme:{k}" not in owned}
+                   for k, n, d in THEMES],
     }
+
+
+def theme_owned(user: dict, theme: str) -> bool:
+    return theme not in PREMIUM_THEMES or is_premium(user) or f"theme:{theme}" in owned_items(user["user_id"])
 
 
 # ==================== СЕРИЯ ====================
@@ -949,7 +955,7 @@ def get_state(user_id: int) -> dict:
             "onboarded": bool(user.get("onboarded")),
         },
         "level": lv,
-        "unlocks": unlocks(lv["level"], is_premium(user)),
+        "unlocks": unlocks(lv["level"], is_premium(user), owned_items(user_id)),
         "streak": user_streak(user, today),
         "today": {"date": today.isoformat(), "hour": now.hour, "done": week.get(today.isoformat(), 0),
                   "goal": user.get("daily_goal") or 1},
@@ -1118,7 +1124,13 @@ ACCESSORIES = [  # id, название, цена
 SEASONAL_ACCESSORIES = [  # id, название, цена, с (месяц, день), по (месяц, день)
     ("pumpkin", "Тыква", 90, (10, 1), (11, 2)),
     ("santa", "Новогодняя шапка", 100, (12, 1), (1, 14)),
+    # осенний набор
+    ("acorn", "Шапочка-жёлудь", 90, (9, 1), (11, 30)),
+    ("leafwreath", "Венок из листьев", 110, (9, 1), (11, 30)),
+    ("scarf", "Вязаный шарф", 100, (9, 1), (11, 30)),
+    ("knithat", "Тёплая шапка с листиком", 100, (9, 1), (11, 30)),
 ]
+AUTUMN_ACCESSORIES = ("acorn", "leafwreath", "scarf", "knithat")
 ACCESSORY_IDS = {a[0] for a in ACCESSORIES} | {a[0] for a in SEASONAL_ACCESSORIES}
 
 
@@ -1149,7 +1161,7 @@ def visible_accessory(user: dict):
 
 def visible_theme(user: dict) -> str:
     theme = user.get("theme")
-    if theme not in THEME_IDS or (theme in PREMIUM_THEMES and not is_premium(user)):
+    if theme not in THEME_IDS or not theme_owned(user, theme):
         return "classic"
     return theme
 
@@ -1266,7 +1278,7 @@ def update_settings(user_id: int, data: dict) -> dict:
     if "theme" in data:
         if data["theme"] not in THEME_IDS:
             raise QuestError("Такого стиля нет")
-        if data["theme"] in PREMIUM_THEMES and not is_premium(user):
+        if not theme_owned(user, data["theme"]):
             raise QuestError("Этот стиль — для Premium 💛", code="premium_theme")
         fields["theme"] = data["theme"]
     if "onboarded" in data:

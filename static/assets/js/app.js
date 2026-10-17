@@ -144,6 +144,8 @@ async function boot() {
   go(SCREENS[start] ? start : 'home', { replace: true });
   // Первое открытие — приветствие с миссией и возможностями.
   if (!store.state.user.onboarded) import('./onboarding.js').then(m => m.showOnboarding());
+  // Бонус за вход — после загрузки, если сегодня ещё не забран
+  else setTimeout(() => import('./loginbonus.js').then(m => m.maybeShowLoginBonus()), 700);
 }
 
 window.addEventListener('popstate', () => {
@@ -152,7 +154,8 @@ window.addEventListener('popstate', () => {
 });
 document.addEventListener('visibilitychange', () => {
   // Вернулись в приложение (например, после выполнения задания из чата) — обновим данные.
-  if (document.visibilityState === 'visible' && store.state) refreshState().catch(() => {});
+  if (document.visibilityState === 'visible' && store.state) refreshState()
+    .then(() => import('./loginbonus.js').then(m => m.maybeShowLoginBonus())).catch(() => {});
 });
 
 boot();

@@ -107,7 +107,7 @@ class DuelsTest(TempDBTestCase):
             msgs = duels.finalize_due()
         self.assertEqual(sorted(m[0] for m in msgs), [1, 2])
         self.assertEqual(storage.get_user(1)["xp"] or 0, xp1)  # победителю — шапочка, не XP
-        self.assertEqual(len(game.owned_items(1) & set(duels.HATS)), 1)
+        self.assertEqual(len(game.owned_items(1) & (set(duels.HATS) | set(game.AUTUMN_ACCESSORIES))), 1)
         self.assertIn("Надень", next(m[1] for m in msgs if m[0] == 1))
         self.assertEqual(storage.get_user(2)["xp"], xp2 + duels.XP_LOSE)
         self.assertEqual(duels.list_view(1)["finished"][0]["winner"], 1)
@@ -134,9 +134,10 @@ class DuelsTest(TempDBTestCase):
         self.assertEqual(duels.habit_badges(1)[str(self.h1)]["with"], "Маша")
 
     def test_hat_reward_then_xp_when_all_owned(self):
-        got = {duels.winner_reward(1)["id"] for _ in range(len(duels.HATS))}
-        self.assertEqual(got, set(duels.HATS))
+        pool = set(duels.HATS) | set(game.AUTUMN_ACCESSORIES)
+        got = {duels.winner_reward(1)["id"] for _ in range(len(pool))}
+        self.assertEqual(got, pool)
         xp = storage.get_user(1)["xp"] or 0
         self.assertEqual(duels.winner_reward(1)["kind"], "xp")
         self.assertEqual(storage.get_user(1)["xp"], xp + duels.XP_WIN)
-        self.assertTrue(all(h in {a[0] for a in game.ACCESSORIES} for h in duels.HATS))
+        self.assertTrue(all(h in game.ACCESSORY_IDS for h in pool))

@@ -21,9 +21,13 @@ export function initTelegram() {
 // отключён через touch-action: manipulation в CSS). Свои щипки —
 // например, в календаре — слушают touch-события и продолжают работать.
 export function lockZoom() {
+  // Только iOS: там есть gesture-события и TouchEvent.scale. На Android щипок
+  // уже выключен метатегом, а лишний «активный» touchmove на весь документ
+  // заставлял прокрутку ждать JavaScript — страница могла не листаться.
+  if (!('ongesturestart' in window)) return;
   const stop = e => e.preventDefault();
   for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, stop, { passive: false });
-  document.addEventListener('touchmove', e => { if (e.scale !== undefined && e.scale !== 1) e.preventDefault(); }, { passive: false });
+  document.addEventListener('touchmove', e => { if (e.touches.length > 1 && e.scale !== undefined && e.scale !== 1) e.preventDefault(); }, { passive: false });
 }
 
 export const initData = () => (tg && tg.initData) || '';

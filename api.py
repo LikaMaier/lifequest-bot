@@ -22,6 +22,7 @@ import aiquest
 import billing
 import spheres
 import chest
+import login_bonus
 import challenges
 import duels
 import friends
@@ -164,6 +165,7 @@ def _state(request) -> dict:
     data["habits"] = habits.summary(request["user_id"])
     data["chest"] = chest.status(request["user_id"], data["habits"])
     data["duels"] = duels.list_view(request["user_id"])
+    data["login"] = login_bonus.status(request["user_id"])
     _mark_duel_habits(request["user_id"], data["habits"]["items"])
     data["plans_today"] = plans.today_plans(request["user_id"])
     data["plans_overdue"] = len(plans.overdue_plans(request["user_id"]))
@@ -247,7 +249,7 @@ async def get_achievements(request):
         "achievements": game.achievements_view(request["user_id"]),
         "level": game.level_info(user.get("xp") or 0),
         "levels": [{"level": i + 1, "name": name, "xp": xp} for i, (xp, name) in enumerate(game.LEVELS)],
-        "unlocks": game.unlocks(game.level_for_xp(user.get("xp") or 0), game.is_premium(user)),
+        "unlocks": game.unlocks(game.level_for_xp(user.get("xp") or 0), game.is_premium(user), game.owned_items(request["user_id"])),
     })
 
 
@@ -567,6 +569,11 @@ async def habit_log(request):
     return web.json_response(result)
 
 
+async def login_claim(request):
+    _limit(request, "write")
+    return web.json_response(login_bonus.claim(request["user_id"]))
+
+
 async def chest_open(request):
     _limit(request, "write")
     return web.json_response(chest.open_chest(request["user_id"]))
@@ -826,6 +833,7 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_post("/api/challenges/quit", challenge_quit)
     app.router.add_get("/api/packs", get_packs)
     app.router.add_post("/api/chest/open", chest_open)
+    app.router.add_post("/api/login/claim", login_claim)
     app.router.add_get("/api/duels", get_duels)
     app.router.add_post("/api/duels", duel_create)
     app.router.add_post("/api/duels/{id}/{action}", duel_action)

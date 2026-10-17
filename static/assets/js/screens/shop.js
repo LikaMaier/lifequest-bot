@@ -74,7 +74,7 @@ function draw(body, el, ctx) {
       h('button', { type: 'button', class: 'shop-try', 'aria-label': `Примерить: ${item.name}` },
         h('span', { class: 'shop-img', html: mascotSVG(u.mascot, 'happy', item.id) }),
         h('span', { class: 'bold small' }, item.name),
-        item.until && !item.owned ? h('span', { class: 'tag c-orange', style: { marginTop: '4px' } }, `🎃 до ${item.until}`) : null),
+        item.until && !item.owned ? h('span', { class: 'tag c-orange', style: { marginTop: '4px' } }, `${['acorn', 'leafwreath', 'scarf', 'knithat'].includes(item.id) ? '🍂' : item.id === 'santa' ? '🎄' : '🎃'} до ${item.until}`) : null),
       h('button', { type: 'button', class: `btn small ${item.owned ? 'ghost' : ''}`,
         disabled: !item.owned && shop.balance < item.price }, state));
     const [tryBtn, actBtn] = card.querySelectorAll('button');

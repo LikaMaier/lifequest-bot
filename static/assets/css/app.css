@@ -77,8 +77,10 @@
 /* ---------- База ---------- */
 *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; padding: 0; }
-html { background: var(--cream); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; touch-action: manipulation; overflow-x: hidden; }
-body { overflow-x: hidden; }
+/* Прокручивается только сам документ: overflow-x: hidden на html и body сразу делал body
+   отдельной областью прокрутки, и в Telegram на Android страница переставала листаться. */
+html { background: var(--cream); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; touch-action: manipulation; }
+#app { overflow-x: clip; }
 body {
   background: var(--cream);
   color: var(--ink);
@@ -86,8 +88,6 @@ body {
   font-size: 15px;
   line-height: 1.4;
   min-height: 100vh;
-  overflow-x: hidden;
-  overscroll-behavior-y: none;
 }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
@@ -1507,3 +1507,19 @@ p { margin: 0; }
 .chest-prize { position: absolute; top: -6px; left: 50%; transform: translateX(-50%); font-size: 52px; line-height: 1; animation: chest-rise .6s cubic-bezier(.2, 1.6, .4, 1); filter: drop-shadow(0 4px 0 rgba(0,0,0,.15)); }
 @keyframes chest-rise { from { transform: translate(-50%, 40px) scale(.3); opacity: 0; } to { transform: translate(-50%, 0) scale(1); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .chest-prize { animation: none; } }
+
+/* ---------- Бонус за вход ---------- */
+.login-modal h2 { margin: 0; }
+.login-fire { font-size: 64px; line-height: 1; animation: chest-pop .5s cubic-bezier(.2, 1.6, .4, 1); }
+.login-track { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; width: 100%; }
+.login-day { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0 7px; border-radius: 12px; background: var(--cream-2); border: 2px solid transparent; }
+.login-day b { font-size: 12px; font-weight: 900; }
+.login-day-n { font-size: 10px; font-weight: 800; color: var(--muted); }
+.login-day.done { background: var(--lime); }
+.login-day.done .login-day-n { color: var(--ink); }
+.login-day.today { background: var(--yellow); border-color: var(--ink); box-shadow: 0 3px 0 var(--ink); }
+.login-day.big { background: #FFD9A8; }
+.login-day.big.done { background: var(--lime); }
+.login-x2 { position: absolute; top: -8px; right: -4px; padding: 0 4px; border-radius: 6px; background: var(--pink); color: #fff; font-size: 10px; font-weight: 900; }
+.chest-prize.pet { top: -34px; width: 72px; height: 68px; }
+.chest-prize.pet .mascot { width: 72px; height: 66px; }

@@ -136,6 +136,22 @@ export const ACCESSORIES = {
     + '<path d="M42 17 l3 -3 l3 3 Z M52 17 l3 -3 l3 3 Z M43 23 q7 5 14 0 l-3 1 l-2 -2 l-2 2 l-2 -2 l-2 2 Z" fill="#5A2A0E"/>',
   santa: '<path d="M24 26 Q28 0 56 2 Q76 4 86 22 L80 26 Z" fill="#E0322B"/>'
     + '<rect x="22" y="21" width="58" height="9" rx="4.5" fill="#F7F3EA"/><circle cx="86" cy="23" r="5.5" fill="#F7F3EA"/>',
+  // ---- Осень ----
+  acorn: '<path d="M25 27 Q25 3 50 3 Q75 3 75 27 Z" fill="#9A6230"/>'
+    + '<path d="M29 15 Q39 11 49 15 Q59 11 71 15 M27 21 Q38 17 50 21 Q62 17 73 21 M34 9 Q42 6 50 9 Q58 6 66 9" fill="none" stroke="#6E431C" stroke-width="2"/>'
+    + '<rect x="23" y="22" width="54" height="7" rx="3.5" fill="#6E431C"/><path d="M50 4 q1 -7 7 -10" fill="none" stroke="#4E3014" stroke-width="3.5" stroke-linecap="round"/>',
+  leafwreath: '<path d="M21 28 Q50 12 79 28" stroke="#8A5A2B" stroke-width="3" fill="none"/>'
+    + '<path d="M24 26 q-6 -10 4 -12 q2 8 -4 12z" fill="#E8603C"/><path d="M35 19 q-4 -11 7 -11 q0 8 -7 11z" fill="#F2A23A"/>'
+    + '<path d="M50 16 q-6 -10 0 -15 q6 5 0 15z" fill="#C8371F"/><path d="M65 19 q4 -11 -7 -11 q0 8 7 11z" fill="#F2A23A"/>'
+    + '<path d="M76 26 q6 -10 -4 -12 q-2 8 4 12z" fill="#E8603C"/>'
+    + '<circle cx="42" cy="17" r="2.6" fill="#9A6230"/><circle cx="58" cy="17" r="2.6" fill="#9A6230"/>',
+  scarf: '<path d="M20 78 Q50 92 80 78 L80 88 Q50 101 20 88 Z" fill="#E8603C"/>'
+    + '<path d="M30 83 L30 93 M42 86 L42 97 M58 86 L58 97 M70 83 L70 93" stroke="#F2A23A" stroke-width="3"/>'
+    + '<path d="M62 88 L70 104 L58 104 L53 90 Z" fill="#D2502E"/><path d="M58 104 l0 4 M62 104 l0 4 M66 104 l0 4" stroke="#D2502E" stroke-width="2"/>',
+  knithat: '<path d="M25 28 Q25 3 50 3 Q75 3 75 28 Z" fill="#F08A3C"/>'
+    + '<path d="M33 8 L33 24 M42 4 L42 24 M50 3 L50 24 M58 4 L58 24 M67 8 L67 24" stroke="#D86F24" stroke-width="2"/>'
+    + '<rect x="23" y="21" width="54" height="9" rx="4.5" fill="#B9541A"/>'
+    + '<path d="M66 6 l3 -6 l2 5 l5 -2 l-2 5 l6 1 l-5 4 l2 4 l-5 -1 l-1 5 l-3 -4 l-3 4 l-1 -5 l-5 1 l2 -4 l-5 -4 l6 -1 l-2 -5 l5 2 z" fill="#C8371F"/>',
   // ---- За XP ----
   bowtie: '<g transform="translate(50 88)"><path d="M0 0 L-13 -8 L-13 8 Z" fill="#4E7BFF"/><path d="M0 0 L13 -8 L13 8 Z" fill="#4E7BFF"/>'
     + '<circle r="3.5" fill="#2D4FC4"/></g>',

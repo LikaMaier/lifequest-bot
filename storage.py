@@ -318,7 +318,10 @@ def init_db():
     _ensure_column(c, "users", "focus_plan", "TEXT")  # «главное дело дня»: "<plan_id>|<YYYY-MM-DD>"
     _ensure_column(c, "users", "chest_day", "TEXT")  # сундук дня: дата, когда открыт
     _ensure_column(c, "users", "chest_reward", "TEXT")
+    _ensure_column(c, "users", "chest_opens", "INTEGER DEFAULT 0")  # сколько сундуков открыто (первые 7 — с вещами)
     _ensure_column(c, "users", "compliment_day", "TEXT")  # утренний комплимент владелице
+    _ensure_column(c, "users", "login_day", "TEXT")  # бонус за вход: последний день и серия
+    _ensure_column(c, "users", "login_streak", "INTEGER DEFAULT 0")
     c.execute("""CREATE TABLE IF NOT EXISTS inbox (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, title TEXT NOT NULL, created_at TEXT)""")
     _ensure_column(c, "habit_logs", "skipped", "INTEGER DEFAULT 0")  # пропуск с причиной — не рвёт серию
