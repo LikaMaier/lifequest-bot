@@ -132,6 +132,9 @@ async def headers_middleware(request, handler):
     resp.headers.setdefault("Referrer-Policy", "no-referrer")
     if request.path.startswith("/api/"):
         resp.headers["Cache-Control"] = "no-store"
+    elif request.path.startswith("/assets/v") and resp.status == 200:
+        # Версия в адресе меняется с каждым деплоем — файл по этому адресу не меняется никогда.
+        resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     else:
         # Telegram WebView агрессивно кэширует — после деплоя нужна свежая версия.
         resp.headers["Cache-Control"] = "no-cache"
@@ -351,7 +354,7 @@ def _notify(messages):
         kwargs = {"parse_mode": "HTML"}
         if MINIAPP_URL:
             kwargs["reply_markup"] = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
-                text="✨ Открыть LifeQuest", web_app=WebAppInfo(url=MINIAPP_URL + "#friends"))]])
+                text="✨ Открыть LifeQuest", web_app=WebAppInfo(url=f"{MINIAPP_URL}{'&' if '?' in MINIAPP_URL else '?'}v={asset_version()}#friends"))]])
         task = asyncio.get_running_loop().create_task(_send_quiet(m[0], m[1], kwargs))
         _NOTIFY_TASKS.add(task)
         task.add_done_callback(_NOTIFY_TASKS.discard)
@@ -937,8 +940,49 @@ async def delete_my_data(request):
     return web.json_response({"ok": True})
 
 
+# ---------- версия статики ----------
+# iPhone (WKWebView в Telegram) берёт JS-модули из своего кэша, не спрашивая
+# сервер: после деплоя новый app.js встречал старые dom.js/ui.js — импорты не
+# сходились, и приложение не открывалось. Поэтому файлы отдаются по адресу с
+# версией (/assets/v<хэш>/…): новый деплой — новый адрес, старому кэшу не
+# с чем смешаться. Хэш считается по содержимому файлов, один раз при старте.
+_ASSET_VERSION = None
+
+
+def asset_version() -> str:
+    global _ASSET_VERSION
+    if _ASSET_VERSION is None:
+        import hashlib
+        h = hashlib.sha1()
+        root = os.path.join(STATIC_DIR, "assets")
+        for folder, _dirs, files in sorted(os.walk(root)):
+            for name in sorted(files):
+                path = os.path.join(folder, name)
+                h.update(os.path.relpath(path, root).encode())
+                with open(path, "rb") as f:
+                    h.update(f.read())
+        _ASSET_VERSION = h.hexdigest()[:10]
+    return _ASSET_VERSION
+
+
+def _index_html() -> str:
+    with open(os.path.join(STATIC_DIR, "index.html"), encoding="utf-8") as f:
+        html = f.read()
+    v = asset_version()
+    return html.replace('href="assets/', f'href="assets/v{v}/').replace('src="assets/', f'src="assets/v{v}/')
+
+
 async def index(request):
-    return web.FileResponse(os.path.join(STATIC_DIR, "index.html"))
+    return web.Response(text=_index_html(), content_type="text/html", charset="utf-8")
+
+
+async def versioned_asset(request):
+    """/assets/v<версия>/<путь> — тот же файл из static/assets (версия — только для кэша)."""
+    root = os.path.realpath(os.path.join(STATIC_DIR, "assets"))
+    path = os.path.realpath(os.path.join(root, request.match_info["tail"]))
+    if not path.startswith(root + os.sep) or not os.path.isfile(path):
+        raise web.HTTPNotFound()
+    return web.FileResponse(path)
 
 
 async def health(request):
@@ -1054,7 +1098,9 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_get("/", index)
     assets = os.path.join(STATIC_DIR, "assets")
     if os.path.isdir(assets):
-        app.router.add_static("/assets", assets)
+        # сначала адреса с версией (иначе их перехватит обычная статика)
+        app.router.add_get("/assets/v{ver:[0-9a-f]{10}}/{tail:.+}", versioned_asset)
+        app.router.add_static("/assets", assets)  # старые адреса — для уже открытых окон
     return app
 
 
