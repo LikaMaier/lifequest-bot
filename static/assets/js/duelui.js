@@ -43,6 +43,27 @@ function sideRow(side, { me, days, team, lead }) {
     h('div', { class: 'duel-score' }, h('b', null, String(side.score)), h('span', null, lead ? '👑' : `из ${days}`)));
 }
 
+/** Выигранная шапочка: маскот уже в ней и кнопка «Надеть». */
+function prizeRow(prize, state) {
+  const me = state && state.user;
+  const worn = me && me.accessory === prize.id;
+  const wear = h('button', { type: 'button', class: 'cal2-pill', disabled: worn }, worn ? 'Надета ✓' : '🎩 Надеть');
+  wear.addEventListener('click', busy(wear, async () => {
+    try {
+      await api.equip(prize.id);
+      haptic.success();
+      wear.textContent = 'Надета ✓';
+      wear.disabled = true;
+      toast(`«${prize.name}» уже на маскоте 🎩`, 'good');
+      refreshState().catch(() => {});
+    } catch (e) { toastError(e); }
+  }));
+  return h('div', { class: 'duel-prize' },
+    h('div', { class: 'duel-prize-pet' }, mascot((me && me.mascot) || 'cat-purple', 'happy', { size: 56, acc: prize.id })),
+    h('div', { class: 'grow' }, h('div', { class: 'duel-kicker' }, 'Награда за победу'), h('b', null, prize.name)),
+    wear);
+}
+
 /** Карточка вызова. */
 export function duelCard(d, { state, onChange } = {}) {
   const info = MODE_INFO[d.mode] || MODE_INFO.duel;
@@ -103,8 +124,9 @@ export function duelCard(d, { state, onChange } = {}) {
   if (d.status === 'done') {
     let text;
     if (d.mode === 'team') text = d.team && d.team.joint === d.days ? '🌟 Идеально — все дни вместе!' : `🎉 Вместе ${d.team ? d.team.joint : 0} из ${d.days} дней`;
-    else text = d.winner == null ? '🤝 Ничья' : d.winner === d.me.id ? '🏆 Победа твоя! 🎩 Новая шапочка — в Магазине' : `💪 Победа у ${d.rival ? d.rival.name : 'соперника'}`;
+    else text = d.winner == null ? '🤝 Ничья' : d.winner === d.me.id ? '🏆 Победа твоя!' : `💪 Победа у ${d.rival ? d.rival.name : 'соперника'}`;
     card.append(h('div', { class: 'duel-result' }, text));
+    if (d.mode === 'duel' && d.winner === d.me.id && d.prize) card.append(prizeRow(d.prize, state));
     return card;
   }
 
@@ -135,6 +157,68 @@ export function duelCard(d, { state, onChange } = {}) {
   });
   row.append(more);
   card.append(row);
+  return card;
+}
+
+/** Яркая карточка идущей дуэли для Главной: «ты VS друг», счёт и действие на сегодня. */
+export function duelSpotlight(d, { go, state } = {}) {
+  const info = MODE_INFO[d.mode] || MODE_INFO.duel;
+  const team = d.mode === 'team';
+  const rival = d.rival || { name: 'Друг', score: 0, today_done: false };
+  const myTurn = !d.me.today_done && rival.today_done;
+  const side = (x, who, lead) => h('div', { class: `dsp-side ${lead ? 'lead' : ''}` },
+    h('div', { class: 'dsp-pet' }, mascot(x.mascot || 'cat-purple', x.today_done ? 'happy' : 'wink', { size: 64, acc: x.accessory }),
+      lead ? h('span', { class: 'dsp-crown', 'aria-hidden': 'true' }, '👑') : null),
+    h('div', { class: 'dsp-name' }, who),
+    h('div', { class: 'dsp-score' }, String(x.score)),
+    h('div', { class: `dsp-today ${x.today_done ? 'ok' : ''}` }, x.today_done ? '✓ сегодня' : 'ещё нет'));
+  const card = h('section', { class: `dsp ${d.mode} ${myTurn ? 'turn' : ''}`, role: 'button', tabindex: '0',
+    'aria-label': `${info.title}: ${d.title} с ${rival.name}` });
+  card.append(
+    h('div', { class: 'dsp-top' },
+      h('span', { class: 'dsp-kicker' }, `${info.emoji} ${info.title.toUpperCase()} · ДЕНЬ ${d.day || 1} ИЗ ${d.days}`),
+      myTurn ? h('span', { class: 'dsp-badge' }, 'Твой ход!') : null),
+    h('div', { class: 'dsp-title' }, `${d.emoji || '✨'} ${d.title}`),
+    h('div', { class: 'dsp-vs' },
+      side(d.me, 'Ты', !team && d.lead === 'me' && d.me.score > 0),
+      h('div', { class: 'dsp-mid', 'aria-hidden': 'true' }, team ? h('span', { class: 'dsp-fire' }, '🔥') : 'VS',
+        team && d.team ? h('small', null, `${d.team.streak} ${dayWord(d.team.streak)}`) : null),
+      side(rival, rival.name, !team && d.lead === 'rival')));
+  const actions = h('div', { class: 'dsp-actions' });
+  if (!d.me.today_done && d.me.habit_id) {
+    const mark = h('button', { type: 'button', class: 'dsp-btn' }, '✓ Отметить привычку');
+    mark.addEventListener('click', busy(mark, async e => {
+      e.stopPropagation();
+      try {
+        await api.logHabit(d.me.habit_id, { delta: 1 });
+        haptic.success();
+        confetti(50);
+        refreshState().catch(() => {});
+      } catch (err) { toastError(err); }
+    }));
+    actions.append(mark);
+  } else {
+    actions.append(h('span', { class: 'dsp-line' }, team
+      ? (rival.today_done ? 'Сегодня вы оба молодцы!' : `Твоя часть сделана — ждём ${rival.name}`)
+      : (d.lead === 'me' ? `Ты впереди на ${d.me.score - rival.score}` : d.lead === 'rival' ? `Догоняй: −${rival.score - d.me.score}` : 'Пока ничья — сделай рывок!')));
+  }
+  if (d.can_nudge) {
+    const nudge = h('button', { type: 'button', class: 'dsp-btn ghost' }, '👉 Пнуть');
+    nudge.addEventListener('click', busy(nudge, async e => {
+      e.stopPropagation();
+      try {
+        await api.duelAction(d.id, 'nudge');
+        haptic.success();
+        toast(`Пинок отправлен — ${rival.name} получит напоминание`, 'good');
+        refreshState().catch(() => {});
+      } catch (err) { toastError(err); }
+    }));
+    actions.append(nudge);
+  }
+  card.append(actions);
+  const open = () => { haptic.tap(); go && go('friends'); };
+  card.addEventListener('click', open);
+  card.addEventListener('keydown', e => { if (e.key === 'Enter') open(); });
   return card;
 }
 

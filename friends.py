@@ -2,7 +2,9 @@
 список друзей с их серией и уровнем, приглашение на конкретный квест.
 
 Ссылки бота: t.me/<bot>?start=ref_<user_id> — просто позвать;
-t.me/<bot>?start=q_<quest_id>_<user_id> — позвать на квест."""
+t.me/<bot>?start=q_<quest_id>_<user_id> — позвать на квест;
+t.me/<bot>?start=c_<contest_id> — в лобби своего соревнования (contests.py);
+t.me/<bot>?start=a_<album_id> — в общий фотоальбом (albums.py)."""
 
 from datetime import timedelta
 
@@ -15,7 +17,7 @@ FRIENDS_LIMIT = 200
 
 def parse_start(payload: str):
     """'ref_123' → ('ref', None, 123); 'q_no_list_123' → ('q', 'no_list', 123);
-    'd_5' → ('d', 5, <автор вызова>); иначе None."""
+    'd_5' → ('d', 5, <автор вызова>); 'c_7' → ('c', 7, <создатель соревнования>); иначе None."""
     payload = (payload or "").strip()
     if payload.startswith("ref_") and payload[4:].isdigit():
         return "ref", None, int(payload[4:])
@@ -23,6 +25,18 @@ def parse_start(payload: str):
         import duels
         try:
             return "d", int(payload[2:]), duels.public_invite(int(payload[2:]))["creator_id"]
+        except game.QuestError:
+            return None
+    if payload.startswith("a_") and payload[2:].isdigit():
+        import albums
+        try:
+            return "a", int(payload[2:]), albums.public_invite(int(payload[2:]))["owner_id"]
+        except game.QuestError:
+            return None
+    if payload.startswith("c_") and payload[2:].isdigit():
+        import contests
+        try:
+            return "c", int(payload[2:]), contests.public_invite(int(payload[2:]))["creator_id"]
         except game.QuestError:
             return None
     if payload.startswith("q_"):

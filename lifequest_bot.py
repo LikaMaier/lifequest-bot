@@ -30,6 +30,8 @@ import billing
 import card
 import challenges
 import compliments
+import albums
+import contests
 import duels
 import friends
 import game
@@ -147,13 +149,11 @@ async def clear_old_keyboard(user_id: int):
 
 
 async def send_duel_messages(messages):
-    """Сообщения вызовов: (user_id, text[, [(кнопка, callback), …]]) + кнопка приложения."""
+    """Сообщения вызовов и соревнований: (user_id, text[, …]) — только с кнопкой приложения.
+    Ответить на вызов, отметить пункт и т. п. — в приложении, раздел «Друзья»."""
     for m in messages or []:
-        rows = [[InlineKeyboardButton(text=t, callback_data=c) for t, c in m[2]]] if len(m) > 2 and m[2] else []
-        rows += app_row("friends")
         try:
-            await ops.safe_send(m[0], m[1], parse_mode="HTML",
-                                reply_markup=InlineKeyboardMarkup(inline_keyboard=rows) if rows else None)
+            await ops.safe_send(m[0], m[1], parse_mode="HTML", reply_markup=app_markup("friends"))
         except Exception as e:
             await ops.alert("duel message", e, f"user {m[0]}")
 
@@ -176,12 +176,59 @@ async def handle_duel_link(message: Message, duel_id: int, inviter_id: int, is_n
     await send_duel_messages(result["messages"])
 
 
+async def handle_contest_link(message: Message, contest_id: int, inviter_id: int, is_new: bool):
+    """Пришли по ссылке на соревнование: дружим с создателем и заходим в лобби."""
+    user_id = message.from_user.id
+    res = friends.handle_join(user_id, inviter_id, is_new)
+    gift = "\n\n🧊 В подарок — по заморозке серии вам обоим." if res.get("gift") else ""
+    open_app = app_markup("friends")
+    try:
+        result = contests.join(user_id, contest_id)
+    except game.QuestError as e:
+        await message.answer(f"{html.escape(str(e))}{gift}", parse_mode="HTML", reply_markup=build_start_menu_keyboard())
+        return
+    c = result["contest"]
+    title = f"{html.escape(c['emoji'] or '🏆')} <b>{html.escape(c['title'])}</b>"
+    if result.get("already"):
+        await message.answer(f"Ты уже в соревновании {title} 🙂", parse_mode="HTML", reply_markup=open_app)
+        return
+    status = ("Сейчас создатель настраивает правила — можешь предложить свой пункт. "
+              "Как только соревнование запустят, придёт сообщение." if c["status"] == "lobby" else "")
+    await message.answer(
+        f"🏆 <b>Ты в лобби!</b>\n\n{title} — {c['days']} дн., участников: {c['members_count']}.\n{status}{gift}",
+        parse_mode="HTML", reply_markup=open_app)
+    await send_duel_messages(result["messages"])
+
+async def handle_album_link(message: Message, album_id: int, inviter_id: int, is_new: bool):
+    """Пришли по ссылке на общий альбом: дружим с создателем и добавляем в альбом."""
+    user_id = message.from_user.id
+    res = friends.handle_join(user_id, inviter_id, is_new)
+    gift = "\n\n🧊 В подарок — по заморозке серии вам обоим." if res.get("gift") else ""
+    try:
+        result = albums.join(user_id, album_id)
+    except game.QuestError as e:
+        await message.answer(f"{html.escape(str(e))}{gift}", parse_mode="HTML", reply_markup=build_start_menu_keyboard())
+        return
+    a = result["album"]
+    title = f"{html.escape(a['emoji'] or '📸')} <b>{html.escape(a['title'])}</b>"
+    text = (f"Ты уже в общем альбоме {title} 🙂" if result.get("already") else
+            f"📸 <b>Ты в общем альбоме!</b>\n\n{title} — фото: {a['count']}, участников: {a['members']}.\n"
+            f"Добавляй свои фото и смотри фото друзей в разделе «Альбом».{gift}")
+    await message.answer(text, parse_mode="HTML", reply_markup=app_markup("album"))
+    await send_duel_messages(result["messages"])
+
 async def handle_invite(message: Message, invite, is_new: bool):
     """Пришли по ссылке друга: дружим, дарим заморозки новичку и пригласившему,
     а если звали на конкретный квест — сразу кладём его в «Мои квесты»."""
     kind, quest_id, inviter_id = invite
     if kind == "d":
         await handle_duel_link(message, quest_id, inviter_id, is_new)
+        return
+    if kind == "c":
+        await handle_contest_link(message, quest_id, inviter_id, is_new)
+        return
+    if kind == "a":
+        await handle_album_link(message, quest_id, inviter_id, is_new)
         return
     user_id = message.from_user.id
     res = friends.handle_join(user_id, inviter_id, is_new)
@@ -256,6 +303,11 @@ def build_miniapp_button(text: str = "✨ Открыть LifeQuest", section: st
 def app_row(section: str = "") -> list:
     """Нижняя строка кнопок любого напоминания: зайти в приложение."""
     return [[build_miniapp_button("✨ Открыть LifeQuest", section)]] if MINIAPP_URL else []
+
+def app_markup(section: str = ""):
+    """Единственная кнопка под сообщениями бота — «Открыть LifeQuest».
+    Все действия (отметки, покупки, ответы на вызовы) — внутри приложения."""
+    return InlineKeyboardMarkup(inline_keyboard=app_row(section)) if MINIAPP_URL else None
 
 def build_board_keyboard(user_id: int) -> ReplyKeyboardMarkup:
     """Старая карта (запасной вариант). Текущая карта передаётся в ссылке
@@ -372,15 +424,11 @@ def build_morning_message(user_id: int):
              f"⭐ Уровень {lv['level']} «{html.escape(lv['name'])}» — до следующего {lv['next'] - lv['xp']} XP"]
     text = "\n".join(lines)
 
-    rows = []
     lost = billing.restore_offer(user, today) if game.PAYMENTS_ENABLED else 0
     if lost:
         text += (f"\n\n💔 Серия {lost} {plural_ru(lost, 'день', 'дня', 'дней')} прервалась. "
-                 "Её ещё можно вернуть — пока не начата новая.")
-        rows.append([InlineKeyboardButton(text=f"🔥 Вернуть серию за {billing.price(user_id, 'streak_restore')}⭐",
-                                          callback_data="pay_streak_restore")])
-    rows += app_row()
-    return text, (InlineKeyboardMarkup(inline_keyboard=rows) if rows else None)
+                 "Её ещё можно вернуть в приложении — пока не начата новая.")
+    return text, app_markup()
 
 
 async def send_owner_compliment():
@@ -449,6 +497,7 @@ async def send_morning_plans(user_id: int):
         return
     items = sorted(plans.today_plans(user_id), key=lambda o: o.get("time") or "99")
     hb = [h for h in habits.habits_view(user_id) if h["kind"] == "build" and h["due_today"] and not h["done_today"]]
+    hb.sort(key=lambda h: h.get("remind_time") or "99:99")
     if not items and not hb:
         return
     ctx = nudges.context(user_id)
@@ -461,9 +510,7 @@ async def send_morning_plans(user_id: int):
         lines.append(f"🗓️ <b>Сегодня у тебя в планах</b>\n{head}\n\n" + plans_lines(items))
     if hb:
         lines.append("🌱 <b>Привычки на сегодня:</b> " + ", ".join(f"{h['emoji']} {html.escape(h['title'])}" for h in hb))
-    rows = app_row("calendar") if MINIAPP_URL else []
-    await ops.safe_send(user_id, "\n\n".join(lines), parse_mode="HTML",
-                        reply_markup=InlineKeyboardMarkup(inline_keyboard=rows) if rows else None)
+    await ops.safe_send(user_id, "\n\n".join(lines), parse_mode="HTML", reply_markup=app_markup("calendar"))
 
 
 def _drop_button(markup, data: str):
@@ -611,14 +658,10 @@ def build_evening_message(user_id: int):
         need = f"квест из сферы «{ch['sphere']}»" if ch["sphere"] else "любой квест"
         text += (f"\n\n{ch['emoji']} <b>{html.escape(ch['title'])}</b>: день {ch['day']} из {ch['days']} "
                  f"ещё не засчитан — нужен {need}.")
-    rows = []
     habits_block = habits.evening_text(user_id)
     if habits_block:
         text += "\n\n" + habits_block
-        if MINIAPP_URL and "▫️" in habits_block:
-            rows.append([build_miniapp_button("🌱 Отметить привычки", "habits")])
-    rows += app_row()
-    return text, (InlineKeyboardMarkup(inline_keyboard=rows) if rows else None)
+    return text, app_markup("habits" if habits_block and "▫️" in habits_block else "")
 
 RU_MONTHS = {
     1: "январь", 2: "февраль", 3: "март", 4: "апрель",
@@ -763,15 +806,9 @@ def build_streak_alarm(user_id: int):
     text = (f"🔥 <b>Серия {n} {plural_ru(n, 'день', 'дня', 'дней')} сгорит в полночь!</b>\n\n"
             "Заморозок не осталось — спасёт только одна привычка, отмеченная сегодня. "
             "Даже стакан воды считается 💧")
-    rows = [[build_miniapp_button("🌱 Отметить привычку", "habits")]] if MINIAPP_URL else []
-    if game.PAYMENTS_ENABLED:
-        rows.append([InlineKeyboardButton(text=f"🧊 Заморозка за {billing.price(user_id, 'freeze')}⭐",
-                                          callback_data="pay_freeze")])
-    elif game.balance(user) >= game.FREEZE_PRICE:
-        rows.append([InlineKeyboardButton(text=f"🧊 Заморозка за {game.FREEZE_PRICE} XP",
-                                          callback_data="xp_freeze")])
-    rows += app_row()
-    return text, InlineKeyboardMarkup(inline_keyboard=rows)
+    if game.PAYMENTS_ENABLED or game.balance(user) >= game.FREEZE_PRICE:
+        text += "\n\n🧊 Или возьми заморозку в Магазине приложения."
+    return text, app_markup("habits")
 
 
 async def send_streak_alarms():
@@ -858,6 +895,16 @@ async def send_duel_updates():
         await ops.alert("duels", e)
 
 
+async def send_contest_updates():
+    """Каждый час: итоги соревнований, таймаут лобби и вечерние напоминания."""
+    try:
+        await send_duel_messages(contests.finalize_due())
+        await send_duel_messages(contests.lobby_timeouts())
+        await send_duel_messages(contests.evening_alerts())
+    except Exception as e:
+        await ops.alert("contests", e)
+
+
 @dp.callback_query(F.data == "xp_freeze")
 async def xp_freeze(callback: CallbackQuery):
     try:
@@ -884,19 +931,9 @@ def premium_text(user_id: int) -> str:
     return f"{head}\n\n{perks}"
 
 
-def premium_keyboard(user_id: int) -> InlineKeyboardMarkup:
-    user = storage.get_user(user_id)
-    view = billing.premium_view(user)
-    rows = []
-    if view["trial_available"]:
-        rows.append([InlineKeyboardButton(text=f"🎁 {view['trial_days']} дней бесплатно", callback_data="premium_trial")])
-    if game.PAYMENTS_ENABLED and not view["forever"]:
-        p = view["prices"]
-        month = f"{p['premium_month']}⭐" + (" (−50%)" if p["premium_month"] < view["full_prices"]["premium_month"] else "")
-        rows.append([InlineKeyboardButton(text=f"30 дней — {month}", callback_data="pay_premium_month")])
-        rows.append([InlineKeyboardButton(text=f"Год — {p['premium_year']}⭐", callback_data="pay_premium_year")])
-    rows += app_row("premium")
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+def premium_keyboard(user_id: int):
+    """Пробный период и оплата — в приложении (раздел Premium), в чате только вход туда."""
+    return app_markup("premium")
 
 
 @dp.message(Command("premium"))
@@ -918,7 +955,7 @@ async def premium_trial(callback: CallbackQuery):
     await callback.answer()
     await callback.message.answer(f"🎁 <b>Premium включён на {billing.TRIAL_DAYS} дней</b> — до {until[:10]}.\n"
                                   "Загляни в магазин: там тебя ждут новые аксессуары и стиль «Космос» ✨",
-                                  parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=app_row("shop")))
+                                  parse_mode="HTML", reply_markup=app_markup("shop"))
 
 
 @dp.callback_query(F.data.startswith("pay_"))
@@ -970,7 +1007,7 @@ async def on_successful_payment(message: Message):
         text = "Серию успели начать заново, поэтому вместо возврата — 🧊🧊 две заморозки в запас."
     else:
         text = PAID_TEXT[res["product"]].format(until=(res.get("until") or "")[:10], streak=res.get("streak"))
-    await message.answer(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=app_row()))
+    await message.answer(text, parse_mode="HTML", reply_markup=app_markup())
 
 
 @dp.message(Command("paysupport"))
@@ -1037,6 +1074,7 @@ def _on_job_error(event):
 # ==================== MAIN ====================
 async def main():
     # HTTP API и статика мини-аппа — в этом же процессе (Railway: тип web, $PORT).
+    api.MINIAPP_URL = MINIAPP_URL  # уведомления из API — с той же кнопкой «Открыть LifeQuest»
     await api.start_web(BOT_TOKEN, bot)
 
     # Ошибка сети на старте не должна ронять процесс: polling дальше сам
@@ -1064,6 +1102,7 @@ async def main():
     scheduler.add_job(send_daily_reminders, "cron", minute=0)
     scheduler.add_job(send_owner_compliment, "cron", minute=0, second=30)
     scheduler.add_job(send_duel_updates, "cron", minute=3)
+    scheduler.add_job(send_contest_updates, "cron", minute=4)
     scheduler.add_job(send_evening_reminders, "cron", minute=0)
     scheduler.add_job(send_monthly_recap, "cron", day=1, hour=10, minute=0)
     scheduler.add_job(send_plan_reminders, "interval", minutes=1)

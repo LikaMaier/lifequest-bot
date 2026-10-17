@@ -332,6 +332,7 @@ def init_db():
         mode TEXT DEFAULT 'duel', title TEXT NOT NULL, emoji TEXT, target INTEGER DEFAULT 1, days INTEGER DEFAULT 7,
         creator_habit INTEGER, opponent_habit INTEGER, status TEXT DEFAULT 'pending',
         start_date TEXT, end_date TEXT, winner_id INTEGER, created_at TEXT, finished_at TEXT)""")
+    _ensure_column(c, "habit_duels", "prize", "TEXT")  # шапочка, выигранная победителем
     c.execute("CREATE INDEX IF NOT EXISTS idx_duels_creator ON habit_duels(creator_id, status)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_duels_opponent ON habit_duels(opponent_id, status)")
     c.execute("""CREATE TABLE IF NOT EXISTS duel_pings (
@@ -370,6 +371,44 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, text TEXT NOT NULL, day TEXT NOT NULL,
         color TEXT DEFAULT 'yellow', pinned INTEGER DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)""")
     c.execute("CREATE INDEX IF NOT EXISTS idx_notes_user_day ON notes(user_id, day)")
+    # Общие фотоальбомы и доступ к своему альбому (albums.py)
+    _ensure_column(c, "photos", "album_id", "INTEGER")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_photos_album ON photos(album_id)")
+    c.execute("""CREATE TABLE IF NOT EXISTS shared_albums (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id INTEGER NOT NULL, title TEXT NOT NULL, emoji TEXT,
+        created_at TEXT NOT NULL)""")
+    c.execute("""CREATE TABLE IF NOT EXISTS shared_album_members (
+        album_id INTEGER NOT NULL, user_id INTEGER NOT NULL, joined_at TEXT, PRIMARY KEY (album_id, user_id))""")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_album_members_user ON shared_album_members(user_id)")
+    c.execute("""CREATE TABLE IF NOT EXISTS album_access (
+        owner_id INTEGER NOT NULL, viewer_id INTEGER NOT NULL, created_at TEXT, PRIMARY KEY (owner_id, viewer_id))""")
+    # Свои соревнования с друзьями (contests.py): лобби → правила → игра → итоги
+    c.execute("""CREATE TABLE IF NOT EXISTS contests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, creator_id INTEGER NOT NULL, title TEXT NOT NULL, emoji TEXT,
+        days INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'lobby', start_date TEXT, end_date TEXT,
+        winners TEXT, reminded INTEGER DEFAULT 0, created_at TEXT NOT NULL, started_at TEXT, finished_at TEXT)""")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_contests_status ON contests(status)")
+    c.execute("""CREATE TABLE IF NOT EXISTS contest_members (
+        contest_id INTEGER NOT NULL, user_id INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'in', joined_at TEXT,
+        PRIMARY KEY (contest_id, user_id))""")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_contest_members_user ON contest_members(user_id)")
+    c.execute("""CREATE TABLE IF NOT EXISTS contest_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, contest_id INTEGER NOT NULL, title TEXT NOT NULL, emoji TEXT,
+        kind TEXT NOT NULL, unit TEXT, norm INTEGER, points INTEGER NOT NULL, position INTEGER DEFAULT 0,
+        proposed_by INTEGER)""")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_contest_items ON contest_items(contest_id)")
+    c.execute("""CREATE TABLE IF NOT EXISTS contest_proposals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, contest_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
+        title TEXT NOT NULL, emoji TEXT, kind TEXT NOT NULL, unit TEXT, norm INTEGER, points INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending', created_at TEXT)""")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_contest_proposals ON contest_proposals(contest_id, status)")
+    c.execute("""CREATE TABLE IF NOT EXISTS contest_logs (
+        contest_id INTEGER NOT NULL, item_id INTEGER NOT NULL, user_id INTEGER NOT NULL, local_date TEXT NOT NULL,
+        value INTEGER NOT NULL, updated_at TEXT, PRIMARY KEY (item_id, user_id, local_date))""")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_contest_logs ON contest_logs(contest_id)")
+    c.execute("""CREATE TABLE IF NOT EXISTS contest_pings (
+        contest_id INTEGER NOT NULL, user_id INTEGER NOT NULL, date TEXT NOT NULL, kind TEXT NOT NULL,
+        PRIMARY KEY (contest_id, user_id, date, kind))""")
     # Старые маскоты заменены зверями того же уровня.
     for old, new in (("cat-blue", "frog"), ("heart", "puppy"), ("cat-orange", "bear"),
                      ("cat-lav", "leopard"), ("cat-pink2", "panda"), ("cat-lime", "pig")):
@@ -823,6 +862,17 @@ def delete_user_data(user_id: int):
         conn.execute(f"DELETE FROM plan_reminders WHERE plan_id IN ({q})", plan_ids)
     conn.execute("DELETE FROM friends WHERE friend_id = ?", (user_id,))
     conn.execute("DELETE FROM habit_duels WHERE creator_id = ? OR opponent_id = ?", (user_id, user_id))
+    import albums  # общие альбомы этого пользователя и доступы к его альбому
+    albums.delete_user(user_id, conn)
+    # Свои соревнования удаляем целиком, в чужих — только свои следы.
+    own = [r[0] for r in conn.execute("SELECT id FROM contests WHERE creator_id = ?", (user_id,)).fetchall()]
+    if own:
+        q = ",".join("?" * len(own))
+        for table in ("contest_members", "contest_items", "contest_proposals", "contest_logs", "contest_pings"):
+            conn.execute(f"DELETE FROM {table} WHERE contest_id IN ({q})", own)
+        conn.execute(f"DELETE FROM contests WHERE id IN ({q})", own)
+    for table in ("contest_members", "contest_proposals", "contest_logs", "contest_pings"):
+        conn.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))
     for table in ("duel_pings", "inbox", "habit_pauses", "user_spheres", "friends", "ai_quests", "user_challenges", "notes", "purchases", "plans", "photos", "habit_logs", "habits", "quest_history", "quest_offers", "favorites",
                   "achievements_unlocked", "board_awards", "xp_log", "weekly_boards", "active_quests",
                   "completed_tasks", "survey_answers", "users"):

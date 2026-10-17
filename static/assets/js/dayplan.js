@@ -27,7 +27,7 @@ export function dayPlanField(plans, date, { onChange, canComplete = true, placeh
   const box = h('div', { class: 'dayplan', role: 'list', 'aria-label': 'План на сегодня' });
   let dirty = false;
 
-  const sorted = [...plans].sort((a, b) => (a.status === 'done') - (b.status === 'done') || (a.time || '99').localeCompare(b.time || '99'));
+  const sorted = [...plans].sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
 
   function makeLine(plan) {
     const done = plan && plan.status === 'done';

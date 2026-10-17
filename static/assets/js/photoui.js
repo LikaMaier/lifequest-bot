@@ -149,7 +149,7 @@ export function photoStrip(target, { title = 'Фото', onChange } = {}) {
 }
 
 // ---------- Полноэкранный просмотр: большой полароид на доске ----------
-const KIND = { quest: ['квест', 'lime'], plan: ['план', 'blue'], day: ['день', 'yellow'], board: ['цели месяца', 'orange'] };
+const KIND = { quest: ['квест', 'lime'], plan: ['план', 'blue'], day: ['день', 'yellow'], board: ['цели месяца', 'orange'], album: ['общий альбом', 'lav'] };
 const LONG_DAY = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' });
 const VIEWER_ICONS = {
   share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5M5 13v6a2 2 0 002 2h10a2 2 0 002-2v-6"/></svg>',
@@ -195,11 +195,18 @@ export function openViewer(list, index, { onDelete, onChange } = {}) {
     const n = hashOf(p.id);
     frame.style.setProperty('--tilt', `${(n % 5) - 2.5}deg`);
     frame.className = `viewer-polaroid pc-${n % 5}`;
-    caption.textContent = p.caption || '＋ добавить подпись';
+    // Чужие фото (общий альбом, альбом друга) — только смотреть: без подписи, «В календарь» и удаления.
+    const mine = p.mine !== false;
+    caption.textContent = p.caption || (mine ? '＋ добавить подпись' : '');
     caption.classList.toggle('empty', !p.caption);
-    caption.setAttribute('aria-label', p.caption ? `Подпись: ${p.caption}. Изменить` : 'Добавить подпись');
+    caption.disabled = !mine;
+    caption.setAttribute('aria-label', p.caption ? `Подпись: ${p.caption}${mine ? '. Изменить' : ''}` : 'Добавить подпись');
+    // style.display, а не hidden: у кнопок свой display в CSS
+    toCal.style.display = !mine || p.target === 'album' ? 'none' : '';
+    del.style.display = p.can_delete === false || (!mine && !p.can_delete) ? 'none' : '';
     const [kind, color] = KIND[p.target] || ['фото', 'pink'];
     clear(tags).append(h('span', { class: 'viewer-tag dark' }, fmtDay(p.day)), h('span', { class: `viewer-tag c-${color}` }, kind));
+    if (p.by) tags.append(h('span', { class: 'viewer-tag c-paleyellow' }, `📷 ${p.by}`));
     title.textContent = p.label || 'Хороший момент';
     counter.textContent = `${i + 1} из ${list.length}`;
     clear(dots);
@@ -209,8 +216,9 @@ export function openViewer(list, index, { onDelete, onChange } = {}) {
     }
   };
   caption.addEventListener('click', () => {
-    haptic.tap();
     const p = list[i];
+    if (p.mine === false) return;
+    haptic.tap();
     const input = h('input', { class: 'input', type: 'text', maxlength: '120', value: p.caption || '', placeholder: 'Например: лучший закат осени', 'aria-label': 'Подпись к фото' });
     const save = h('button', { type: 'button', class: 'btn block' }, 'Сохранить подпись');
     const s2 = sheet(h('div', { class: 'stack' }, h('h2', null, '✍️ Подпись на полароиде'), input, save), { label: 'Подпись к фото' });
@@ -309,7 +317,8 @@ export function openViewer(list, index, { onDelete, onChange } = {}) {
   del.addEventListener('click', async () => {
     try {
       const p = list[i];
-      await api.deletePhoto(p.id);
+      if (p.target === 'album' && p.album_id) await api.albumDeletePhoto(p.album_id, p.id);
+      else await api.deletePhoto(p.id);
       haptic.success();
       toast('Фото удалено');
       list.splice(i, 1);
@@ -440,4 +449,48 @@ export function openPhotoReport(historyId, title, { intro = false } = {}) {
     photoStrip({ target: 'quest', quest_history_id: historyId }, { title: 'Фото-отчёт' }), close), { label: 'Фото-отчёт' });
   close.addEventListener('click', () => s.close());
   return s;
+}
+
+/** Кнопки «Камера» и «Галерея»: выбрать фото и загрузить с полями fields
+ *  (например { target: 'day', day } или { target: 'album', album_id }). */
+export function uploadButtons(fields, { onDone, label = 'Добавить фото', small = false } = {}) {
+  const camera = h('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
+  const gallery = h('input', { type: 'file', accept: 'image/*', multiple: true, hidden: true });
+  const status = h('div', { class: 'upl-status', role: 'status', hidden: true });
+  const bar = h('span', { class: 'upl-bar' });
+  status.append(h('span', { class: 'upl-text' }), h('span', { class: 'upl-track' }, bar));
+  const cam = h('button', { type: 'button', class: `upl-btn ${small ? 'small' : ''}` }, '📷', h('span', null, 'Камера'));
+  const gal = h('button', { type: 'button', class: `upl-btn dark ${small ? 'small' : ''}` }, '🖼️', h('span', null, small ? 'Галерея' : `${label} из галереи`));
+  cam.addEventListener('click', () => { haptic.tap(); camera.click(); });
+  gal.addEventListener('click', () => { haptic.tap(); gallery.click(); });
+  const run = async files => {
+    const list = [...files].slice(0, 10);
+    cam.disabled = gal.disabled = true;
+    status.hidden = false;
+    let ok = 0;
+    for (const [k, file] of list.entries()) {
+      status.firstChild.textContent = `Загружаю ${k + 1} из ${list.length}…`;
+      bar.style.width = '0%';
+      try {
+        const blob = await prepareImage(file);
+        const res = await uploadPhoto(blob, fields, f => { bar.style.width = `${Math.round(f * 100)}%`; });
+        ok += 1;
+        if ((res.new_achievements || []).length) celebrate(res);
+      } catch (e) {
+        if (!handlePremiumError(e)) toastError(e);
+        break;
+      }
+    }
+    status.hidden = true;
+    cam.disabled = gal.disabled = false;
+    if (ok) {
+      haptic.success();
+      toast(ok > 1 ? `📸 Добавлено ${ok} ${plural(ok, 'фото', 'фото', 'фото')}` : '📸 Фото добавлено', 'good');
+      refreshState().catch(() => {});
+      onDone && onDone(ok);
+    }
+  };
+  camera.addEventListener('change', () => { if (camera.files.length) run(camera.files); camera.value = ''; });
+  gallery.addEventListener('change', () => { if (gallery.files.length) run(gallery.files); gallery.value = ''; });
+  return h('div', { class: 'upl' }, h('div', { class: 'upl-row' }, cam, gal), status, camera, gallery);
 }

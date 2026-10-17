@@ -107,10 +107,12 @@ class DuelsTest(TempDBTestCase):
             msgs = duels.finalize_due()
         self.assertEqual(sorted(m[0] for m in msgs), [1, 2])
         self.assertEqual(storage.get_user(1)["xp"] or 0, xp1)  # победителю — шапочка, не XP
-        self.assertEqual(len(game.owned_items(1) & (set(duels.HATS) | set(game.AUTUMN_ACCESSORIES))), 1)
+        self.assertEqual(len(game.owned_items(1) & set(duels.HATS)), 1)
         self.assertIn("Надень", next(m[1] for m in msgs if m[0] == 1))
         self.assertEqual(storage.get_user(2)["xp"], xp2 + duels.XP_LOSE)
-        self.assertEqual(duels.list_view(1)["finished"][0]["winner"], 1)
+        done = duels.list_view(1)["finished"][0]
+        self.assertEqual(done["winner"], 1)
+        self.assertIn(done["prize"]["id"], game.owned_items(1))  # выигранная шапочка видна на карточке
         self.assertEqual(duels.finalize_due(), [])
 
     def test_give_up_and_decline(self):
@@ -122,6 +124,8 @@ class DuelsTest(TempDBTestCase):
         res = duels.give_up(2, d2["id"])
         self.assertEqual(res["messages"][0][0], 1)
         self.assertEqual(duels.list_view(1)["finished"][0]["winner"], 1)
+        self.assertIn("🎩", res["messages"][0][1])
+        self.assertIsNotNone(duels.list_view(1)["finished"][0]["prize"])
 
     def test_limits_and_badges(self):
         for _ in range(duels.ACTIVE_LIMIT):
@@ -134,7 +138,8 @@ class DuelsTest(TempDBTestCase):
         self.assertEqual(duels.habit_badges(1)[str(self.h1)]["with"], "Маша")
 
     def test_hat_reward_then_xp_when_all_owned(self):
-        pool = set(duels.HATS) | set(game.AUTUMN_ACCESSORIES)
+        pool = set(duels.HATS)
+        self.assertNotIn("scarf", pool)  # только головные уборы
         got = {duels.winner_reward(1)["id"] for _ in range(len(pool))}
         self.assertEqual(got, pool)
         xp = storage.get_user(1)["xp"] or 0

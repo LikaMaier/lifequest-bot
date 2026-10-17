@@ -31,7 +31,7 @@ LIMIT_FREE_STRICT = 30  # когда включена оплата
 LIMIT_FREE_SOFT = 200
 LIMIT_PREMIUM = 1000
 URL_TTL = 10 * 60
-TARGETS = ("quest", "plan", "day", "board")
+TARGETS = ("quest", "plan", "day", "board", "album")  # album — общий альбом (albums.py)
 
 _secret = b""
 _enabled = None
@@ -111,6 +111,13 @@ def _target(user_id: int, data: dict) -> dict:
                 raise game.QuestError("В этот день плана нет")
             where, args = "plan_id = ? AND plan_date = ?", (pid, d.isoformat())
             fields = {"plan_id": pid, "plan_date": d.isoformat()}
+        elif kind == "album":
+            import albums
+            aid = int(data.get("album_id") or 0)
+            if not albums.is_member(aid, user_id):
+                raise game.QuestError("Альбом не найден")
+            # в общий альбом — без лимита «5 фото на элемент», считается в общий лимит фото
+            return {"album_id": aid, "day": game.local_today(storage.get_user(user_id)).isoformat(), "target_type": "album"}
         elif kind == "day":
             d = date.fromisoformat(str(data.get("day"))[:10])
             if d > game.local_today(storage.get_user(user_id)):
@@ -227,7 +234,7 @@ def _row_view(user_id: int, r: dict) -> dict:
         "id": r["id"], "target": r["target_type"], "quest_history_id": r["quest_history_id"],
         "plan_id": r["plan_id"], "plan_date": r["plan_date"], "day": r["day"] or r["plan_date"] or r["created_at"][:10],
         "board_cell": r["board_cell"], "w": r["w"], "h": r["h"], "label": label, "caption": r.get("caption") or "",
-        "created_at": r["created_at"],
+        "created_at": r["created_at"], "album_id": r.get("album_id"),
         "thumb": sign(user_id, r["id"], "thumb"), "url": sign(user_id, r["id"], "full"),
     }
 
@@ -274,11 +281,22 @@ def list_photos(user_id: int, filters: dict) -> list:
         if filters.get(key):
             where.append(f"COALESCE(p.day, p.plan_date, substr(p.created_at, 1, 10)) {op} ?")
             args.append(str(filters[key])[:10])
+    where.append("p.album_id IS NULL")  # фото общих альбомов живут в своих альбомах
     sql = _SELECT + "".join(f" AND {w}" for w in where) + " ORDER BY p.created_at DESC, p.id LIMIT 500"
     conn = storage.connect(rows=True)
     rows = conn.execute(sql, (user_id, *args)).fetchall()
     conn.close()
     return [_row_view(user_id, dict(r)) for r in rows]
+
+
+def list_album(album_id: int) -> list:
+    """Все фото общего альбома (от всех участников), новые сверху. Ссылки подписаны
+    от имени загрузившего — их откроет любой участник, которому мы их отдали."""
+    conn = storage.connect(rows=True)
+    rows = conn.execute("""SELECT p.*, NULL AS quest_key, NULL AS quest_title, NULL AS plan_title FROM photos p
+                           WHERE p.album_id = ? ORDER BY p.created_at DESC, p.id LIMIT 1000""", (album_id,)).fetchall()
+    conn.close()
+    return [{**_row_view(r["user_id"], dict(r)), "_owner": r["user_id"]} for r in rows]
 
 
 def stats(user_id: int) -> dict:
