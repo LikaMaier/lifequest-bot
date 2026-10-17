@@ -86,6 +86,21 @@ export function contestRow(c, { go }) {
   return b;
 }
 
+/** Пьедестал: 2-е место слева, 1-е в центре (выше всех), 3-е справа. */
+function podium(top, medals) {
+  const order = top.length >= 3 ? [top[1], top[0], top[2]] : top.length === 2 ? [top[1], top[0]] : top;
+  return h('div', { class: `cts-podium n${order.length}` }, order.map(m => {
+    const step = m.place <= 3 ? m.place : 3;
+    return h('div', { class: `cts-col p${step} ${m.me ? 'me' : ''}` },
+      h('div', { class: 'cts-pet' }, mascot(m.mascot || 'cat-purple', m.all_today ? 'love' : step === 1 ? 'happy' : 'wink', { size: 58, acc: m.accessory }),
+        step === 1 && m.score > 0 ? h('span', { class: 'cts-crown', 'aria-hidden': 'true' }, '👑') : null),
+      h('div', { class: 'cts-name' }, m.me ? 'Ты' : m.name, m.all_today ? ' ✓' : ''),
+      h('div', { class: 'cts-step' },
+        h('span', { class: 'cts-medal' }, medals[step - 1]),
+        h('b', null, String(m.score)), h('small', null, 'очк.')));
+  }));
+}
+
 /** Яркая карточка соревнования для Главной: идёт — лидеры и твоё место; лобби — «идёт настройка». */
 export function contestSpotlight(c, { go }) {
   const medals = ['🥇', '🥈', '🥉'];
@@ -112,11 +127,7 @@ export function contestSpotlight(c, { go }) {
       h('span', { class: 'dsp-kicker' }, c.not_started ? '🏆 СТАРТ ЗАВТРА' : `🏆 ДЕНЬ ${c.day || 1} ИЗ ${c.days}`),
       c.place && c.score > 0 ? h('span', { class: 'dsp-badge' }, c.place === 1 ? '👑 Ты лидер!' : `Ты на ${c.place}-м месте`) : null),
     h('div', { class: 'dsp-title' }, `${c.emoji || '🏆'} ${c.title}`),
-    h('div', { class: 'cts-board' }, c.top.slice(0, 3).map(m => h('div', { class: `cts-row ${m.me ? 'me' : ''}` },
-      h('span', { class: 'cts-place' }, m.score > 0 && m.place <= 3 ? medals[m.place - 1] : String(m.place)),
-      h('span', { class: 'cts-mini' }, mascot(m.mascot || 'cat-purple', m.all_today ? 'happy' : 'wink', { size: 34, acc: m.accessory })),
-      h('b', { class: 'grow' }, m.me ? 'Ты' : m.name, m.all_today ? h('span', { class: 'cts-ok' }, ' ✓') : null),
-      h('span', { class: 'cts-score' }, String(m.score))))));
+    podium(c.top.slice(0, 3), medals));
   const btn = h('button', { type: 'button', class: 'dsp-btn' }, c.not_started ? 'Открыть правила'
     : left ? `✓ Отметить сегодня · ${c.done_today}/${c.items}` : 'Сегодня всё отмечено ✓ · Таблица');
   btn.addEventListener('click', e => { e.stopPropagation(); open(); });
