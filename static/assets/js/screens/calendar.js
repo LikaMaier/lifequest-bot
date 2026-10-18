@@ -20,7 +20,7 @@ const REPEAT_SHORT = { daily: 'каждый день', weekdays: 'по будн�
 const FREE_FROM = 9, FREE_TO = 22, FREE_MIN_HOURS = 3;
 
 const cache = new Map(); // 'YYYY-MM' -> summary
-const view = { month: null, mode: 'day', day: null };
+const view = { month: null, mode: 'month', day: null };
 
 const ICONS = {
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',

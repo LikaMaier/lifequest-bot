@@ -686,6 +686,10 @@ def build_evening_message(user_id: int):
     habits_block = habits.evening_text(user_id)
     if habits_block:
         text += "\n\n" + habits_block
+    if game.gift_today(storage.get_user(user_id)) == "halloween":
+        text += ("\n\n🎃 <b>Подарок к Хэллоуину!</b> Стиль «Хэллоуин» теперь твой навсегда — "
+                 "включи его в приложении: Профиль → «Стиль приложения».")
+        return text, app_markup("profile")
     return text, app_markup("habits" if habits_block and "▫️" in habits_block else "")
 
 RU_MONTHS = {

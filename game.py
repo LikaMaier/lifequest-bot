@@ -74,17 +74,35 @@ MASCOTS = [
 # Маскоты до обновления → их замена того же уровня (миграция в storage).
 LEGACY_MASCOTS = {"cat-blue": "frog", "heart": "puppy", "cat-orange": "bear",
                   "cat-lav": "leopard", "cat-pink2": "panda", "cat-lime": "pig"}
-# Стили приложения — доступны все и сразу, независимо от уровня.
+# Стили приложения. Без Premium сразу открыты «Классика» и «Космос» (они первые),
+# остальные — с Premium, из сундука или в подарок (см. THEME_GIFTS).
 THEMES = [
     ("classic", "Классика", "Кремовый фон, стикеры и пастель — как всегда"),
+    ("space", "Космос", "Звёзды, планеты и неоновая туманность"),
     ("halloween", "Хэллоуин", "Тыквы, летучие мыши и фиолетовая ночь"),
     ("matrix", "Матрица", "Зелёный код на чёрном. Следуй за белым кроликом"),
     ("forest", "Лес", "Солнечная поляна, мох и падающие листья"),
     ("ocean", "Морской мир", "Песок, бирюза, стеклянные плашки и пузырьки"),
-    ("space", "Космос", "Звёзды, планеты и неоновая туманность"),
 ]
 THEME_IDS = {t[0] for t in THEMES}
-PREMIUM_THEMES = {"space"}
+PREMIUM_THEMES = {"halloween", "matrix", "forest", "ocean"}
+# Стиль в подарок всем: с этой даты (по времени пользователя) — навсегда
+THEME_GIFTS = {"halloween": date(2026, 10, 30)}
+
+
+def gifted_themes(user: dict) -> set:
+    today = local_today(user)
+    return {t for t, d in THEME_GIFTS.items() if today >= d}
+
+
+def gift_today(user: dict):
+    """Стиль, который дарим именно сегодня (для карточки на главной и вечернего сообщения)."""
+    today = local_today(user)
+    return next((t for t, d in THEME_GIFTS.items() if today == d), None)
+
+
+def owned_with_gifts(user: dict) -> set:
+    return owned_items(user["user_id"]) | {f"theme:{t}" for t in gifted_themes(user)}
 
 
 def level_threshold(level: int) -> int:
@@ -160,7 +178,7 @@ def unlocks(level: int, premium: bool = False, owned: set = frozenset(), opened:
 
 
 def theme_owned(user: dict, theme: str) -> bool:
-    return theme not in PREMIUM_THEMES or is_premium(user) or f"theme:{theme}" in owned_items(user["user_id"])
+    return theme not in PREMIUM_THEMES or is_premium(user) or f"theme:{theme}" in owned_with_gifts(user)
 
 
 # ==================== СЕРИЯ ====================
@@ -988,7 +1006,7 @@ def get_state(user_id: int) -> dict:
             "onboarded": bool(user.get("onboarded")),
         },
         "level": lv,
-        "unlocks": unlocks(lv["level"], is_premium(user), owned_items(user_id), mascots_open(user)),
+        "unlocks": unlocks(lv["level"], is_premium(user), owned_with_gifts(user), mascots_open(user)),
         "streak": user_streak(user, today),
         "today": {"date": today.isoformat(), "hour": now.hour, "done": week.get(today.isoformat(), 0),
                   "goal": user.get("daily_goal") or 1},

@@ -171,6 +171,7 @@ def _state(request) -> dict:
     data["chest"] = chest.status(request["user_id"], data["habits"])
     data["duels"] = duels.list_view(request["user_id"])
     data["login"] = login_bonus.status(request["user_id"])
+    data["gift_theme"] = game.gift_today(storage.get_user(request["user_id"]))
     _mark_duel_habits(request["user_id"], data["habits"]["items"])
     data["plans_today"] = plans.today_plans(request["user_id"])
     data["plans_overdue"] = len(plans.overdue_plans(request["user_id"]))
@@ -255,7 +256,7 @@ async def get_achievements(request):
         "achievements": game.achievements_view(request["user_id"]),
         "level": game.level_info(user.get("xp") or 0),
         "levels": [{"level": i + 1, "name": name, "xp": xp} for i, (xp, name) in enumerate(game.LEVELS)],
-        "unlocks": game.unlocks(game.level_for_xp(user.get("xp") or 0), game.is_premium(user), game.owned_items(request["user_id"]),
+        "unlocks": game.unlocks(game.level_for_xp(user.get("xp") or 0), game.is_premium(user), game.owned_with_gifts(user),
                                 game.mascots_open(user)),
     })
 

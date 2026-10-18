@@ -180,11 +180,13 @@ class ThemesAndMascotsTest(TempDBTestCase, AioHTTPTestCase):
     async def get_application(self):
         return api.create_app(TOKEN)
 
-    async def test_any_theme_regardless_of_level(self):
+    async def test_free_and_locked_themes(self):
         h = headers(42)
-        for theme in ("forest", "halloween", "matrix", "ocean", "classic"):
+        for theme in ("space", "classic"):  # без Premium открыты «Космос» и «Классика»
             r = await self.client.post("/api/settings", headers=h, json={"theme": theme})
             self.assertEqual((await r.json())["user"]["theme"], theme)
+        r = await self.client.post("/api/settings", headers=h, json={"theme": "matrix"})
+        self.assertEqual(r.status, 400)
         self.assertEqual((await self.client.post("/api/settings", headers=h, json={"theme": "neon"})).status, 400)
 
     async def test_removed_brutal_theme_falls_back_to_classic(self):

@@ -96,6 +96,7 @@ export function render(el, { state, go }) {
         : saveSettings({ theme: t.id }, `Стиль «${t.name}» включён`))));
       return b;
     }));
+  themes.id = 'themes';
   el.append(sectionTitle('Стиль приложения'), themes);
 
   // Цель дня

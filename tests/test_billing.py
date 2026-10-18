@@ -45,7 +45,7 @@ class PremiumTest(TempDBTestCase):
             billing.start_trial(1)
 
     def test_expired_premium_hides_premium_items(self):
-        storage.update_user(1, premium_until="2000-01-01 00:00:00", accessory="wizard", theme="space")
+        storage.update_user(1, premium_until="2000-01-01 00:00:00", accessory="wizard", theme="matrix")
         user = storage.get_user(1)
         self.assertFalse(game.is_premium(user))
         self.assertIsNone(game.visible_accessory(user))
@@ -55,8 +55,8 @@ class PremiumTest(TempDBTestCase):
         self.assertEqual(err.exception.code, "premium_item")
         billing.grant(1, 30)
         game.equip(1, "wizard")
-        game.update_settings(1, {"theme": "space"})
-        self.assertEqual(game.visible_theme(storage.get_user(1)), "space")
+        game.update_settings(1, {"theme": "matrix"})
+        self.assertEqual(game.visible_theme(storage.get_user(1)), "matrix")
 
     def test_premium_gets_second_weekly_freeze(self):
         today = date(2026, 10, 14)  # среда

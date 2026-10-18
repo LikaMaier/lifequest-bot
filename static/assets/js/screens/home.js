@@ -50,6 +50,7 @@ export function render(el, ctx) {
     h('div', { class: 'grow' }, h('h1', null, name ? `Привет, ${name}!` : 'Привет!'), h('div', { class: 'home2-line' }, petLine)), streakBox));
   const banner = streakBanner(state, go);
   if (banner) el.append(banner);
+  if (state.gift_theme === 'halloween') el.append(halloweenGift(go));
 
   // Дуэли с друзьями — ярко и сразу под приветствием: кто ведёт и что сделать сегодня
   const du = state.duels;
@@ -150,6 +151,27 @@ export function render(el, ctx) {
   el.append(level);
 
   el.append(h('div', { style: { height: '72px' }, 'aria-hidden': 'true' }), plusFab({ go, onChange: rerender }));
+}
+
+// 30 октября: «Хэллоуин» в подарок — кнопка ведёт к выбору стилей в Профиле
+function halloweenGift(go) {
+  const btn = h('button', { type: 'button', class: 'gift-btn' }, '🎨 Выбрать стиль');
+  btn.addEventListener('click', () => {
+    haptic.tap('medium');
+    go('profile');
+    let tries = 0;
+    const scroll = () => {
+      const t = document.getElementById('themes');
+      if (t) t.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      else if (tries++ < 20) setTimeout(scroll, 100);
+    };
+    setTimeout(scroll, 150);
+  });
+  return h('section', { class: 'gift-card' },
+    h('div', { class: 'gift-emoji', 'aria-hidden': 'true' }, '🎃'),
+    h('div', { class: 'grow' }, h('div', { class: 'gift-kicker' }, 'Подарок к Хэллоуину'),
+      h('b', null, 'Стиль «Хэллоуин» теперь твой навсегда!'),
+      h('p', null, 'Тыквы, летучие мыши и фиолетовая ночь — включи его в Профиле.'), btn));
 }
 
 function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }

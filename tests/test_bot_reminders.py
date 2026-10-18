@@ -189,6 +189,15 @@ class FunnyNudgesTest(TempDBTestCase, unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any(line.split("{")[0][:12] in text for line in nudges.LINES["absent"] if line.split("{")[0]))
 
 
+    async def test_evening_halloween_gift_line(self):
+        from unittest import mock
+        with mock.patch.object(game, "gift_today", lambda u: "halloween"):
+            text, _ = lifequest_bot.build_evening_message(9)
+        self.assertIn("Подарок к Хэллоуину", text)
+        with mock.patch.object(game, "gift_today", lambda u: None):
+            text, _ = lifequest_bot.build_evening_message(9)
+        self.assertNotIn("Подарок к Хэллоуину", text)
+
 class BlockedUsersTest(TempDBTestCase):
     def test_blocked_users_skipped_in_reminders(self):
         storage.ensure_user(11)
