@@ -176,9 +176,20 @@ function activityCard(a) {
       h('b', null, String(value)), h('span', { class: 'act-name' }, name), delta);
   };
   const empty = !t.habits && !t.plans && !t.quests;
-  const card = h('section', { class: 'card act-card', style: { marginTop: '14px' } },
-    h('div', { class: 'spread' }, h('h2', { style: { margin: 0, fontSize: '19px' } }, PERIOD_TITLE[view.range] || 'Итоги'),
-      a.days > 1 ? h('span', { class: 'act-days' }, `активных дней: ${t.active_days} из ${a.days}`) : null),
+  const total = t.habits + t.plans + t.quests;
+  const spell = empty ? 'Магия ждёт первого шага — отметь что-нибудь, и здесь заискрится ✨'
+    : total >= 30 ? 'Настоящая магия — звёзды в восторге! 🌟'
+    : total >= 12 ? 'Чары работают: каждый шаг добавляет искорку ✨'
+    : 'Первые искры уже летят — продолжай колдовать 🪄';
+  const sparkles = h('div', { class: 'act-magic', 'aria-hidden': 'true' },
+    ['s1', 's2', 's3', 's4', 's5', 's6', 's7'].map(k => h('i', { class: `act-spark ${k}` })));
+  const card = h('section', { class: 'card act-card', style: { marginTop: '14px' } }, sparkles,
+    h('div', { class: 'act-head' },
+      h('span', { class: 'act-wand', 'aria-hidden': 'true' }, '🪄'),
+      h('div', { class: 'grow' },
+        h('h2', null, PERIOD_TITLE[view.range] || 'Итоги'),
+        h('p', { class: 'act-spell' }, spell)),
+      a.days > 1 ? h('span', { class: 'act-days' }, h('b', null, String(t.active_days)), `из ${a.days}`, h('small', null, 'дней')) : null),
     h('div', { class: 'act-tiles' },
       tile('habits', '🌱', t.habits, plural(t.habits, 'привычка', 'привычки', 'привычек'), ACTIVITY_COLORS.habits),
       tile('plans', '📅', t.plans, plural(t.plans, 'дело', 'дела', 'дел'), ACTIVITY_COLORS.plans),
@@ -190,13 +201,13 @@ function activityCard(a) {
     return card;
   }
   if (a.days > 1) {
-    card.append(stackedBars(a.series, { height: 150 }),
+    card.append(h('div', { class: 'act-chart' }, stackedBars(a.series, { height: 150 }),
       h('div', { class: 'act-legend', 'aria-hidden': 'true' }, Object.entries(ACTIVITY_LABELS).map(([k, label]) =>
-        h('span', null, h('i', { style: { background: ACTIVITY_COLORS[k] } }), label))));
+        h('span', null, h('i', { style: { background: ACTIVITY_COLORS[k] } }), label)))));
   }
   if (a.best_day && a.days > 1) {
-    card.append(h('div', { class: 'act-best' }, '🏅 Лучший день — ', h('b', null, fmtDay(a.best_day.date)),
-      `: сделано ${a.best_day.total}`));
+    card.append(h('div', { class: 'act-best' }, h('span', { class: 'act-best-ico', 'aria-hidden': 'true' }, '🏆'),
+      h('span', null, 'Самый волшебный день — ', h('b', null, fmtDay(a.best_day.date)), `: сделано ${a.best_day.total} ✨`)));
   }
   return card;
 }
