@@ -436,6 +436,31 @@ def build_morning_message(user_id: int):
     return text, app_markup()
 
 
+async def send_owner_note():
+    """Разовое сообщение владелице из переменной OWNER_NOTE (Railway → Variables).
+    Отправляется один раз на каждый новый текст: повторные деплои его не дублируют.
+    Текст хранится только в переменной окружения, не в коде."""
+    note = os.getenv("OWNER_NOTE", "").strip()
+    if not note or not ADMIN_ID:
+        return
+    import hashlib
+    key = "owner_note:" + hashlib.sha1(note.encode()).hexdigest()[:16]
+    conn = storage.connect()
+    seen = conn.execute("SELECT 1 FROM meta WHERE key = ?", (key,)).fetchone()
+    conn.close()
+    if seen:
+        return
+    try:
+        await ops.safe_send(ADMIN_ID, note.replace("\\n", "\n"))
+    except Exception as e:
+        await ops.alert("owner note", e)
+        return
+    conn = storage.connect()
+    conn.execute("INSERT OR IGNORE INTO meta (key, value) VALUES (?, ?)", (key, storage.utc_now_str()))
+    conn.commit()
+    conn.close()
+
+
 async def send_owner_compliment():
     """Каждый час: владелице бота (ADMIN_ID) — утренний комплимент в её час
     (COMPLIMENT_HOUR, по умолчанию 8 по её часовому поясу). Больше никому."""
@@ -1128,6 +1153,7 @@ async def main():
         print("MINIAPP_URL не задан — новое приложение не будет открываться из бота")
 
 
+    scheduler.add_job(send_owner_note, "date")  # разово сразу после старта, если задан OWNER_NOTE
     scheduler.add_job(send_daily_reminders, "cron", minute=0)
     scheduler.add_job(send_owner_compliment, "cron", minute=0, second=30)
     scheduler.add_job(send_duel_updates, "cron", minute=3)
