@@ -499,6 +499,16 @@ async def album_leave(request):
     return web.json_response(_with_notify(albums.leave(request["user_id"], _int(request.match_info["id"]))))
 
 
+async def album_update(request):
+    _limit(request, "write")
+    return web.json_response(albums.update(request["user_id"], _int(request.match_info["id"]), await _body(request)))
+
+
+async def album_delete(request):
+    _limit(request, "write")
+    return web.json_response(_with_notify(albums.delete_album(request["user_id"], _int(request.match_info["id"]))))
+
+
 async def album_photo_delete(request):
     _limit(request, "write")
     return web.json_response(albums.delete_photo(request["user_id"], _int(request.match_info["id"]),
@@ -917,7 +927,11 @@ async def get_photo_file(request):
 async def patch_photo(request):
     _limit(request, "write")
     data = await _body(request)
-    return web.json_response(photos.set_caption(request["user_id"], request.match_info["id"], data.get("caption")))
+    pid = request.match_info["id"]
+    album_id = albums.photo_album(pid)
+    if album_id and albums.is_member(album_id, request["user_id"]):  # общий альбом — подпись меняет любой участник
+        return web.json_response(albums.set_caption(request["user_id"], album_id, pid, data.get("caption")))
+    return web.json_response(photos.set_caption(request["user_id"], pid, data.get("caption")))
 
 
 async def delete_photo(request):
@@ -1043,6 +1057,8 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_get("/api/albums/{id:[0-9]+}", get_album)
     app.router.add_post("/api/albums/{id:[0-9]+}/invite", album_invite)
     app.router.add_post("/api/albums/{id:[0-9]+}/leave", album_leave)
+    app.router.add_patch("/api/albums/{id:[0-9]+}", album_update)
+    app.router.add_delete("/api/albums/{id:[0-9]+}", album_delete)
     app.router.add_delete("/api/albums/{id:[0-9]+}/photos/{pid:[0-9a-f]{32}}", album_photo_delete)
     app.router.add_get("/api/friends", get_friends)
     app.router.add_post("/api/friends/remove", friend_remove)

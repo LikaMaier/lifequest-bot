@@ -1155,7 +1155,12 @@ ACCESSORIES = [  # id, название, цена
 ]
 # Сезонные: продаются только в свой сезон, купленные остаются навсегда.
 SEASONAL_ACCESSORIES = [  # id, название, цена, с (месяц, день), по (месяц, день)
+    # хэллоуинский набор
     ("pumpkin", "Тыква", 90, (10, 1), (11, 2)),
+    ("witch", "Шляпа ведьмы", 110, (10, 1), (11, 2)),
+    ("horns", "Дьявольские рожки", 90, (10, 1), (11, 2)),
+    ("batwings", "Ободок «Летучая мышь»", 100, (10, 1), (11, 2)),
+    ("ghost", "Призрачок на макушке", 120, (10, 1), (11, 2)),
     ("santa", "Новогодняя шапка", 100, (12, 1), (1, 14)),
     # осенний набор
     ("acorn", "Шапочка-жёлудь", 90, (9, 1), (11, 30)),
@@ -1164,6 +1169,11 @@ SEASONAL_ACCESSORIES = [  # id, название, цена, с (месяц, де
     ("knithat", "Тёплая шапка с листиком", 100, (9, 1), (11, 30)),
 ]
 AUTUMN_ACCESSORIES = ("acorn", "leafwreath", "scarf", "knithat")
+HALLOWEEN_ACCESSORIES = ("pumpkin", "witch", "horns", "batwings", "ghost")
+# Тематические наборы в Магазине: id набора → (заголовок, вещи)
+ACCESSORY_SETS = {"halloween": ("🎃 Хэллоуин", HALLOWEEN_ACCESSORIES), "autumn": ("🍂 Осень", AUTUMN_ACCESSORIES),
+                  "winter": ("🎄 Новый год", ("santa",))}
+ACCESSORY_SET_OF = {item: key for key, (_t, items) in ACCESSORY_SETS.items() for item in items}
 ACCESSORY_IDS = {a[0] for a in ACCESSORIES} | {a[0] for a in SEASONAL_ACCESSORIES}
 
 
@@ -1224,14 +1234,15 @@ def shop_view(user_id: int) -> dict:
     for aid, name, price, start, end in SEASONAL_ACCESSORIES:
         if aid in owned or _in_season(start, end, today):
             items.append({"id": aid, "kind": "seasonal", "name": name, "price": price,
-                          "until": f"{end[1]:02d}.{end[0]:02d}",
+                          "until": f"{end[1]:02d}.{end[0]:02d}", "set": ACCESSORY_SET_OF.get(aid),
                           "owned": aid in owned, "equipped": user.get("accessory") == aid})
     premium = is_premium(user)
     for aid, name in PREMIUM_ACCESSORIES:
         items.append({"id": aid, "kind": "premium", "name": name, "price": 0,
                       "owned": premium, "equipped": premium and user.get("accessory") == aid})
     return {"balance": balance(user), "xp": user.get("xp") or 0, "freeze_tokens": tokens,
-            "accessory": visible_accessory(user), "premium": premium, "items": items}
+            "accessory": visible_accessory(user), "premium": premium, "items": items,
+            "sets": [{"id": k, "title": t} for k, (t, _i) in ACCESSORY_SETS.items()]}
 
 
 def buy(user_id: int, item: str) -> dict:

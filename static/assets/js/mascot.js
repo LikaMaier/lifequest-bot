@@ -136,6 +136,21 @@ export const ACCESSORIES = {
     + '<path d="M42 17 l3 -3 l3 3 Z M52 17 l3 -3 l3 3 Z M43 23 q7 5 14 0 l-3 1 l-2 -2 l-2 2 l-2 -2 l-2 2 Z" fill="#5A2A0E"/>',
   santa: '<path d="M24 26 Q28 0 56 2 Q76 4 86 22 L80 26 Z" fill="#E0322B"/>'
     + '<rect x="22" y="21" width="58" height="9" rx="4.5" fill="#F7F3EA"/><circle cx="86" cy="23" r="5.5" fill="#F7F3EA"/>',
+  // ---- Хэллоуин (вместе с тыквой) ----
+  witch: '<ellipse cx="50" cy="25" rx="35" ry="6.5" fill="#2A1F3D"/>'
+    + '<path d="M34 24 Q40 8 46 -1 Q52 -9 65 -8 Q56 -3 56 5 Q58 15 66 24 Z" fill="#3B2A5A"/>'
+    + '<path d="M36 18 Q50 22 64 18 L65.5 23 Q50 27 34.5 23 Z" fill="#9B5DE5"/>'
+    + '<rect x="45.5" y="17.5" width="9" height="6.5" rx="1.2" fill="none" stroke="#FFC83D" stroke-width="2"/>',
+  horns: '<path d="M29 27 Q24 12 33 3 Q33 14 41 23 Z" fill="#E0322B" stroke="#8E1515" stroke-width="1.6" stroke-linejoin="round"/>'
+    + '<path d="M71 27 Q76 12 67 3 Q67 14 59 23 Z" fill="#E0322B" stroke="#8E1515" stroke-width="1.6" stroke-linejoin="round"/>'
+    + '<path d="M31 18 Q30 12 33 8 M69 18 Q70 12 67 8" stroke="#FF7A6E" stroke-width="1.6" fill="none" stroke-linecap="round"/>',
+  batwings: '<path d="M23 29 Q50 11 77 29" stroke="#241F1A" stroke-width="3.5" fill="none" stroke-linecap="round"/>'
+    + '<path d="M50 16 Q45 9 33 8 Q37 12 35 16 Q40 14 43 18 Q46 15 50 19 Q54 15 57 18 Q60 14 65 16 Q63 12 67 8 Q55 9 50 16 Z" fill="#3A3550"/>'
+    + '<ellipse cx="50" cy="15" rx="4.5" ry="5" fill="#3A3550"/><path d="M46.5 11 l1 -4 l2 3 M53.5 11 l-1 -4 l-2 3" fill="#3A3550"/>'
+    + '<circle cx="48.4" cy="14.5" r="1.1" fill="#FFC83D"/><circle cx="51.6" cy="14.5" r="1.1" fill="#FFC83D"/>',
+  ghost: '<path d="M37 27 Q37 1 50 1 Q63 1 63 27 L59.8 24 L56.6 27 L53.3 24 L50 27 L46.7 24 L43.4 27 L40.2 24 Z" fill="#FFFFFF" stroke="#D8D2C2" stroke-width="1.5" stroke-linejoin="round"/>'
+    + '<ellipse cx="45.5" cy="11" rx="2" ry="2.6" fill="#241F1A"/><ellipse cx="54.5" cy="11" rx="2" ry="2.6" fill="#241F1A"/>'
+    + '<ellipse cx="50" cy="18" rx="2.2" ry="2.8" fill="#241F1A"/><circle cx="42" cy="15" r="1.8" fill="#FFB3CF"/><circle cx="58" cy="15" r="1.8" fill="#FFB3CF"/>',
   // ---- Осень ----
   acorn: '<path d="M25 27 Q25 3 50 3 Q75 3 75 27 Z" fill="#9A6230"/>'
     + '<path d="M29 15 Q39 11 49 15 Q59 11 71 15 M27 21 Q38 17 50 21 Q62 17 73 21 M34 9 Q42 6 50 9 Q58 6 66 9" fill="none" stroke="#6E431C" stroke-width="2"/>'

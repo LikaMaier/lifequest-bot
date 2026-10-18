@@ -1,8 +1,8 @@
 """Общие фотоальбомы и доступ к своему альбому.
 
 Общий альбом: создатель задаёт название, зовёт друзей (из списка друзей или
-по ссылке t.me/<bot>?start=a_<id>). Все участники добавляют фото и видят
-фото друг друга. Создатель может убрать любое фото и удалить альбом.
+по ссылке t.me/<bot>?start=a_<id>). Все участники равны: добавляют и удаляют
+фото, меняют подписи, название и значок, могут удалить альбом целиком.
 
 Доступ к моему альбому: владелец открывает выбранным друзьям просмотр своих
 личных «Воспоминаний» (только смотреть — без правок). Доступ можно забрать.
@@ -81,10 +81,7 @@ def _title(a: dict) -> str:
 
 # ---------- общие альбомы ----------
 def create(user_id: int, data: dict) -> dict:
-    title = " ".join(str(data.get("title") or "").split())[:50]
-    if not title:
-        raise game.QuestError("Придумай название альбома")
-    emoji = " ".join(str(data.get("emoji") or "").split())[:8] or "📸"
+    title, emoji = _clean_title(data)
     conn = _conn()
     n = conn.execute("SELECT COUNT(*) FROM shared_albums WHERE owner_id = ?", (user_id,)).fetchone()[0]
     if n >= ALBUMS_LIMIT:
@@ -133,27 +130,78 @@ def invite(user_id: int, album_id: int, friend_id: int) -> dict:
     return {"album": view(user_id, album_id), "messages": [(friend_id, text)]}
 
 
-def leave(user_id: int, album_id: int) -> dict:
-    """Выйти из альбома; создатель — удаляет альбом целиком (со всеми фото в нём)."""
+def _clean_title(data: dict):
+    title = " ".join(str(data.get("title") or "").split())[:50]
+    if not title:
+        raise game.QuestError("Придумай название альбома")
+    return title, " ".join(str(data.get("emoji") or "").split())[:8] or "📸"
+
+
+def update(user_id: int, album_id: int, data: dict) -> dict:
+    """Название и значок меняет любой участник."""
     a = _require_member(album_id, user_id)
-    if a["owner_id"] == user_id:
-        others = [uid for uid in member_ids(album_id) if uid != user_id]
-        conn = _conn()
-        rows = conn.execute("SELECT id, user_id FROM photos WHERE album_id = ?", (album_id,)).fetchall()
-        conn.execute("DELETE FROM photos WHERE album_id = ?", (album_id,))
-        conn.execute("DELETE FROM shared_album_members WHERE album_id = ?", (album_id,))
-        conn.execute("DELETE FROM shared_albums WHERE id = ?", (album_id,))
-        conn.commit()
-        conn.close()
-        for r in rows:
-            photos._remove_files(r["user_id"], [r["id"]])
-        msgs = [(uid, f"🗑 Общий альбом «{_title(a)}» удалён его создателем.") for uid in others]
-        return {"ok": True, "deleted": True, "messages": msgs}
+    title, emoji = _clean_title({"title": data.get("title", a["title"]), "emoji": data.get("emoji", a["emoji"])})
+    conn = _conn()
+    conn.execute("UPDATE shared_albums SET title = ?, emoji = ? WHERE id = ?", (title, emoji, album_id))
+    conn.commit()
+    conn.close()
+    return {"album": view(user_id, album_id)}
+
+
+def delete_album(user_id: int, album_id: int) -> dict:
+    """Удалить альбом целиком (со всеми фото) может любой участник."""
+    a = _require_member(album_id, user_id)
+    others = [uid for uid in member_ids(album_id) if uid != user_id]
+    conn = _conn()
+    rows = conn.execute("SELECT id, user_id FROM photos WHERE album_id = ?", (album_id,)).fetchall()
+    conn.execute("DELETE FROM photos WHERE album_id = ?", (album_id,))
+    conn.execute("DELETE FROM shared_album_members WHERE album_id = ?", (album_id,))
+    conn.execute("DELETE FROM shared_albums WHERE id = ?", (album_id,))
+    conn.commit()
+    conn.close()
+    for r in rows:
+        photos._remove_files(r["user_id"], [r["id"]])
+    who = html.escape(_name(user_id))
+    return {"ok": True, "deleted": True,
+            "messages": [(uid, f"🗑 {who}: общий альбом «{_title(a)}» удалён.") for uid in others]}
+
+
+def leave(user_id: int, album_id: int) -> dict:
+    """Выйти из альбома. Фото остаются; ушёл последний — альбом удаляется.
+    Если уходит создатель, «корона» переходит к самому давнему участнику."""
+    a = _require_member(album_id, user_id)
+    others = [uid for uid in member_ids(album_id) if uid != user_id]
+    if not others:
+        return delete_album(user_id, album_id)
     conn = _conn()
     conn.execute("DELETE FROM shared_album_members WHERE album_id = ? AND user_id = ?", (album_id, user_id))
+    if a["owner_id"] == user_id:
+        conn.execute("UPDATE shared_albums SET owner_id = ? WHERE id = ?", (others[0], album_id))
     conn.commit()
     conn.close()
     return {"ok": True, "messages": []}
+
+
+def set_caption(user_id: int, album_id: int, photo_id: str, caption) -> dict:
+    """Подпись к любому фото альбома меняет любой участник."""
+    _require_member(album_id, user_id)
+    text = " ".join(str(caption or "").split())[:120]
+    conn = _conn()
+    cur = conn.execute("UPDATE photos SET caption = ? WHERE id = ? AND album_id = ?", (text, photo_id, album_id))
+    conn.commit()
+    conn.close()
+    if not cur.rowcount:
+        raise game.QuestError("Фото не найдено")
+    p = next((x for x in view(user_id, album_id)["photos"] if x["id"] == photo_id), None)
+    return {"photo": p}
+
+
+def photo_album(photo_id: str):
+    """album_id фото (None — личное)."""
+    conn = _conn()
+    r = conn.execute("SELECT album_id FROM photos WHERE id = ?", (photo_id,)).fetchone()
+    conn.close()
+    return r["album_id"] if r else None
 
 
 def _cover(album_id: int):
@@ -190,18 +238,19 @@ def view(user_id: int, album_id: int) -> dict:
         names.setdefault(uid, _name(uid))
         p["by"] = "Ты" if uid == user_id else names[uid]
         p["mine"] = uid == user_id
-        p["can_delete"] = uid == user_id or a["owner_id"] == user_id
+        p["can_delete"] = True  # в общем альбоме все участники равны
+        p["can_edit"] = True
         out_photos.append(p)
     return {**_card(user_id, a), "members_list": [_member_view(uid) for uid in member_ids(album_id)],
             "photos": out_photos, "owner_id": a["owner_id"]}
 
 
 def delete_photo(user_id: int, album_id: int, photo_id: str) -> dict:
-    """Своё фото удаляет автор, любое — создатель альбома."""
+    """Любое фото альбома удаляет любой участник."""
     a = _require_member(album_id, user_id)
     conn = _conn()
     r = conn.execute("SELECT user_id FROM photos WHERE id = ? AND album_id = ?", (photo_id, album_id)).fetchone()
-    if not r or (r["user_id"] != user_id and a["owner_id"] != user_id):
+    if not r:
         conn.close()
         raise game.QuestError("Фото не найдено")
     conn.execute("DELETE FROM photos WHERE id = ?", (photo_id,))

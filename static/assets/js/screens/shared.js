@@ -5,10 +5,10 @@ import { h, clear, plural } from '../dom.js';
 import { haptic } from '../tg.js';
 import { api } from '../api.js';
 import { mascot } from '../mascot.js';
-import { skeleton, toastError, busy, modal } from '../ui.js';
+import { skeleton, toastError, busy, modal, sheet, toast } from '../ui.js';
 import { refreshState } from '../store.js';
 import { uploadButtons } from '../photoui.js';
-import { currentShared, photoGrid, openInvite } from '../albumui.js';
+import { currentShared, photoGrid, openInvite, ALBUM_EMOJI } from '../albumui.js';
 
 export async function render(el, ctx) {
   const target = currentShared();
@@ -49,8 +49,12 @@ function paintFriend(el, ctx, data) {
 function paintAlbum(el, ctx, a) {
   clear(el);
   const reload = () => render(el, ctx);
-  el.append(head(a.emoji || '📸', a.title,
-    `${a.count} ${plural(a.count, 'фото', 'фото', 'фото')} · ${a.members} ${plural(a.members, 'участник', 'участника', 'участников')} · создатель ${a.mine ? '— ты' : a.owner}`));
+  const header = head(a.emoji || '📸', a.title,
+    `${a.count} фото · ${a.members} ${plural(a.members, 'участник', 'участника', 'участников')} · создатель ${a.mine ? '— ты' : a.owner}`);
+  const edit = h('button', { type: 'button', class: 'cal2-icon-btn soft', 'aria-label': 'Изменить название и значок' }, '✏️');
+  edit.addEventListener('click', () => { haptic.tap(); openEditAlbum(a, reload); });
+  header.append(edit);
+  el.append(header);
 
   const invite = h('button', { type: 'button', class: 'cal2-pill dark' }, '👥 Позвать');
   invite.addEventListener('click', () => { haptic.tap(); openInvite(ctx.state, a, { onChange: () => reload() }); });
@@ -59,7 +63,7 @@ function paintAlbum(el, ctx, a) {
     h('div', { class: 'ct-members', style: { marginTop: '10px' } }, a.members_list.map(m => h('div', { class: 'ct-member' },
       h('div', { class: 'ct-member-pet' }, mascot(m.mascot || 'cat-purple', 'happy', { size: 44, acc: m.accessory })),
       h('span', null, m.id === ctx.state.user.id ? 'Ты' : m.name),
-      m.id === a.owner_id ? h('span', { class: 'ct-crown', 'aria-label': 'Создатель' }, '👑') : null)))));
+      m.id === a.owner_id ? h('span', { class: 'ct-owner' }, 'создатель') : null)))));
 
   el.append(h('section', { class: 'ct-block' }, h('h2', { style: { marginBottom: '10px' } }, '＋ Добавить фото'),
     uploadButtons({ target: 'album', album_id: a.id }, { label: 'Фото', onDone: reload })));
@@ -67,24 +71,59 @@ function paintAlbum(el, ctx, a) {
   if (a.photos.length) el.append(h('div', { class: 'memo-sec-head' }, h('h2', null, 'Фото'), h('span', null, String(a.count))), photoGrid(a.photos, { onChange: reload }));
   else el.append(h('div', { class: 'card', style: { marginTop: '12px' } }, h('p', { class: 'bold muted center' }, 'Пока пусто — добавь первое фото, и его увидят все участники 📸')));
 
-  const leave = h('button', { type: 'button', class: 'btn block ghost small', style: { marginTop: '16px' } }, a.mine ? '🗑 Удалить альбом' : 'Выйти из альбома');
-  leave.addEventListener('click', () => {
+  // Выйти или удалить альбом — доступно каждому участнику
+  const confirmAction = (kind) => {
     haptic.warning();
-    const yes = h('button', { type: 'button', class: 'btn block' }, a.mine ? 'Да, удалить' : 'Да, выйти');
+    const del = kind === 'delete';
+    const yes = h('button', { type: 'button', class: `btn block ${del ? 'colored c-pink' : ''}` }, del ? 'Да, удалить альбом' : 'Да, выйти');
     const no = h('button', { type: 'button', class: 'btn block ghost', style: { marginTop: '8px' } }, 'Отмена');
-    const m = modal(h('div', null, h('h2', null, a.mine ? 'Удалить альбом?' : 'Выйти из альбома?'),
-      h('p', { class: 'bold muted', style: { margin: '6px 0 14px' } }, a.mine
-        ? 'Все фото в нём удалятся у всех участников. Это нельзя отменить.'
+    const m = modal(h('div', null, h('h2', null, del ? 'Удалить альбом?' : 'Выйти из альбома?'),
+      h('p', { class: 'bold muted', style: { margin: '6px 0 14px' } }, del
+        ? 'Альбом и все фото в нём исчезнут у всех участников. Это нельзя отменить.'
         : 'Твои фото останутся в альбоме. Вернуться можно по ссылке-приглашению.'), yes, no), { label: 'Подтверждение' });
     no.addEventListener('click', () => m.close());
     yes.addEventListener('click', busy(yes, async () => {
       try {
-        await api.albumLeave(a.id);
+        await (del ? api.albumDelete(a.id) : api.albumLeave(a.id));
         m.close();
+        if (del) toast('🗑 Альбом удалён', 'good');
         refreshState().catch(() => {});
         ctx.go('album', { replace: true, fresh: true });
       } catch (e) { toastError(e); }
     }));
-  });
-  el.append(leave);
+  };
+  const leave = h('button', { type: 'button', class: 'btn block ghost small' }, 'Выйти из альбома');
+  leave.addEventListener('click', () => confirmAction('leave'));
+  const remove = h('button', { type: 'button', class: 'btn block ghost small alb-delete' }, '🗑 Удалить альбом');
+  remove.addEventListener('click', () => confirmAction('delete'));
+  el.append(h('div', { class: 'stack-sm', style: { marginTop: '16px' } }, leave, remove),
+    h('p', { class: 'memo-foot' }, '👥 Все участники равны: добавляют и удаляют фото, меняют подписи и название'));
+}
+
+/** Название и значок альбома — может менять любой участник. */
+function openEditAlbum(a, onSaved) {
+  const form = { emoji: a.emoji || '📸' };
+  const s = sheet(h('div'), { label: 'Изменить альбом' });
+  const title = h('input', { class: 'input', type: 'text', maxlength: '50', value: a.title, 'aria-label': 'Название альбома' });
+  const emoji = h('div', { class: 'duel-chips' });
+  const drawEmoji = () => emoji.replaceChildren(...ALBUM_EMOJI.map(e => {
+    const b = h('button', { type: 'button', class: `duel-chip ${form.emoji === e ? 'on' : ''}`, 'aria-pressed': String(form.emoji === e) }, e);
+    b.addEventListener('click', () => { haptic.select(); form.emoji = e; drawEmoji(); });
+    return b;
+  }));
+  drawEmoji();
+  const save = h('button', { type: 'button', class: 'btn block' }, 'Сохранить');
+  save.addEventListener('click', busy(save, async () => {
+    if (!title.value.trim()) { toast('Придумай название 🙂', 'bad'); title.focus(); return; }
+    try {
+      await api.albumUpdate(a.id, { title: title.value.trim(), emoji: form.emoji });
+      haptic.success();
+      toast('Сохранено ✓', 'good');
+      s.close();
+      onSaved && onSaved();
+    } catch (e) { toastError(e); }
+  }));
+  s.setContent(h('div', { class: 'stack' }, h('h2', null, '✏️ Изменить альбом'),
+    h('div', { class: 'field' }, h('span', { class: 'label' }, 'Название'), title),
+    h('div', { class: 'field' }, h('span', { class: 'label' }, 'Значок'), emoji), save));
 }

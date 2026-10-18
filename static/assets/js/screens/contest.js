@@ -90,7 +90,7 @@ function lobby(el, ctx, c) {
     h('div', { class: 'ct-members' }, c.board.map(m => h('div', { class: 'ct-member' },
       h('div', { class: 'ct-member-pet' }, mascot(m.mascot || 'cat-purple', 'happy', { size: 44, acc: m.accessory })),
       h('span', null, m.id === state.user.id ? 'Ты' : m.name),
-      m.id === c.creator.id ? h('span', { class: 'ct-crown', title: 'Создатель', 'aria-label': 'Создатель' }, '👑') : null))),
+      m.id === c.creator.id ? h('span', { class: 'ct-owner' }, 'создатель') : null))),
     c.members_count < c.limits.min_members
       ? h('p', { class: 'ct-hint' }, 'Нужен хотя бы ещё один участник — отправь ссылку другу.') : null,
     h('p', { class: 'ct-hint' }, '🔒 После запуска новых участников не будет — зови всех заранее.')));
