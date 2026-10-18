@@ -10,7 +10,7 @@ import { buildRecapCard } from '../share.js';
 import { openSphereManager } from '../sphereui.js';
 const RANGE_WORD = { 1: 'сегодня', 7: 'неделя', 30: 'месяц', all: 'всё время' };
 import { handlePremiumError } from '../premium.js';
-import { hbars, stackedBars, ACTIVITY_COLORS, ACTIVITY_LABELS } from '../charts.js';
+import { hbars, jarChart, ACTIVITY_COLORS, ACTIVITY_LABELS } from '../charts.js';
 import { openPhotoReport } from '../photoui.js';
 
 const view = { range: '7', kind: 'bar', stats: {} };
@@ -197,14 +197,18 @@ function activityCard(a) {
       tile('xp', '⭐', t.xp, 'XP', '#E0B300')),
     p ? h('p', { class: 'act-note' }, `Стрелки — сравнение с ${PREV_WORD[view.range]}`) : null);
   if (empty) {
-    card.append(h('p', { class: 'act-empty' }, 'Пока пусто — отметь привычку или дело из календаря, и здесь вырастут столбики 🌱'));
+    card.append(h('p', { class: 'act-empty' }, 'Пока пусто — отметь привычку или дело из календаря, и в банке появится первый шарик 🫙'));
     return card;
   }
-  if (a.days > 1) {
-    card.append(h('div', { class: 'act-chart' }, stackedBars(a.series, { height: 150 }),
-      h('div', { class: 'act-legend', 'aria-hidden': 'true' }, Object.entries(ACTIVITY_LABELS).map(([k, label]) =>
-        h('span', null, h('i', { style: { background: ACTIVITY_COLORS[k] } }), label)))));
-  }
+  // Банка: каждое сделанное — шарик
+  const d = p ? total - (p.habits + p.plans + p.quests) : null;
+  card.append(h('div', { class: 'act-chart act-jar' }, jarChart(a.series, { total }),
+    h('div', { class: 'act-jar-side' },
+      h('b', { class: 'act-jar-num' }, String(total)),
+      h('span', { class: 'act-jar-word' }, plural(total, 'шарик', 'шарика', 'шариков')),
+      d !== null ? h('span', { class: `act-delta ${d > 0 ? 'up' : d < 0 ? 'down' : ''}` }, d > 0 ? `▲ на ${d} больше` : d < 0 ? `▼ на ${-d} меньше` : 'как раньше') : null,
+      h('div', { class: 'act-legend col', 'aria-hidden': 'true' }, Object.entries(ACTIVITY_LABELS).map(([k, label]) =>
+        h('span', null, h('i', { class: `ball-${k}` }), label))))));
   if (a.best_day && a.days > 1) {
     card.append(h('div', { class: 'act-best' }, h('span', { class: 'act-best-ico', 'aria-hidden': 'true' }, '🏆'),
       h('span', null, 'Самый волшебный день — ', h('b', null, fmtDay(a.best_day.date)), `: сделано ${a.best_day.total} ✨`)));

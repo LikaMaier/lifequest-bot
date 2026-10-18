@@ -186,7 +186,10 @@ class FunnyNudgesTest(TempDBTestCase, unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any(line.split("{")[0][:12] in text for line in nudges.LINES["evening_streak"]))
         storage.update_user(9, streak_last_date=(today - timedelta(days=5)).isoformat(), last_seen_at=None)
         text, _ = lifequest_bot.build_morning_message(9)
-        self.assertTrue(any(line.split("{")[0][:12] in text for line in nudges.LINES["absent"] if line.split("{")[0]))
+        # шутка выбирается по дате; сравниваем по самому длинному куску текста без подстановок
+        import re
+        chunk = lambda line: max(re.split(r"\{\w+\}", line), key=len).strip()[:20]
+        self.assertTrue(any(chunk(line) in text for line in nudges.LINES["absent"]))
 
 
     async def test_evening_halloween_gift_line(self):

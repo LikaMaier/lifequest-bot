@@ -1879,3 +1879,21 @@ p { margin: 0; }
   .act-spark, .act-emoji, .act-wand, .act-best::before, .act-tile::after { animation: none; }
   .act-spark { opacity: .7; }
 }
+
+/* ---------- «Прогресс»: банка с шариками ---------- */
+.act-jar { display: flex; align-items: center; gap: 4px; }
+.act-jar .jar-chart { flex: 1.5; min-width: 0; }
+.act-jar-side { flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.act-jar-num { font-family: var(--font-display); font-size: 40px; line-height: 1; }
+.act-jar-word { font-size: 13px; font-weight: 800; color: var(--muted); }
+.act-jar-side .act-delta { margin: 4px 0 6px; }
+.act-legend.col { flex-direction: column; align-items: flex-start; gap: 6px; }
+.act-legend i.ball-habits, .act-legend i.ball-plans, .act-legend i.ball-quests { width: 12px; height: 12px; border-radius: 50%; }
+.ball-habits { background: radial-gradient(circle at 35% 30%, #B8E986, #6DB33F 55%, #3F7F1E); }
+.ball-plans { background: radial-gradient(circle at 35% 30%, #BFD0FF, #5B7FD1 55%, #33529E); }
+.ball-quests { background: radial-gradient(circle at 35% 30%, #FFC2DA, #E8558F 55%, #A92D63); }
+.jar-ball { animation: jar-drop .55s cubic-bezier(.3, 1.4, .5, 1) both; transform-box: fill-box; }
+@keyframes jar-drop { from { transform: translateY(-160px); opacity: 0; } 60% { opacity: 1; } to { transform: translateY(0); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .jar-ball { animation: none; } }
+.act-chart.act-jar { display: flex; flex-direction: row; align-items: center; gap: 6px; padding: 10px 8px; }
+.act-chart.act-jar .jar-chart { flex: 1.6; }

@@ -203,3 +203,62 @@ export function stackedBars(data, { height = 150, label = 'Сделано по �
   });
   return box;
 }
+
+/** Банка с шариками: каждое сделанное за период — глянцевый шарик своего цвета
+ *  (привычки, дела, квесты). Шарики ложатся по дням снизу вверх, как слои. */
+const BALL = {
+  habits: ['#B8E986', '#6DB33F', '#3F7F1E'],
+  plans: ['#BFD0FF', '#5B7FD1', '#33529E'],
+  quests: ['#FFC2DA', '#E8558F', '#A92D63'],
+};
+const JAR_MAX_BALLS = 160;
+
+export function jarChart(series, { total = null, label = 'Банка сделанного' } = {}) {
+  const balls = [];
+  for (const d of series) for (const k of ['habits', 'plans', 'quests']) for (let n = 0; n < (d[k] || 0); n++) balls.push(k);
+  const count = total ?? balls.length;
+  const shown = balls.length > JAR_MAX_BALLS ? balls.filter((_, i) => i % Math.ceil(balls.length / JAR_MAX_BALLS) === 0) : balls;
+  const W = 320, H = 250, jx = 70, jw = 180, jy = 46, jh = 190;
+  const ix = jx + 10, iw = jw - 20, ibottom = jy + jh - 10, itop = jy + 18;
+  // радиус: самый крупный, при котором все шарики помещаются
+  let r = 13;
+  for (; r > 4; r -= 0.5) {
+    const cols = Math.floor(iw / (2 * r));
+    const rows = Math.floor((ibottom - itop - r) / (r * 1.74)) + 1;
+    if (cols * rows >= shown.length) break;
+  }
+  const cols = Math.floor(iw / (2 * r));
+  let defs = '<defs>';
+  for (const [k, [hi, mid, lo]] of Object.entries(BALL)) {
+    defs += `<radialGradient id="ball-${k}" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="${hi}"/><stop offset=".55" stop-color="${mid}"/><stop offset="1" stop-color="${lo}"/></radialGradient>`;
+  }
+  defs += `<clipPath id="jar-in"><rect x="${jx + 4}" y="${jy + 4}" width="${jw - 8}" height="${jh - 8}" rx="26"/></clipPath></defs>`;
+  let pile = '';
+  shown.forEach((k, n) => {
+    const row = Math.floor(n / cols), col = n % cols;
+    const odd = row % 2;
+    const perRow = odd ? cols - 1 : cols;
+    if (odd && col === cols - 1) return; // в сдвинутом ряду на один шарик меньше
+    const used = perRow * 2 * r;
+    const x0 = ix + (iw - used) / 2 + r;
+    const jit = ((n * 37) % 7 - 3) * 0.35; // чуть неровно — как настоящие
+    const cx = x0 + col * 2 * r + jit;
+    const cy = ibottom - r - row * r * 1.74;
+    const delay = Math.min(n, 60) * 18;
+    pile += `<g class="jar-ball" style="animation-delay:${delay}ms"><circle cx="${cx}" cy="${cy + 1.5}" r="${r}" fill="rgba(44,42,34,.18)"/>`
+      + `<circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#ball-${k})"/>`
+      + `<ellipse cx="${cx - r * 0.35}" cy="${cy - r * 0.4}" rx="${r * 0.32}" ry="${r * 0.2}" fill="#fff" opacity=".75" transform="rotate(-30 ${cx - r * 0.35} ${cy - r * 0.4})"/></g>`;
+  });
+  const svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(label)}: ${count}">${defs}
+    <ellipse cx="${jx + jw / 2}" cy="${jy + jh + 4}" rx="${jw / 2 + 6}" ry="7" fill="rgba(44,42,34,.1)"/>
+    <rect x="${jx}" y="${jy}" width="${jw}" height="${jh}" rx="30" fill="#EEF8FC" stroke="#2C2A22" stroke-width="3"/>
+    <g clip-path="url(#jar-in)">${pile}</g>
+    <path d="M${jx + 18} ${jy + 26} v58" stroke="#fff" stroke-width="7" stroke-linecap="round" opacity=".85"/>
+    <path d="M${jx + 18} ${jy + 96} v10" stroke="#fff" stroke-width="7" stroke-linecap="round" opacity=".85"/>
+    <rect x="${jx + 18}" y="${jy - 26}" width="${jw - 36}" height="24" rx="8" fill="#F2C94C" stroke="#2C2A22" stroke-width="3"/>
+    <path d="M${jx + 30} ${jy - 18} h${jw - 60}" stroke="#FFE59A" stroke-width="3" stroke-linecap="round"/>
+    <rect x="${jx + 10}" y="${jy - 4}" width="${jw - 20}" height="10" rx="5" fill="#E2D9B8" stroke="#2C2A22" stroke-width="2.5"/>
+  </svg>`;
+  return h('div', { class: 'chart jar-chart' }, svgEl(svg, 'chart-svg'),
+    srTable(label, ['Что', 'Сколько'], ['habits', 'plans', 'quests'].map(k => [ACTIVITY_LABELS[k], balls.filter(x => x === k).length])));
+}
