@@ -1897,3 +1897,11 @@ p { margin: 0; }
 @media (prefers-reduced-motion: reduce) { .jar-ball { animation: none; } }
 .act-chart.act-jar { display: flex; flex-direction: row; align-items: center; gap: 6px; padding: 10px 8px; }
 .act-chart.act-jar .jar-chart { flex: 1.6; }
+/* значки легенды банки — как конфетки и плашки сверху */
+.act-legend i.candy-habits, .act-legend i.candy-plans, .act-legend i.candy-quests { width: 18px; height: 11px; border-radius: 50%; border: 1.5px solid; }
+.candy-habits { background: linear-gradient(#CBE6A6, #8CC63F); border-color: #A9D46F !important; }
+.candy-plans { background: linear-gradient(#BDCDF0, #5B7FD1); border-color: #84A0DD !important; }
+.candy-quests { background: linear-gradient(#F9BDD5, #F3619C); border-color: #F689B5 !important; }
+.act-legend i.candy-xp { width: 14px; height: 14px; border-radius: 0; background: linear-gradient(#F3E099, #E0B300);
+  clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
+.act-chart.act-jar .jar-chart { flex: 1.15; max-width: 175px; }
