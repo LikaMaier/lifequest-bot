@@ -1905,3 +1905,71 @@ p { margin: 0; }
 .act-legend i.candy-xp { width: 14px; height: 14px; border-radius: 0; background: linear-gradient(#F3E099, #E0B300);
   clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
 .act-chart.act-jar .jar-chart { flex: 1.15; max-width: 175px; }
+
+/* ---------- Приз дня: автомат с хваталкой ---------- */
+.machine-ico { display: inline-flex; width: 38px; height: 42px; flex-shrink: 0; }
+.machine-ico svg { width: 100%; height: 100%; }
+.machine-ico.locked { filter: grayscale(.8); opacity: .65; }
+.claw-modal { gap: 10px; }
+.claw-machine { width: 304px; max-width: 100%; margin: 0 auto; padding: 10px 12px 12px; border-radius: 26px; border: 3px solid #2C2A22;
+  background: linear-gradient(180deg, #FF8FBF, #F3619C 60%, #D9467F); box-shadow: 0 6px 0 #2C2A22; }
+.claw-top { position: relative; display: flex; justify-content: center; align-items: center; height: 44px; margin-bottom: 8px; border-radius: 16px;
+  background: #2C2A22; color: #FFE59A; font-family: var(--font-display); font-size: 17px; letter-spacing: .02em; overflow: hidden; }
+.claw-top b { position: relative; z-index: 1; }
+.claw-bulbs { position: absolute; inset: 4px 10px auto; display: flex; justify-content: space-between; }
+.claw-bulbs i { width: 6px; height: 6px; border-radius: 50%; background: #FFE59A; animation: claw-blink 1s steps(2) infinite; }
+.claw-bulbs i:nth-child(even) { animation-delay: -.5s; background: #8DE0FF; }
+@keyframes claw-blink { 50% { opacity: .25; } }
+.claw-glass { position: relative; width: 280px; max-width: 100%; height: 250px; margin: 0 auto; border-radius: 16px; border: 3px solid #2C2A22; overflow: hidden;
+  background: linear-gradient(160deg, rgba(255,255,255,.95), #E6F4FF 55%, #D4E9FB); }
+.claw-glass::after { content: ''; position: absolute; top: 10px; left: 12px; width: 8px; height: 90px; border-radius: 6px; background: #fff; opacity: .7; }
+.claw-rail { position: absolute; top: 0; left: 0; right: 0; height: 12px; background: #B8BCC9; border-bottom: 3px solid #2C2A22; z-index: 3; }
+.claw-arm { position: absolute; top: 8px; left: 0; width: 60px; z-index: 4; transition: transform .7s ease-in-out; }
+.claw-rope { width: 4px; height: 8px; margin: 0 auto; background: #2C2A22; transition: height .85s ease-in-out; }
+.claw-head { position: relative; width: 60px; height: 46px; }
+.claw-head svg { width: 60px; height: 46px; }
+.claw-l, .claw-r { transition: transform .3s ease; }
+.claw-l { transform-origin: 24px 11px; transform: rotate(18deg); }
+.claw-r { transform-origin: 36px 11px; transform: rotate(-18deg); }
+.claw-head.closed .claw-l { transform: rotate(-6deg); }
+.claw-head.closed .claw-r { transform: rotate(6deg); }
+.claw-pile { position: absolute; inset: 0; }
+.claw-cap { position: absolute; width: 56px; height: 56px; border-radius: 50%; border: 2.5px solid #2C2A22; overflow: hidden;
+  background: linear-gradient(180deg, rgba(255,255,255,.9) 0 50%, var(--shell) 50% 100%); box-shadow: inset 0 -6px 0 rgba(0,0,0,.12);
+  transition: top .85s ease-in-out, left .3s, transform .3s; }
+.claw-cap::after { content: ''; position: absolute; top: 7px; left: 11px; width: 12px; height: 7px; border-radius: 50%; background: #fff; opacity: .8; }
+.claw-cap-pet { position: absolute; inset: 5px 4px 3px; display: flex; }
+.claw-cap-pet svg { width: 100%; height: 100%; }
+.claw-cap-emoji { margin: auto; font-size: 28px; }
+.claw-cap.held { position: absolute; z-index: 2; }
+.claw-cap.fall { animation: claw-fall .6s ease-in forwards; }
+@keyframes claw-fall { to { transform: translateY(200px) rotate(25deg); opacity: 0; } }
+.claw-chute { position: absolute; left: 6px; bottom: 6px; width: 58px; height: 40px; border-radius: 10px; background: #2C2A22; z-index: 1;
+  display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px; }
+.claw-chute span { color: #FFE59A; font-size: 10px; font-weight: 900; letter-spacing: .1em; }
+.claw-panel { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 12px; }
+.claw-btn { width: 54px; height: 54px; border-radius: 50%; border: 3px solid #2C2A22; background: #FFE59A; font-size: 20px; color: #2C2A22;
+  box-shadow: 0 4px 0 #2C2A22; touch-action: none; user-select: none; }
+.claw-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #2C2A22; }
+.claw-grab { min-width: 120px; height: 58px; border-radius: 20px; border: 3px solid #2C2A22; background: #DBFA40; font-family: var(--font-display);
+  font-size: 18px; color: #2C2A22; box-shadow: 0 5px 0 #2C2A22; }
+.claw-grab:active { transform: translateY(4px); box-shadow: 0 1px 0 #2C2A22; }
+.claw-btn:disabled, .claw-grab:disabled { opacity: .55; }
+.claw-hint { margin: 0; font-weight: 800; font-size: 14px; color: var(--muted); text-align: center; }
+.claw-win { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.claw-win h2 { margin: 6px 0 0; }
+.claw-win p { margin: 0 0 6px; }
+.claw-win-cap { width: 140px; height: 140px; border-radius: 50%; border: 3px solid #2C2A22; display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 40% 30%, #fff, #FFE3EF 60%, #F9BDD5); animation: chest-pop .5s cubic-bezier(.2, 1.6, .4, 1); }
+.claw-win-pet { width: 112px; height: 104px; display: flex; }
+.claw-win-pet svg { width: 100%; height: 100%; }
+.claw-win-emoji { font-size: 64px; }
+@media (prefers-reduced-motion: reduce) { .claw-bulbs i, .claw-cap.fall, .claw-win-cap { animation: none; } .claw-arm, .claw-rope, .claw-cap { transition: none; } }
+/* банка — крупно, подписи снизу; конфеты сыплются, когда банка видна */
+.act-chart.act-jar { flex-direction: column; align-items: center; gap: 8px; padding: 12px 10px; }
+.act-chart.act-jar .jar-chart { flex: none; width: 100%; max-width: 250px; }
+.act-jar .act-legend { flex-wrap: wrap; justify-content: center; gap: 12px; }
+.act-jar-note { margin: 0; font-size: 12px; font-weight: 700; color: #7B6F95; text-align: center; }
+.jar-chart .jar-ball { opacity: 0; animation: none; }
+.jar-chart.go .jar-ball { animation: jar-drop .6s cubic-bezier(.3, 1.4, .5, 1) both; }
+@media (prefers-reduced-motion: reduce) { .jar-chart .jar-ball { opacity: 1; } .jar-chart.go .jar-ball { animation: none; } }

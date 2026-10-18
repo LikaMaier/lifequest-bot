@@ -28,7 +28,7 @@ class ChestWeekOneTest(TempDBTestCase):
         owned = game.owned_items(1)
         self.assertTrue(all(r["item"] in owned for r in rewards))
         self.assertEqual(len({r["item"] for r in rewards}), 7)  # без повторов
-        self.assertIn(self._open()["kind"], ("xp", "freeze"))  # 8-й — обычный
+        self.assertEqual(self._open()["kind"], "accessory")  # дальше автомат выдаёт вещи, пока они не кончатся
 
     def test_chest_style_owned_unlocks(self):
         user = storage.get_user(1)
@@ -44,3 +44,14 @@ class ChestWeekOneTest(TempDBTestCase):
         themes = {t["id"]: t for t in game.get_state(1)["unlocks"]["themes"]}
         self.assertFalse(themes["ocean"]["premium"])
         self.assertTrue(themes["matrix"]["premium"])
+
+    def test_after_first_week_machine_gives_accessories_then_xp(self):
+        storage.update_user(1, chest_opens=7)
+        got = set()
+        for _ in range(60):
+            r = self._open()
+            if r["kind"] != "accessory":
+                break
+            got.add(r["id"])
+        self.assertTrue(len(got) >= len(game.ACCESSORIES))  # все обычные вещи + сезонные
+        self.assertIn(r["kind"], ("xp", "freeze"))  # коллекция собрана — XP или заморозка

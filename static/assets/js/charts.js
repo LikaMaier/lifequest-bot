@@ -240,17 +240,22 @@ function candySVG(kind, cx, cy, r, rot, i) {
 }
 
 export function jarChart(series, { total = null, label = 'Банка сделанного' } = {}) {
-  const items = [];
-  let xpLeft = Math.min(MAX_STARS, Math.floor(series.reduce((s, d) => s + (d.xp || 0), 0) / XP_PER_STAR));
-  const stars = xpLeft;
+  // Банка показывает уровень «примерно», а не точное число: полная банка — это
+  // ~5 дел и привычек в день за период. Цвета — в тех же долях, что на самом деле.
+  const all = [];
+  let xpTotal = 0;
   for (const d of series) {
-    for (const k of ['habits', 'plans', 'quests']) for (let n = 0; n < (d[k] || 0); n++) items.push(k);
-    if (xpLeft > 0 && (d.xp || 0) >= XP_PER_STAR) { items.push('xp'); xpLeft--; }
+    for (const k of ['habits', 'plans', 'quests']) for (let n = 0; n < (d[k] || 0); n++) all.push(k);
+    xpTotal += d.xp || 0;
   }
-  while (xpLeft-- > 0) items.push('xp');
-  const done = items.filter(k => k !== 'xp').length;
-  const count = total ?? done;
-  const shown = items.length > JAR_MAX ? items.filter((_, i) => i % Math.ceil(items.length / JAR_MAX) === 0) : items;
+  const count = total ?? all.length;
+  const fullAt = Math.max(5, series.length * 5);
+  const FULL = 46; // столько конфет помещается в полную банку
+  const want = all.length ? Math.max(3, Math.round(FULL * Math.min(1, all.length / fullAt))) : 0;
+  const items = want ? Array.from({ length: want }, (_, i) => all[Math.floor(i * all.length / want)]) : [];
+  const stars = Math.min(MAX_STARS, Math.round(want / 6), Math.floor(xpTotal / XP_PER_STAR));
+  for (let i = 0; i < stars; i++) items.splice(Math.floor((i + 1) * items.length / (stars + 1)), 0, 'xp');
+  const shown = items;
   const jx = 70, jw = 180, jy = 46, jh = 190;
   const ix = jx + 10, iw = jw - 20, ibottom = jy + jh - 10, itop = jy + 18;
   // размер: самые крупные конфеты, при которых все помещаются
@@ -289,6 +294,13 @@ export function jarChart(series, { total = null, label = 'Банка сдела�
     <path d="M${jx + 30} ${jy - 18} h${jw - 60}" stroke="#FFE59A" stroke-width="3" stroke-linecap="round"/>
     <rect x="${jx + 10}" y="${jy - 4}" width="${jw - 20}" height="10" rx="5" fill="#E2D9B8" stroke="#2C2A22" stroke-width="2.5"/>
   </svg>`;
-  return h('div', { class: 'chart jar-chart' }, svgEl(svg, 'chart-svg'),
-    srTable(label, ['Что', 'Сколько'], [...['habits', 'plans', 'quests'].map(k => [ACTIVITY_LABELS[k], items.filter(x => x === k).length]), ['звёздочки XP', stars]]));
+  const box = h('div', { class: 'chart jar-chart' }, svgEl(svg, 'chart-svg'),
+    srTable(label, ['Что', 'Сколько'], ['habits', 'plans', 'quests'].map(k => [ACTIVITY_LABELS[k], all.filter(x => x === k).length])));
+  // конфеты сыплются, когда банка показалась на экране
+  const start = () => box.classList.add('go');
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { start(); io.disconnect(); } }, { threshold: 0.35 });
+    requestAnimationFrame(() => io.observe(box));
+  } else start();
+  return box;
 }

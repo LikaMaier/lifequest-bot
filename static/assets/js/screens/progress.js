@@ -201,15 +201,11 @@ function activityCard(a) {
     return card;
   }
   // Банка: каждое сделанное — конфета цвета своей плашки, XP — золотые звёздочки
-  const d = p ? total - (p.habits + p.plans + p.quests) : null;
   card.append(h('div', { class: 'act-chart act-jar' }, jarChart(a.series, { total }),
-    h('div', { class: 'act-jar-side' },
-      h('b', { class: 'act-jar-num' }, String(total)),
-      h('span', { class: 'act-jar-word' }, plural(total, 'конфета', 'конфеты', 'конфет')),
-      d !== null ? h('span', { class: `act-delta ${d > 0 ? 'up' : d < 0 ? 'down' : ''}` }, d > 0 ? `▲ на ${d} больше` : d < 0 ? `▼ на ${-d} меньше` : 'как раньше') : null,
-      h('div', { class: 'act-legend col', 'aria-hidden': 'true' },
-        [...Object.entries(ACTIVITY_LABELS), ['xp', '20 XP']].map(([k, label]) =>
-          h('span', null, h('i', { class: `candy-${k}` }), label))))));
+    h('div', { class: 'act-legend', 'aria-hidden': 'true' },
+      [...Object.entries(ACTIVITY_LABELS), ['xp', 'XP']].map(([k, label]) =>
+        h('span', null, h('i', { class: `candy-${k}` }), label))),
+    h('p', { class: 'act-jar-note' }, 'Чем больше сделано, тем полнее банка 🍬')));
   if (a.best_day && a.days > 1) {
     card.append(h('div', { class: 'act-best' }, h('span', { class: 'act-best-ico', 'aria-hidden': 'true' }, '🏆'),
       h('span', null, 'Лучший день — ', h('b', null, fmtDay(a.best_day.date)), `: сделано ${a.best_day.total} ✨`)));
