@@ -1,5 +1,5 @@
-"""Сундук дня: открывается, когда сделаны 3 привычки на сегодня (или все,
-если их меньше). Один сундук в день. Первые 7 сундуков — вещи: шапочки,
+"""Приз дня (автомат с хваталкой): открывается, когда сделаны 3 привычки на
+сегодня (или все, если их меньше). Один приз в день. Первые 7 сундуков — вещи: шапочки,
 осенний набор для маскота и закрытый стиль приложения; дальше — XP или заморозка."""
 import json
 import random
@@ -81,6 +81,20 @@ def _week_one(user: dict, rng) -> dict:
     return {"kind": "xp", "amount": 35}
 
 
+def _machine_prize(user: dict, rng):
+    """Автомат с призами: шапочка или наряд для маскота, которых ещё нет.
+    Собрана вся коллекция — None (тогда XP или заморозка)."""
+    owned = game.owned_items(user["user_id"])
+    today = game.local_today(user)
+    pool = [a[0] for a in game.ACCESSORIES]
+    pool += [a[0] for a in game.SEASONAL_ACCESSORIES if game._in_season(a[3], a[4], today)]
+    left = [x for x in pool if x not in owned]
+    if not left:
+        return None
+    item = rng.choice(left)
+    return {"kind": "accessory", "id": item, "name": _item_name(item), "item": item}
+
+
 def open_chest(user_id: int, rng=random) -> dict:
     st = status(user_id)
     if st["opened"]:
@@ -91,7 +105,7 @@ def open_chest(user_id: int, rng=random) -> dict:
     user = storage.get_user(user_id)
     today = game.local_today(user).isoformat()
     first_week = (user.get("chest_opens") or 0) < len(WEEK_ONE)
-    reward = _week_one(user, rng) if first_week else _roll(user, rng)
+    reward = _week_one(user, rng) if first_week else (_machine_prize(user, rng) or _roll(user, rng))
     conn = storage.connect()
     cur = conn.execute("""UPDATE users SET chest_day = ?, chest_reward = ?, chest_opens = COALESCE(chest_opens, 0) + 1
                           WHERE user_id = ? AND COALESCE(chest_day, '') <> ?""",

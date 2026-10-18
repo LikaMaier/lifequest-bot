@@ -1,5 +1,5 @@
-// Сундук дня: копится за привычки (3 на сегодня или все, если их меньше),
-// внутри — XP или заморозка серии.
+// Приз дня: копится за привычки (3 на сегодня или все, если их меньше),
+// достаётся из автомата с хваталкой (clawgame.js). Сундук — старое окно открытия.
 
 import { h, plural } from './dom.js';
 import { api } from './api.js';
@@ -8,6 +8,7 @@ import { store, refreshState } from './store.js';
 import { mascot } from './mascot.js';
 import { modal, toastError, confetti, busy } from './ui.js';
 import { showLevelUp } from './celebrate.js';
+import { openClawGame, MACHINE_ICON } from './clawgame.js';
 
 const INK = '#2C2A22';
 // Сундук с сокровищами: выпуклая крышка из досок, кованые полосы с
@@ -84,25 +85,26 @@ export function rewardText(r) {
   return r.kind === 'freeze' ? 'заморозка серии 🧊' : `+${r.amount} XP${r.jackpot ? ' — джекпот!' : ''}`;
 }
 
-/** Строка сундука в карточке «Привычки сегодня». */
+/** Строка «Приз дня» (автомат с хваталкой) в карточке «Привычки сегодня». */
 export function chestRow(chest) {
   if (!chest || !chest.need) return null;
+  const icon = cls => h('span', { class: `chest-ico machine-ico ${cls}`, 'aria-hidden': 'true', html: MACHINE_ICON });
   if (chest.opened) {
-    return h('div', { class: 'chest-row opened' }, chestIcon(true, 'chest-ico'),
-      h('span', { class: 'grow' }, h('b', null, 'Сундук дня открыт'), h('span', null, `Внутри было: ${rewardText(chest.reward)}`)));
+    return h('div', { class: 'chest-row opened' }, icon(''),
+      h('span', { class: 'grow' }, h('b', null, 'Приз дня получен'), h('span', null, `Из автомата: ${rewardText(chest.reward)}`)));
   }
   if (chest.ready) {
-    const b = h('button', { type: 'button', class: 'chest-row ready' }, chestIcon(false, 'chest-ico shake'),
-      h('span', { class: 'grow' }, h('b', null, 'Сундук дня готов!'), h('span', null, 'Нажми, чтобы открыть')),
-      h('span', { class: 'chest-go' }, 'Открыть'));
-    b.addEventListener('click', () => { haptic.tap('medium'); openChest(); });
+    const b = h('button', { type: 'button', class: 'chest-row ready' }, icon('shake'),
+      h('span', { class: 'grow' }, h('b', null, 'Автомат с призами готов!'), h('span', null, 'Вытащи обновку для маскота')),
+      h('span', { class: 'chest-go' }, 'Играть'));
+    b.addEventListener('click', () => { haptic.tap('medium'); openClawGame(); });
     return b;
   }
   const left = chest.need - chest.have;
-  return h('div', { class: 'chest-row', 'aria-label': `Сундук дня: ${chest.have} из ${chest.need}` },
-    chestIcon(false, 'chest-ico locked'),
-    h('span', { class: 'grow' }, h('b', null, 'Сундук дня'),
-      h('span', null, `Ещё ${left} ${plural(left, 'привычка', 'привычки', 'привычек')} — и он откроется`)),
+  return h('div', { class: 'chest-row', 'aria-label': `Приз дня: ${chest.have} из ${chest.need}` },
+    icon('locked'),
+    h('span', { class: 'grow' }, h('b', null, 'Приз дня'),
+      h('span', null, `Ещё ${left} ${plural(left, 'привычка', 'привычки', 'привычек')} — и автомат с призами заработает`)),
     h('span', { class: 'chest-dots', 'aria-hidden': 'true' },
       Array.from({ length: chest.need }, (_, i) => h('i', { class: i < chest.have ? 'on' : '' }))));
 }

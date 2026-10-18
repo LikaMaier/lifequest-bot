@@ -14,6 +14,11 @@ class ChestTest(TempDBTestCase):
         super().setUp()
         storage.ensure_user(1)
         storage.update_user(1, chest_opens=7)  # первая неделя с вещами — в test_chest_week
+        conn = storage.connect()  # вся коллекция уже собрана — приз XP или заморозка
+        for item in [a[0] for a in (*game.ACCESSORIES, *game.SEASONAL_ACCESSORIES)]:
+            conn.execute("INSERT INTO purchases (user_id, item, price, created_at) VALUES (1, ?, 0, '')", (item,))
+        conn.commit()
+        conn.close()
         self.ids = [habits.create_habit(1, {"title": f"H{i}", "target": 1})["habit"]["id"] for i in range(4)]
 
     def test_needs_three_habits(self):
