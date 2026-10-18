@@ -204,54 +204,84 @@ export function stackedBars(data, { height = 150, label = 'Сделано по �
   return box;
 }
 
-/** Банка с шариками: каждое сделанное за период — глянцевый шарик своего цвета
- *  (привычки, дела, квесты). Шарики ложатся по дням снизу вверх, как слои. */
-const BALL = {
-  habits: ['#B8E986', '#6DB33F', '#3F7F1E'],
-  plans: ['#BFD0FF', '#5B7FD1', '#33529E'],
-  quests: ['#FFC2DA', '#E8558F', '#A92D63'],
-};
-const JAR_MAX_BALLS = 160;
+/** Банка с конфетками: каждое сделанное за период — конфета в обёртке цвета своей
+ *  плашки (привычки, дела, квесты), XP — золотые звёздочки (одна за 20 XP).
+ *  Конфеты ложатся по дням снизу вверх, при открытии экрана сыплются в банку. */
+const CANDY = { habits: '#8CC63F', plans: '#5B7FD1', quests: '#F3619C', xp: '#E0B300' };
+const XP_PER_STAR = 20, MAX_STARS = 15, JAR_MAX = 140;
+
+function mix(hex, t) { // смешать цвет с белым: t=0 — цвет, t=1 — белый
+  const n = parseInt(hex.slice(1), 16);
+  const c = [n >> 16, (n >> 8) & 255, n & 255].map(v => Math.round(v + (255 - v) * t));
+  return `#${c.map(v => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function candySVG(kind, cx, cy, r, rot, i) {
+  const c = CANDY[kind];
+  const fill = `url(#cnd-${kind})`, edge = mix(c, 0.25), deep = mix(c, -0) ;
+  if (kind === 'xp') { // звёздочка-мармеладка
+    const pts = [];
+    for (let k = 0; k < 10; k++) {
+      const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? r * 0.5 : r * 1.05;
+      pts.push(`${(cx + Math.cos(a) * rr).toFixed(1)},${(cy + Math.sin(a) * rr).toFixed(1)}`);
+    }
+    return `<g transform="rotate(${rot} ${cx} ${cy})"><polygon points="${pts.join(' ')}" fill="${fill}" stroke="${edge}" stroke-width="1.6" stroke-linejoin="round"/>`
+      + `<circle cx="${cx - r * 0.25}" cy="${cy - r * 0.3}" r="${r * 0.16}" fill="#fff" opacity=".9"/></g>`;
+  }
+  const w = r * 1.25, hgt = r * 0.82; // тело конфеты
+  const tw = r * 0.62; // хвостики обёртки
+  return `<g transform="rotate(${rot} ${cx} ${cy})">`
+    + `<path d="M${cx - w} ${cy} l${-tw} ${-hgt * 0.8} q${-2} ${hgt * 0.8} 0 ${hgt * 1.6} z" fill="${mix(c, 0.45)}" stroke="${edge}" stroke-width="1.5" stroke-linejoin="round"/>`
+    + `<path d="M${cx + w} ${cy} l${tw} ${-hgt * 0.8} q${2} ${hgt * 0.8} 0 ${hgt * 1.6} z" fill="${mix(c, 0.45)}" stroke="${edge}" stroke-width="1.5" stroke-linejoin="round"/>`
+    + `<ellipse cx="${cx}" cy="${cy}" rx="${w}" ry="${hgt}" fill="${fill}" stroke="${edge}" stroke-width="1.7"/>`
+    + `<path d="M${cx - w * 0.55} ${cy - hgt * 0.45} q${w * 0.5} ${-hgt * 0.35} ${w * 1.05} 0" stroke="#fff" stroke-width="${Math.max(1.4, r * 0.18)}" fill="none" stroke-linecap="round" opacity=".9"/>`
+    + (i % 3 === 0 ? `<path d="M${cx + w * 0.35} ${cy + hgt * 0.15} l${r * 0.12} ${r * 0.28} l${r * 0.28} ${r * 0.12} l${-r * 0.28} ${r * 0.12} l${-r * 0.12} ${r * 0.28} l${-r * 0.12} ${-r * 0.28} l${-r * 0.28} ${-r * 0.12} l${r * 0.28} ${-r * 0.12} z" fill="#fff" opacity=".85"/>` : '')
+    + '</g>';
+}
 
 export function jarChart(series, { total = null, label = 'Банка сделанного' } = {}) {
-  const balls = [];
-  for (const d of series) for (const k of ['habits', 'plans', 'quests']) for (let n = 0; n < (d[k] || 0); n++) balls.push(k);
-  const count = total ?? balls.length;
-  const shown = balls.length > JAR_MAX_BALLS ? balls.filter((_, i) => i % Math.ceil(balls.length / JAR_MAX_BALLS) === 0) : balls;
-  const W = 320, H = 250, jx = 70, jw = 180, jy = 46, jh = 190;
+  const items = [];
+  let xpLeft = Math.min(MAX_STARS, Math.floor(series.reduce((s, d) => s + (d.xp || 0), 0) / XP_PER_STAR));
+  const stars = xpLeft;
+  for (const d of series) {
+    for (const k of ['habits', 'plans', 'quests']) for (let n = 0; n < (d[k] || 0); n++) items.push(k);
+    if (xpLeft > 0 && (d.xp || 0) >= XP_PER_STAR) { items.push('xp'); xpLeft--; }
+  }
+  while (xpLeft-- > 0) items.push('xp');
+  const done = items.filter(k => k !== 'xp').length;
+  const count = total ?? done;
+  const shown = items.length > JAR_MAX ? items.filter((_, i) => i % Math.ceil(items.length / JAR_MAX) === 0) : items;
+  const jx = 70, jw = 180, jy = 46, jh = 190;
   const ix = jx + 10, iw = jw - 20, ibottom = jy + jh - 10, itop = jy + 18;
-  // радиус: самый крупный, при котором все шарики помещаются
-  let r = 13;
+  // размер: самые крупные конфеты, при которых все помещаются
+  let r = 14;
+  const cell = rr => ({ cw: rr * 3.3, ch: rr * 1.55 });
   for (; r > 4; r -= 0.5) {
-    const cols = Math.floor(iw / (2 * r));
-    const rows = Math.floor((ibottom - itop - r) / (r * 1.74)) + 1;
+    const { cw, ch } = cell(r);
+    const cols = Math.max(1, Math.floor(iw / cw)), rows = Math.floor((ibottom - itop) / ch);
     if (cols * rows >= shown.length) break;
   }
-  const cols = Math.floor(iw / (2 * r));
+  const { cw, ch } = cell(r);
+  const cols = Math.max(1, Math.floor(iw / cw));
   let defs = '<defs>';
-  for (const [k, [hi, mid, lo]] of Object.entries(BALL)) {
-    defs += `<radialGradient id="ball-${k}" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="${hi}"/><stop offset=".55" stop-color="${mid}"/><stop offset="1" stop-color="${lo}"/></radialGradient>`;
+  for (const [k, c] of Object.entries(CANDY)) {
+    defs += `<linearGradient id="cnd-${k}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${mix(c, 0.55)}"/><stop offset=".55" stop-color="${mix(c, 0.2)}"/><stop offset="1" stop-color="${c}"/></linearGradient>`;
   }
   defs += `<clipPath id="jar-in"><rect x="${jx + 4}" y="${jy + 4}" width="${jw - 8}" height="${jh - 8}" rx="26"/></clipPath></defs>`;
   let pile = '';
   shown.forEach((k, n) => {
     const row = Math.floor(n / cols), col = n % cols;
-    const odd = row % 2;
-    const perRow = odd ? cols - 1 : cols;
-    if (odd && col === cols - 1) return; // в сдвинутом ряду на один шарик меньше
-    const used = perRow * 2 * r;
-    const x0 = ix + (iw - used) / 2 + r;
-    const jit = ((n * 37) % 7 - 3) * 0.35; // чуть неровно — как настоящие
-    const cx = x0 + col * 2 * r + jit;
-    const cy = ibottom - r - row * r * 1.74;
+    const used = cols * cw;
+    const cx = ix + (iw - used) / 2 + cw / 2 + col * cw + (row % 2 ? cw * 0.25 : -cw * 0.1) + (((n * 37) % 7) - 3) * 0.6;
+    const cy = ibottom - ch / 2 - row * ch;
+    const rot = ((n * 53) % 41) - 20; // как насыпались
     const delay = Math.min(n, 60) * 18;
-    pile += `<g class="jar-ball" style="animation-delay:${delay}ms"><circle cx="${cx}" cy="${cy + 1.5}" r="${r}" fill="rgba(44,42,34,.18)"/>`
-      + `<circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#ball-${k})"/>`
-      + `<ellipse cx="${cx - r * 0.35}" cy="${cy - r * 0.4}" rx="${r * 0.32}" ry="${r * 0.2}" fill="#fff" opacity=".75" transform="rotate(-30 ${cx - r * 0.35} ${cy - r * 0.4})"/></g>`;
+    pile += `<g class="jar-ball" style="animation-delay:${delay}ms">${candySVG(k, cx, cy, r, rot, n)}</g>`;
   });
-  const svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(label)}: ${count}">${defs}
+  // рамка рисунка — по банке, без пустых полей, чтобы банка была крупной
+  const svg = `<svg viewBox="${jx - 8} ${jy - 30} ${jw + 16} ${jh + 44}" width="100%" role="img" aria-label="${esc(label)}: ${count}">${defs}
     <ellipse cx="${jx + jw / 2}" cy="${jy + jh + 4}" rx="${jw / 2 + 6}" ry="7" fill="rgba(44,42,34,.1)"/>
-    <rect x="${jx}" y="${jy}" width="${jw}" height="${jh}" rx="30" fill="#EEF8FC" stroke="#2C2A22" stroke-width="3"/>
+    <rect x="${jx}" y="${jy}" width="${jw}" height="${jh}" rx="30" fill="#F6F3FF" stroke="#2C2A22" stroke-width="3"/>
     <g clip-path="url(#jar-in)">${pile}</g>
     <path d="M${jx + 18} ${jy + 26} v58" stroke="#fff" stroke-width="7" stroke-linecap="round" opacity=".85"/>
     <path d="M${jx + 18} ${jy + 96} v10" stroke="#fff" stroke-width="7" stroke-linecap="round" opacity=".85"/>
@@ -260,5 +290,5 @@ export function jarChart(series, { total = null, label = 'Банка сдела�
     <rect x="${jx + 10}" y="${jy - 4}" width="${jw - 20}" height="10" rx="5" fill="#E2D9B8" stroke="#2C2A22" stroke-width="2.5"/>
   </svg>`;
   return h('div', { class: 'chart jar-chart' }, svgEl(svg, 'chart-svg'),
-    srTable(label, ['Что', 'Сколько'], ['habits', 'plans', 'quests'].map(k => [ACTIVITY_LABELS[k], balls.filter(x => x === k).length])));
+    srTable(label, ['Что', 'Сколько'], [...['habits', 'plans', 'quests'].map(k => [ACTIVITY_LABELS[k], items.filter(x => x === k).length]), ['звёздочки XP', stars]]));
 }
