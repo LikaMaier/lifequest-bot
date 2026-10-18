@@ -31,10 +31,16 @@ export async function render(el, ctx) {
   el.append(h('div', { class: 'hub-grid' },
     tile('🏆', 'Награды', `${st.badges.unlocked} из ${st.badges.total} ачивок`, 'yellow', 'awards'),
     tile('🛍️', 'Магазин', `${st.user.balance} XP на счету`, 'lime', 'shop'),
-    tile('🎯', 'Цели месяца', 'бинго из 9 целей', 'lav', 'board'),
-    tile('🏅', 'Лига недели', 'соревнуйся с друзьями', 'blue', 'friends'),
-    tile('🔥', 'Челленджи', st.challenge ? `${st.challenge.title} · ${st.challenge.done}/${st.challenge.days}` : 'серии на 7–30 дней', 'orange', 'challenges'),
-    tile('📷', 'Альбом', st.photos.enabled ? `${st.photos.count} фото` : 'скоро', 'pink', 'album')));
+    tile('🎯', 'Цели месяца', 'бинго из 9 целей', 'lav', 'board')));
+  // Альбом — на всю ширину, заметно
+  const album = h('button', { type: 'button', class: 'hub-album' },
+    h('span', { class: 'hub-album-pics', 'aria-hidden': 'true' },
+      h('span', { class: 'pic p1' }, '🌅'), h('span', { class: 'pic p2' }, '🌸'), h('span', { class: 'pic p3' }, '📷')),
+    h('span', { class: 'grow' }, h('b', null, 'Альбом воспоминаний'),
+      h('span', null, st.photos.enabled ? (st.photos.count ? `${st.photos.count} фото — листай свои полароиды` : 'Добавь первое фото дня') : 'Скоро здесь будут фото')),
+    h('span', { class: 'hub-album-go', 'aria-hidden': 'true' }, '›'));
+  album.addEventListener('click', () => { haptic.tap(); ctx.go('album'); });
+  el.append(album);
 
   const recapBtn = (period, label) => {
     const b = h('button', { type: 'button', class: `btn small ${period === 'year' ? 'colored c-purple' : 'ghost'}` }, label);

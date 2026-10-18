@@ -18,7 +18,6 @@ const SCREENS = {
   calendar: { title: 'Календарь', icon: ICONS.calendar, load: () => import('./screens/calendar.js') },
   awards: { title: 'Награды', sub: true, load: () => import('./screens/awards.js') },
   shop: { title: 'Магазин', sub: true, load: () => import('./screens/shop.js') },
-  challenges: { title: 'Челленджи', sub: true, load: () => import('./screens/challenges.js') },
   friends: { title: 'Друзья', sub: true, load: () => import('./screens/friends.js') },
   contest: { title: 'Соревнование', sub: true, load: () => import('./screens/contest.js') },
   notes: { title: 'Заметки', sub: true, load: () => import('./screens/notes.js') },
