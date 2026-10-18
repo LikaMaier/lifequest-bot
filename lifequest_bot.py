@@ -28,7 +28,6 @@ load_dotenv()  # до импорта storage: он читает DB_PATH при �
 import api
 import billing
 import card
-import challenges
 import compliments
 import admin_report
 import albums
@@ -684,11 +683,6 @@ def build_evening_message(user_id: int):
             joke = nudges.pick("evening_none", user_id, ctx["today"], m=ctx["m"], hours=ctx["hours"])
         text = f"🌙 <b>Как прошёл день?</b>\n\n{joke}"
 
-    ch = challenges.summary(user_id)
-    if ch and not ch["today_done"]:
-        need = f"квест из сферы «{ch['sphere']}»" if ch["sphere"] else "любой квест"
-        text += (f"\n\n{ch['emoji']} <b>{html.escape(ch['title'])}</b>: день {ch['day']} из {ch['days']} "
-                 f"ещё не засчитан — нужен {need}.")
     habits_block = habits.evening_text(user_id)
     if habits_block:
         text += "\n\n" + habits_block

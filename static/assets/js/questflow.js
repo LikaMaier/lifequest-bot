@@ -86,7 +86,6 @@ export async function completeQuest(activeId) {
     confetti(70);
     await refreshState();
     await celebrate(res, { xpText: '🎉 Засчитано!' });
-    announceChallenge(res);
     if (res.trial_offer) offerTrial();
     else if (res.history_id) openPhotoReport(res.history_id, res.title || 'Задание', { intro: true });
     return res;
@@ -108,16 +107,6 @@ async function skipQuest(activeId) {
 
 function actionsRow(...buttons) {
   return h('div', { class: 'row', style: { marginTop: '18px', alignItems: 'flex-start' } }, ...buttons);
-}
-
-function announceChallenge(res) {
-  const ch = res.challenge || {};
-  if (ch.completed) {
-    confetti(160);
-    toast(`${ch.completed.emoji} Челлендж «${ch.completed.title}» пройден! +${ch.completed.xp} XP`, 'good', 4200);
-  } else if (ch.failed) {
-    toast(`Челлендж «${ch.failed.title}» прервался — можно начать заново`, '', 3200);
-  }
 }
 
 /** Рулетка: крутится 0.6–1 с, параллельно идёт запрос. */

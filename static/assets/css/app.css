@@ -1778,3 +1778,17 @@ p { margin: 0; }
 .login-pet .mascot { width: 26px; height: 24px; }
 .login-mascot-hint { margin: 2px 0 0; font-weight: 800; font-size: 13px; color: var(--accent-deep, var(--pink-deep)); }
 .login-fire .mascot { margin: 0 auto; }
+
+/* ---------- «Прогресс»: альбом на всю ширину ---------- */
+.hub-album { display: flex; align-items: center; gap: 14px; width: 100%; margin: -4px 0 16px; padding: 16px; border-radius: 22px; border: 2px solid var(--ink);
+  background: linear-gradient(120deg, #F78FBC, var(--pink) 55%, #E5488A); box-shadow: 0 4px 0 var(--ink); font-family: inherit; text-align: left; color: #fff; cursor: pointer; }
+.hub-album b { display: block; font-size: 19px; line-height: 1.15; font-family: var(--font-display); }
+.hub-album .grow span { display: block; margin-top: 3px; font-size: 13px; font-weight: 700; opacity: .95; }
+.hub-album-pics { position: relative; width: 76px; height: 64px; flex-shrink: 0; }
+.hub-album-pics .pic { position: absolute; width: 42px; height: 48px; padding: 4px 4px 10px; background: #fff; border-radius: 4px; box-shadow: 0 3px 8px rgba(0,0,0,.18);
+  display: flex; align-items: center; justify-content: center; font-size: 20px; }
+.hub-album-pics .p1 { left: 0; top: 8px; transform: rotate(-12deg); }
+.hub-album-pics .p2 { left: 18px; top: 2px; transform: rotate(4deg); }
+.hub-album-pics .p3 { left: 34px; top: 10px; transform: rotate(14deg); }
+.hub-album-go { font-size: 26px; font-weight: 800; }
+.duel-cta .hub-album-go { color: var(--ink); opacity: .7; }

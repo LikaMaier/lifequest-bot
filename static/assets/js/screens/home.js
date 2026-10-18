@@ -125,19 +125,6 @@ export function render(el, ctx) {
     el.append(h('div', { class: 'stack-sm' }, state.plans_today.filter(o => !o.focus).slice(0, 4).map(o => planRow(o, { compact: true }))));
   }
 
-  // Активный челлендж
-  const ch = state.challenge;
-  if (ch) {
-    const chCard = h('button', { type: 'button', class: 'quest-item c-lime', style: { marginTop: '12px', width: '100%' } },
-      h('span', { class: 'q-emoji', 'aria-hidden': 'true' }, ch.emoji),
-      h('span', { class: 'grow' }, h('span', { class: 'q-title', style: { display: 'block' } }, `${ch.title} · ${ch.done}/${ch.days}`),
-        h('span', { class: 'q-meta', style: { display: 'block' } }, ch.today_done ? 'Сегодня засчитано ✓'
-          : `Сегодня нужен ${ch.sphere ? `квест из сферы «${ch.sphere}»` : 'любой квест'}`)),
-      h('span', { class: 'tag c-paleyellow' }, ch.today_done ? '✓' : `день ${ch.day}`));
-    chCard.addEventListener('click', () => { haptic.tap(); go('challenges'); });
-    el.append(chCard);
-  }
-
   // Квест дня — бонус
   const daily = state.daily;
   const active = state.active.find(q => q.id === daily.id);

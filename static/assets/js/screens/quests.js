@@ -14,11 +14,15 @@ const view = { packs: null, tab: 'active', query: '', soloSphere: null, history:
 export function render(el, ctx) {
   clear(el);
   const { state } = ctx;
-  const chBtn = h('button', { type: 'button', class: 'btn small colored c-lime', style: { flexShrink: 0 } },
-    state.challenge ? `${state.challenge.emoji} ${state.challenge.done}/${state.challenge.days}` : '🏆 Челленджи');
-  chBtn.addEventListener('click', () => { haptic.tap(); ctx.go('challenges'); });
   el.append(h('header', { class: 'page-head' }, myMascot('silly', { size: 56 }),
-    h('div', { class: 'grow' }, h('h1', null, 'Квесты'), h('p', null, 'Выбери формат — я подкину задание. Не понравится — возьмём другое.')), chBtn));
+    h('div', { class: 'grow' }, h('h1', null, 'Квесты'), h('p', null, 'Выбери формат — я подкину задание. Не понравится — возьмём другое.'))));
+  // Брось вызов: дуэли и общие серии с друзьями
+  const duel = h('button', { type: 'button', class: 'duel-cta', style: { marginBottom: '16px' } },
+    h('span', { class: 'duel-cta-emoji', 'aria-hidden': 'true' }, '⚔️'),
+    h('span', { class: 'grow' }, h('b', null, 'Брось вызов'), h('span', { class: 'sub' }, 'Соревнуйся с друзьями')),
+    h('span', { class: 'hub-album-go', 'aria-hidden': 'true' }, '›'));
+  duel.addEventListener('click', () => { haptic.tap(); ctx.go('friends'); });
+  el.append(duel);
 
   // Генератор
   el.append(h('div', { class: 'small bold muted', style: { margin: '0 2px 8px' } }, 'Сфера задания «Для себя»'),
