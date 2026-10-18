@@ -18,6 +18,7 @@ from aiohttp import web
 
 import re
 
+import activity
 import aiquest
 import albums
 import billing
@@ -247,6 +248,10 @@ async def get_stats(request):
     data["spheres"] = [{**s, "sphere": s["key"], "quests": by_quest.get(s["key"], 0), "habits": by_habit.get(s["key"], 0),
                         "count": by_quest.get(s["key"], 0) + by_habit.get(s["key"], 0)}
                        for s in spheres.list_spheres(request["user_id"])]
+    if series:  # итоги периода: привычки, дела, квесты и XP по дням + сравнение с прошлым периодом
+        from datetime import date as _date
+        data["activity"] = activity.summary(request["user_id"], _date.fromisoformat(series[0]["date"]),
+                                            _date.fromisoformat(series[-1]["date"]), compare=rng != "all")
     return web.json_response(data)
 
 

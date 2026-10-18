@@ -10,7 +10,7 @@ import { buildRecapCard } from '../share.js';
 import { openSphereManager } from '../sphereui.js';
 const RANGE_WORD = { 1: 'сегодня', 7: 'неделя', 30: 'месяц', all: 'всё время' };
 import { handlePremiumError } from '../premium.js';
-import { barChart, lineChart, hbars } from '../charts.js';
+import { hbars, stackedBars, ACTIVITY_COLORS, ACTIVITY_LABELS } from '../charts.js';
 import { openPhotoReport } from '../photoui.js';
 
 const view = { range: '7', kind: 'bar', stats: {} };
@@ -92,29 +92,8 @@ export function update(el, ctx) {
 
 function draw(body, s, ctx) {
   const r = s.records;
-  // Главная цифра периода
-  const chartHost = h('div', { style: { marginTop: '10px' } });
-  const kindSeg = h('div', { class: 'segmented', role: 'group', 'aria-label': 'Вид графика', style: { width: '170px' } },
-    [['bar', 'Столбики'], ['line', 'Линия']].map(([k, label]) => {
-      const b = h('button', { type: 'button', 'aria-pressed': String(view.kind === k) }, label);
-      b.addEventListener('click', () => {
-        haptic.select(); view.kind = k;
-        for (const x of kindSeg.children) x.setAttribute('aria-pressed', String(x === b));
-        drawChart();
-      });
-      return b;
-    }));
-  const drawChart = () => {
-    clear(chartHost);
-    chartHost.append(view.kind === 'bar' ? barChart(s.series, { height: 160 }) : lineChart(s.series, { height: 160 }));
-  };
-  body.append(h('section', { class: 'card', style: { marginTop: '14px' } },
-    h('div', { class: 'spread' },
-      h('div', null, h('div', { class: 'small bold muted' }, 'ВЫПОЛНЕНО ЗА ПЕРИОД'),
-        h('div', { class: 'num', style: { fontSize: '34px' } }, String(s.total_in_range))),
-      kindSeg),
-    chartHost));
-  drawChart();
+  // Итоги периода: привычки, дела, квесты, XP — и сравнение с прошлым периодом
+  if (s.activity) body.append(activityCard(s.activity));
 
   // Рекорды
   const fav = r.favorite_sphere;
@@ -179,4 +158,45 @@ function weekLabel(key) {
   monday.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7) + (w - 1) * 7);
   const iso = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
   return `с ${fmtDay(iso)}`;
+}
+
+const PREV_WORD = { 1: 'вчера', 7: 'прошлой неделей', 30: 'прошлым месяцем' };
+const PERIOD_TITLE = { 1: 'Итоги дня', 7: 'Итоги недели', 30: 'Итоги месяца', all: 'Итоги за всё время' };
+
+function activityCard(a) {
+  const t = a.totals, p = a.prev;
+  const tile = (key, emoji, value, name, color) => {
+    let delta = null;
+    if (p) {
+      const d = value - p[key];
+      delta = h('span', { class: `act-delta ${d > 0 ? 'up' : d < 0 ? 'down' : ''}` }, d > 0 ? `▲ ${d}` : d < 0 ? `▼ ${-d}` : '=');
+    }
+    return h('div', { class: 'act-tile', style: { '--c': color } },
+      h('span', { class: 'act-emoji', 'aria-hidden': 'true' }, emoji),
+      h('b', null, String(value)), h('span', { class: 'act-name' }, name), delta);
+  };
+  const empty = !t.habits && !t.plans && !t.quests;
+  const card = h('section', { class: 'card act-card', style: { marginTop: '14px' } },
+    h('div', { class: 'spread' }, h('h2', { style: { margin: 0, fontSize: '19px' } }, PERIOD_TITLE[view.range] || 'Итоги'),
+      a.days > 1 ? h('span', { class: 'act-days' }, `активных дней: ${t.active_days} из ${a.days}`) : null),
+    h('div', { class: 'act-tiles' },
+      tile('habits', '🌱', t.habits, plural(t.habits, 'привычка', 'привычки', 'привычек'), ACTIVITY_COLORS.habits),
+      tile('plans', '📅', t.plans, plural(t.plans, 'дело', 'дела', 'дел'), ACTIVITY_COLORS.plans),
+      tile('quests', '🎯', t.quests, plural(t.quests, 'квест', 'квеста', 'квестов'), ACTIVITY_COLORS.quests),
+      tile('xp', '⭐', t.xp, 'XP', '#E0B300')),
+    p ? h('p', { class: 'act-note' }, `Стрелки — сравнение с ${PREV_WORD[view.range]}`) : null);
+  if (empty) {
+    card.append(h('p', { class: 'act-empty' }, 'Пока пусто — отметь привычку или дело из календаря, и здесь вырастут столбики 🌱'));
+    return card;
+  }
+  if (a.days > 1) {
+    card.append(stackedBars(a.series, { height: 150 }),
+      h('div', { class: 'act-legend', 'aria-hidden': 'true' }, Object.entries(ACTIVITY_LABELS).map(([k, label]) =>
+        h('span', null, h('i', { style: { background: ACTIVITY_COLORS[k] } }), label))));
+  }
+  if (a.best_day && a.days > 1) {
+    card.append(h('div', { class: 'act-best' }, '🏅 Лучший день — ', h('b', null, fmtDay(a.best_day.date)),
+      `: сделано ${a.best_day.total}`));
+  }
+  return card;
 }

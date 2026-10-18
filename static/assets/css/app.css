@@ -1803,3 +1803,21 @@ p { margin: 0; }
 .gift-card p { margin: 4px 0 10px; font-size: 13px; font-weight: 700; opacity: .85; }
 .gift-btn { min-height: 44px; padding: 0 16px; border: 0; border-radius: 14px; background: #FF8A2A; color: #241F1A; font-family: inherit; font-weight: 900; font-size: 15px; box-shadow: 0 3px 0 #A2531D; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { .gift-emoji { animation: none; } }
+
+/* ---------- «Прогресс»: итоги периода ---------- */
+.act-card { display: flex; flex-direction: column; gap: 12px; }
+.act-days { font-size: 12px; font-weight: 800; color: var(--muted); }
+.act-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.act-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 10px 4px 8px; border-radius: 16px;
+  background: color-mix(in srgb, var(--c) 18%, var(--white)); border: 2px solid color-mix(in srgb, var(--c) 55%, transparent); }
+.act-tile b { font-size: 22px; line-height: 1.1; font-family: var(--font-display); }
+.act-emoji { font-size: 18px; }
+.act-name { font-size: 11px; font-weight: 800; color: var(--muted); }
+.act-delta { margin-top: 3px; padding: 1px 6px; border-radius: 999px; font-size: 10.5px; font-weight: 900; background: var(--cream-2); color: var(--muted); }
+.act-delta.up { background: #DFF3C8; color: #3F7A12; }
+.act-delta.down { background: #FBE0E0; color: #B23C3C; }
+.act-note { margin: -4px 0 0; font-size: 11px; font-weight: 700; color: var(--muted); text-align: center; }
+.act-empty { margin: 0; font-weight: 700; color: var(--muted); text-align: center; }
+.act-legend { display: flex; justify-content: center; gap: 14px; font-size: 12px; font-weight: 800; color: var(--muted); }
+.act-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.act-best { padding: 10px 12px; border-radius: 14px; background: var(--yellow); font-size: 14px; font-weight: 700; }

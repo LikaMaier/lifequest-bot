@@ -143,3 +143,63 @@ export function heatmap(data, { label = 'Активность за месяц', 
     [0, 1, 2, 3, 4].map(l => h('span', { class: `heat-cell l${l}` })), 'больше');
   return h('div', null, grid, legend);
 }
+
+/** Столбики «что сделано по дням»: привычки, дела и квесты стопкой разными цветами.
+ *  data: [{date, habits, plans, quests}]. Длинные периоды складываются по неделям. */
+export const ACTIVITY_COLORS = { habits: '#8CC63F', plans: '#5B7FD1', quests: '#F3619C' };
+export const ACTIVITY_LABELS = { habits: 'привычки', plans: 'дела', quests: 'квесты' };
+
+export function stackedBars(data, { height = 150, label = 'Сделано по дням' } = {}) {
+  let cols = data.map(d => ({ ...d, from: d.date }));
+  if (cols.length > 31) { // по неделям
+    const weeks = [];
+    for (let i = 0; i < cols.length; i += 7) {
+      const part = cols.slice(i, i + 7);
+      weeks.push({ date: part[0].date, from: part[0].date, to: part[part.length - 1].date,
+        habits: part.reduce((s, x) => s + x.habits, 0), plans: part.reduce((s, x) => s + x.plans, 0), quests: part.reduce((s, x) => s + x.quests, 0) });
+    }
+    cols = weeks;
+  }
+  const keys = ['habits', 'plans', 'quests'];
+  const total = c => keys.reduce((s, k) => s + c[k], 0);
+  const W = 320, H = height, padB = 24, padT = 14;
+  const max = Math.max(1, ...cols.map(total));
+  const n = cols.length, slot = W / n;
+  const bw = Math.max(4, Math.min(22, slot - 4));
+  const plotH = H - padB - padT;
+  let bars = '';
+  cols.forEach((c, i) => {
+    const x = i * slot + (slot - bw) / 2;
+    bars += `<g data-i="${i}" class="hit"><rect x="${i * slot}" y="${padT}" width="${slot}" height="${plotH}" fill="transparent"/>`;
+    const t = total(c);
+    if (!t) bars += `<rect x="${x}" y="${H - padB - 2}" width="${bw}" height="2" rx="1" fill="${GRID}"/>`;
+    let y = H - padB;
+    const full = Math.max(5, (t / max) * plotH);
+    keys.forEach(k => {
+      if (!c[k]) return;
+      const hh = full * c[k] / t;
+      y -= hh;
+      bars += `<rect x="${x}" y="${y}" width="${bw}" height="${hh}" fill="${ACTIVITY_COLORS[k]}"/>`;
+    });
+    if (t) bars += `<rect x="${x}" y="${y}" width="${bw}" height="${full}" rx="4" fill="none" stroke="var(--ink)" stroke-width="1.5"/>`;
+    bars += '</g>';
+  });
+  const step = n <= 7 ? 1 : n <= 14 ? 2 : n <= 31 ? 5 : Math.ceil(n / 6);
+  let labels = '';
+  cols.forEach((c, i) => {
+    if (i % step !== 0 && i !== n - 1) return;
+    const t = n <= 7 ? weekday(c.date) : String(parseDate(c.date).getDate());
+    labels += `<text x="${i * slot + slot / 2}" y="${H - 6}" text-anchor="middle" font-size="10" font-weight="700" fill="${MUTED}">${esc(t)}</text>`;
+  });
+  const svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(label)}">
+    <line x1="0" y1="${H - padB}" x2="${W}" y2="${H - padB}" stroke="${GRID}" stroke-width="1"/>${bars}${labels}</svg>`;
+  const wrap = svgEl(svg, 'chart-svg');
+  const box = h('div', { class: 'chart' }, wrap,
+    srTable(label, ['Дата', 'Привычки', 'Дела', 'Квесты'], cols.map(c => [fmtDay(c.date), c.habits, c.plans, c.quests])));
+  withTooltip(box, wrap, i => {
+    const c = cols[i];
+    const when = c.to ? `${fmtDay(c.from)} – ${fmtDay(c.to)}` : fmtDay(c.date);
+    return `${when}: 🌱 ${c.habits} · 📅 ${c.plans} · 🎯 ${c.quests}`;
+  });
+  return box;
+}
