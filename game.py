@@ -64,7 +64,8 @@ LEVELS = [
 ]
 LEVEL_STEP_AFTER_MAX = 800
 
-# Награды за уровни: маскоты и акцентные цвета (уровень, с которого доступны).
+# Маскоты: «Сирень» открыта сразу, следующий — за каждые 7 дней входа подряд (login_bonus).
+# Число — уровень, по которому маскоты открывались раньше (для тех, кто играл до этого).
 MASCOTS = [
     ("cat-purple", "Сирень", 1), ("star", "Звёздочка", 1), ("frog", "Лягушонок", 2),
     ("puppy", "Щенок", 3), ("bear", "Медвежонок", 4), ("leopard", "Леопард", 5),
@@ -116,11 +117,43 @@ def level_info(xp: int) -> dict:
     }
 
 
-def unlocks(level: int, premium: bool = False, owned: set = frozenset()) -> dict:
-    """С Premium все маскоты открыты сразу, без ожидания уровня. Premium-стиль,
-    выпавший из сундука (покупка "theme:<id>"), открыт навсегда."""
+def mascots_open(user: dict) -> int:
+    """Сколько маскотов открыто: «Сирень» — сразу, следующий — за каждые 7 дней
+    входа подряд. Тем, кто играл до этого, сохраняем открытых по уровню."""
+    n = user.get("mascots_open")
+    if n is None:
+        xp = user.get("xp") or 0
+        n = sum(1 for _k, _n, lv in MASCOTS if level_for_xp(xp) >= lv) if xp > 0 else 1
+        storage.update_user(user["user_id"], mascots_open=n)
+    return max(1, min(len(MASCOTS), n))
+
+
+def mascot_allowed(user: dict, mascot: str) -> bool:
+    if is_premium(user):
+        return True
+    ids = [k for k, _n, _lv in MASCOTS]
+    return mascot in ids[:mascots_open(user)]
+
+
+def open_next_mascot(user_id: int):
+    """7-й день входа подряд: открываем следующего маскота. None — все уже открыты."""
+    user = storage.get_user(user_id)
+    n = mascots_open(user)
+    if n >= len(MASCOTS):
+        return None
+    storage.update_user(user_id, mascots_open=n + 1)
+    k, name, _lv = MASCOTS[n]
+    return {"id": k, "name": name}
+
+
+def unlocks(level: int, premium: bool = False, owned: set = frozenset(), opened: int = None) -> dict:
+    """Маскоты открываются за серию входов (opened — сколько открыто), с Premium — все
+    сразу. Premium-стиль, выпавший из сундука (покупка "theme:<id>"), открыт навсегда."""
+    if opened is None:
+        opened = sum(1 for _k, _n, lv in MASCOTS if level >= lv)
     return {
-        "mascots": [{"id": k, "name": n, "level": lv, "unlocked": premium or level >= lv} for k, n, lv in MASCOTS],
+        "mascots": [{"id": k, "name": n, "unlocked": premium or i < opened, "next": not premium and i == opened}
+                    for i, (k, n, _lv) in enumerate(MASCOTS)],
         "themes": [{"id": k, "name": n, "description": d, "premium": k in PREMIUM_THEMES and f"theme:{k}" not in owned}
                    for k, n, d in THEMES],
     }
@@ -955,7 +988,7 @@ def get_state(user_id: int) -> dict:
             "onboarded": bool(user.get("onboarded")),
         },
         "level": lv,
-        "unlocks": unlocks(lv["level"], is_premium(user), owned_items(user_id)),
+        "unlocks": unlocks(lv["level"], is_premium(user), owned_items(user_id), mascots_open(user)),
         "streak": user_streak(user, today),
         "today": {"date": today.isoformat(), "hour": now.hour, "done": week.get(today.isoformat(), 0),
                   "goal": user.get("daily_goal") or 1},
@@ -1271,9 +1304,8 @@ def update_settings(user_id: int, data: dict) -> dict:
             raise QuestError("Не знаю такой часовой пояс")
         fields["tz"] = data["tz"]
     if "mascot" in data:
-        allowed = {k for k, _n, lv in MASCOTS if level >= lv or is_premium(user)}
-        if data["mascot"] not in allowed:
-            raise QuestError("Этот маскот откроется на более высоком уровне")
+        if not mascot_allowed(user, data["mascot"]):
+            raise QuestError("Этот маскот откроется за 7 дней входа подряд 🔥")
         fields["mascot"] = data["mascot"]
     if "theme" in data:
         if data["theme"] not in THEME_IDS:

@@ -1774,3 +1774,7 @@ p { margin: 0; }
 .dsp-vs3 .dsp-side { position: relative; }
 .dsp-medal { position: absolute; top: 4px; left: 6px; font-size: 18px; }
 .dsp.contest.lobby { background: radial-gradient(circle at 15% 0%, #FFF6C2 0, transparent 45%), linear-gradient(135deg, #FFE27A 0%, #FFC2DA 100%); }
+.login-pet { display: flex; width: 26px; height: 24px; }
+.login-pet .mascot { width: 26px; height: 24px; }
+.login-mascot-hint { margin: 2px 0 0; font-weight: 800; font-size: 13px; color: var(--accent-deep, var(--pink-deep)); }
+.login-fire .mascot { margin: 0 auto; }

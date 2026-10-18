@@ -65,9 +65,9 @@ export function render(el, { state, go }) {
     state.unlocks.mascots.map(m => {
       const b = h('button', { type: 'button', class: `picker ${m.id === u.mascot ? 'on' : ''}`, role: 'radio',
         'aria-checked': String(m.id === u.mascot), disabled: !m.unlocked,
-        'aria-label': m.unlocked ? m.name : `${m.name} — откроется на ${m.level} уровне` },
+        'aria-label': m.unlocked ? m.name : `${m.name} — откроется за 7 дней входа подряд` },
         h('span', { class: 'picker-img', html: mascotSVG(m.id, m.unlocked ? 'happy' : 'sleepy') }),
-        h('span', { class: 'tiny bold' }, m.unlocked ? m.name : `🔒 ур. ${m.level}`));
+        h('span', { class: 'tiny bold' }, m.unlocked ? m.name : m.next ? '🔥 7 дней' : '🔒'));
       b.addEventListener('click', busy(b, () => saveSettings({ mascot: m.id }, `Теперь с тобой ${m.name}!`)));
       return b;
     }));
