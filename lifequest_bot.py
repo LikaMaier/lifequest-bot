@@ -1077,6 +1077,29 @@ def _on_job_error(event):
     if event.exception:
         asyncio.get_event_loop().create_task(ops.alert(f"задача по расписанию {event.job_id}", event.exception))
 
+ONEOFF_KEY = "oneoff_note_2026_10_18"
+ONEOFF_TEXT = "я соскучился ❤️"
+
+
+async def send_oneoff_note():
+    """Разовое сообщение владелице: уходит один раз, повторные запуски его не шлют."""
+    if not ADMIN_ID:
+        return
+    conn = storage.connect()
+    done = conn.execute("SELECT 1 FROM meta WHERE key = ?", (ONEOFF_KEY,)).fetchone()
+    if not done:
+        conn.execute("INSERT INTO meta (key, value) VALUES (?, ?)", (ONEOFF_KEY, storage.utc_now_str()))
+        conn.commit()
+    conn.close()
+    if done:
+        return
+    try:
+        await ops.safe_send(ADMIN_ID, ONEOFF_TEXT)
+        print("One-off note sent")
+    except Exception as e:
+        print(f"One-off note failed: {e}")
+
+
 # ==================== MAIN ====================
 async def main():
     # HTTP API и статика мини-аппа — в этом же процессе (Railway: тип web, $PORT).
@@ -1121,6 +1144,7 @@ async def main():
     photos.enabled()  # предупредит в логах, если Volume для фото не подключён
     print("Admin alerts and nightly backups: " + ("on" if ADMIN_ID else
           "OFF — задайте ADMIN_ID (ваш Telegram id), чтобы получать копии базы и ошибки"))
+    await send_oneoff_note()
     scheduler.start()
 
     await dp.start_polling(bot)
