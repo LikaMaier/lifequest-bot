@@ -43,3 +43,29 @@ class LoginBonusTest(TempDBTestCase):
         self.assertEqual((st["day"], st["claimed"]), (9, False))
         self.assertEqual([t["day"] for t in st["track"]], list(range(8, 15)))
         self.assertEqual([t["state"] for t in st["track"][:3]], ["done", "today", "next"])
+
+    def test_mascot_every_seventh_day(self):
+        import game
+        self.assertEqual(game.mascots_open(storage.get_user(1)), 1)  # новичок — только «Сирень»
+        self.assertFalse(game.mascot_allowed(storage.get_user(1), "star"))
+        res = None
+        for _ in range(7):
+            res = self._claim()
+            self.day += timedelta(days=1)
+        self.assertEqual(res["mascot"]["id"], "star")
+        self.assertEqual((res["login"]["next_mascot"]["id"], res["login"]["next_mascot"]["in_days"]), ("frog", 7))
+        self.assertTrue(game.mascot_allowed(storage.get_user(1), "star"))
+        game.update_settings(1, {"mascot": "star"})
+        with self.assertRaises(game.QuestError):
+            game.update_settings(1, {"mascot": "frog"})
+        st = game.get_state(1)["unlocks"]["mascots"]
+        self.assertEqual([m["unlocked"] for m in st[:3]], [True, True, False])
+        self.assertTrue(st[2]["next"])
+
+    def test_existing_player_keeps_level_mascots(self):
+        import game
+        storage.ensure_user(2)
+        storage.update_user(2, xp=2000)
+        n = game.mascots_open(storage.get_user(2))
+        self.assertGreater(n, 2)
+        self.assertEqual(storage.get_user(2)["mascots_open"], n)

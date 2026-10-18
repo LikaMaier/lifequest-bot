@@ -47,7 +47,6 @@ function draw(body, data, el, ctx) {
 
   // Лестница уровней с наградами
   const rewardsAt = {};
-  for (const m of data.unlocks.mascots) (rewardsAt[m.level] = rewardsAt[m.level] || []).push({ type: 'mascot', ...m });
   const ladder = h('ol', { class: 'ladder', 'aria-label': 'Уровни и награды' },
     data.levels.map(l => {
       const reached = lv.level >= l.level;

@@ -181,15 +181,10 @@ export function openViewer(list, index, { onDelete, onChange } = {}) {
     h('div', { class: 'viewer-top' }, close, counter, download),
     stage, info, h('div', { class: 'viewer-actions' }, share, toCal, del), dots);
 
-  // зум: щипок двумя пальцами и двойной тап; свайп — листание
-  let scale = 1, tx = 0, ty = 0;
-  const pts = new Map();
-  let startDist = 0, startScale = 1, swipeX = null, lastTap = 0, panStart = null;
-  const apply = () => { img.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`; };
-  const reset = () => { scale = 1; tx = 0; ty = 0; apply(); };
+  // свайп влево/вправо — листание (без зума: полароид не масштабируется)
+  let swipeX = null;
   const show = () => {
     const p = list[i];
-    reset();
     img.src = p.url;
     img.alt = p.label || 'Фото';
     const n = hashOf(p.id);
@@ -238,44 +233,17 @@ export function openViewer(list, index, { onDelete, onChange } = {}) {
     setTimeout(() => input.focus(), 200);
   });
   stage.addEventListener('pointerdown', e => {
-    if (e.target.closest('.viewer-hand')) return;
-    stage.setPointerCapture(e.pointerId);
-    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pts.size === 2) {
-      const [a, b] = [...pts.values()];
-      startDist = Math.hypot(a.x - b.x, a.y - b.y);
-      startScale = scale;
-      swipeX = null;
-    } else {
-      swipeX = scale === 1 ? e.clientX : null;
-      panStart = { x: e.clientX - tx, y: e.clientY - ty };
-      const now = Date.now();
-      if (now - lastTap < 280) { scale = scale > 1 ? 1 : 2.5; tx = ty = 0; apply(); }
-      lastTap = now;
-    }
-  });
-  stage.addEventListener('pointermove', e => {
-    if (!pts.has(e.pointerId)) return;
-    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pts.size === 2) {
-      const [a, b] = [...pts.values()];
-      scale = Math.min(4, Math.max(1, startScale * Math.hypot(a.x - b.x, a.y - b.y) / startDist));
-      apply();
-    } else if (scale > 1 && panStart) {
-      tx = e.clientX - panStart.x; ty = e.clientY - panStart.y; apply();
-    }
+    if (e.target.closest('.viewer-hand') || !e.isPrimary) return;
+    swipeX = e.clientX;
   });
   const up = e => {
-    pts.delete(e.pointerId);
-    if (swipeX !== null && pts.size === 0 && scale === 1) {
-      const dx = e.clientX - swipeX;
-      if (Math.abs(dx) > 60 && list.length > 1) { i = (i + (dx < 0 ? 1 : -1) + list.length) % list.length; haptic.select(); show(); }
-    }
+    if (swipeX === null || !e.isPrimary) return;
+    const dx = e.clientX - swipeX;
     swipeX = null;
-    if (scale <= 1.02) reset();
+    if (Math.abs(dx) > 60 && list.length > 1) { i = (i + (dx < 0 ? 1 : -1) + list.length) % list.length; haptic.select(); show(); }
   };
   stage.addEventListener('pointerup', up);
-  stage.addEventListener('pointercancel', up);
+  stage.addEventListener('pointercancel', () => { swipeX = null; });
 
   let release;
   const shut = () => {

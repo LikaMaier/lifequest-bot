@@ -322,6 +322,7 @@ def init_db():
     _ensure_column(c, "users", "compliment_day", "TEXT")  # утренний комплимент владелице
     _ensure_column(c, "users", "login_day", "TEXT")  # бонус за вход: последний день и серия
     _ensure_column(c, "users", "login_streak", "INTEGER DEFAULT 0")
+    _ensure_column(c, "users", "mascots_open", "INTEGER")  # сколько маскотов открыто (за 7 дней входа подряд)
     c.execute("""CREATE TABLE IF NOT EXISTS inbox (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, title TEXT NOT NULL, created_at TEXT)""")
     _ensure_column(c, "habit_logs", "skipped", "INTEGER DEFAULT 0")  # пропуск с причиной — не рвёт серию
