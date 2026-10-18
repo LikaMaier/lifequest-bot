@@ -635,7 +635,7 @@ def build_weekly_message(user_id: int):
         return None, None
     kind = "week_zero" if not w["done"] else "week_up" if w["done"] > w["prev_done"] else "week_ok"
     joke = nudges.pick(kind, user_id, ctx["today"], m=ctx["m"])
-    lines = [f"📊 <b>Итоги недели</b>\n{joke}\n"]
+    lines = [f"✨🪄 <b>Итоги недели</b> 🪄✨\n{joke}\n", "┈┈┈ ⋆｡˚ ☾ ˚｡⋆ ┈┈┈"]
     trend = ""
     if w["prev_done"]:
         diff = w["done"] - w["prev_done"]
@@ -656,11 +656,13 @@ def build_weekly_message(user_id: int):
     except Exception:
         league = {"friends": []}
     if league["friends"]:
+        lines.append("")
         mine = league["me"]["points"]
         place = 1 + sum(1 for f in league["friends"] if f["points"] > mine)
         medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(place, "🏅")
         lines.append(f"{medal} Лига друзей: {place} место из {len(league['friends']) + 1} — {mine} "
                      f"{plural_ru(mine, 'очко', 'очка', 'очков')}")
+    lines.append("\n🌟 <i>Загляни в «Прогресс» — там итоги заискрились</i>")
     markup = InlineKeyboardMarkup(inline_keyboard=app_row("progress")) if MINIAPP_URL else None
     return "\n".join(lines), markup
 
