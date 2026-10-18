@@ -30,6 +30,7 @@ import billing
 import card
 import challenges
 import compliments
+import admin_report
 import albums
 import contests
 import duels
@@ -802,6 +803,24 @@ async def admin_stats(message: Message):
         parse_mode="HTML"
     )
 
+@dp.message(Command("new"), F.from_user.id == ADMIN_ID)
+async def admin_new_users(message: Message):
+    """Сводка о новых пользователях: /new — за 7 дней, /new 1 — сегодня, /new 30 — за месяц."""
+    arg = (message.text or "").partition(" ")[2].strip()
+    days = int(arg) if arg.isdigit() else 7
+    for part in admin_report.report(days, ADMIN_ID):
+        await message.answer(part, parse_mode="HTML", disable_web_page_preview=True)
+
+
+async def send_new_users_digest():
+    """Каждый час: в 10:00 по времени владелицы — новенькие за вчера (если были)."""
+    try:
+        for part in admin_report.daily_digest(ADMIN_ID):
+            await ops.safe_send(ADMIN_ID, part, parse_mode="HTML", disable_web_page_preview=True)
+    except Exception as e:
+        await ops.alert("new users digest", e)
+
+
 @dp.message(Command("compliment"), F.from_user.id == ADMIN_ID)
 async def admin_compliment(message: Message):
     """Комплимент прямо сейчас — только владелице бота."""
@@ -1155,6 +1174,7 @@ async def main():
 
     scheduler.add_job(send_owner_note, "date")  # разово сразу после старта, если задан OWNER_NOTE
     scheduler.add_job(send_daily_reminders, "cron", minute=0)
+    scheduler.add_job(send_new_users_digest, "cron", minute=2)
     scheduler.add_job(send_owner_compliment, "cron", minute=0, second=30)
     scheduler.add_job(send_duel_updates, "cron", minute=3)
     scheduler.add_job(send_contest_updates, "cron", minute=4)
