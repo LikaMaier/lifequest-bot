@@ -1792,3 +1792,4 @@ p { margin: 0; }
 .hub-album-pics .p3 { left: 34px; top: 10px; transform: rotate(14deg); }
 .hub-album-go { font-size: 26px; font-weight: 800; }
 .duel-cta .hub-album-go { color: var(--ink); opacity: .7; }
+.ct-owner { display: block; margin-top: -2px; font-size: 10px; font-weight: 800; color: var(--muted); }

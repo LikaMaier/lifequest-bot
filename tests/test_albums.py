@@ -77,25 +77,43 @@ class AlbumsTest(TempDBTestCase):
         self.assertTrue(photos.file_path(int(q["u"]), p2["id"], "thumb"))
         with self.assertRaises(game.QuestError):
             albums.view(4, a["id"])
-        # своё фото удаляет автор, чужое — только создатель
-        with self.assertRaises(game.QuestError):
-            albums.delete_photo(2, a["id"], mine["id"])
+        # в общем альбоме все равны: любое фото удаляет любой участник
+        albums.delete_photo(2, a["id"], mine["id"])
         albums.delete_photo(1, a["id"], p2["id"])
-        self.assertEqual(albums.view(2, a["id"])["count"], 6)
+        self.assertEqual(albums.view(2, a["id"])["count"], 5)
+        with self.assertRaises(game.QuestError):
+            albums.delete_photo(4, a["id"], v["photos"][0]["id"])
 
-    def test_leave_and_owner_deletes_album(self):
+    def test_leave_and_any_member_deletes_album(self):
         a = self._album()
         albums.invite(1, a["id"], 2)
         photos.save_upload(2, jpeg(), {"target": "album", "album_id": a["id"]})
         albums.leave(2, a["id"])
         self.assertEqual(albums.list_view(2)["albums"], [])
         albums.invite(1, a["id"], 2)
-        res = albums.leave(1, a["id"])
+        # создатель уходит — альбом живёт, корона у оставшегося участника
+        albums.leave(1, a["id"])
+        self.assertEqual(albums.view(2, a["id"])["owner_id"], 2)
+        albums.invite(2, a["id"], 1)
+        res = albums.delete_album(2, a["id"])  # удалить может любой участник
         self.assertTrue(res["deleted"])
-        self.assertEqual(res["messages"][0][0], 2)
+        self.assertEqual(res["messages"][0][0], 1)
         with self.assertRaises(game.QuestError):
-            albums.view(1, a["id"])
+            albums.view(2, a["id"])
         self.assertEqual(photos.stats(2)["count"], 0)
+
+    def test_members_edit_album_and_captions(self):
+        a = self._album()
+        albums.invite(1, a["id"], 2)
+        p = photos.save_upload(1, jpeg(), {"target": "album", "album_id": a["id"]})["photo"]
+        res = albums.update(2, a["id"], {"title": "  Лето   2026 ", "emoji": "🏖️"})
+        self.assertEqual((res["album"]["title"], res["album"]["emoji"]), ("Лето 2026", "🏖️"))
+        self.assertEqual(albums.set_caption(2, a["id"], p["id"], "наш закат")["photo"]["caption"], "наш закат")
+        self.assertEqual(albums.photo_album(p["id"]), a["id"])
+        with self.assertRaises(game.QuestError):
+            albums.update(4, a["id"], {"title": "чужой"})
+        with self.assertRaises(game.QuestError):
+            albums.update(2, a["id"], {"title": "  "})
 
     def test_open_my_album_to_friend(self):
         photos.save_upload(1, jpeg(), {"target": "day", "day": game.local_today(storage.get_user(1)).isoformat()})

@@ -192,10 +192,11 @@ export function openViewer(list, index, { onDelete, onChange } = {}) {
     frame.className = `viewer-polaroid pc-${n % 5}`;
     // Чужие фото (общий альбом, альбом друга) — только смотреть: без подписи, «В календарь» и удаления.
     const mine = p.mine !== false;
-    caption.textContent = p.caption || (mine ? '＋ добавить подпись' : '');
+    const editable = mine || Boolean(p.can_edit); // в общем альбоме подпись меняет любой участник
+    caption.textContent = p.caption || (editable ? '＋ добавить подпись' : '');
     caption.classList.toggle('empty', !p.caption);
-    caption.disabled = !mine;
-    caption.setAttribute('aria-label', p.caption ? `Подпись: ${p.caption}${mine ? '. Изменить' : ''}` : 'Добавить подпись');
+    caption.disabled = !editable;
+    caption.setAttribute('aria-label', p.caption ? `Подпись: ${p.caption}${editable ? '. Изменить' : ''}` : 'Добавить подпись');
     // style.display, а не hidden: у кнопок свой display в CSS
     toCal.style.display = !mine || p.target === 'album' ? 'none' : '';
     del.style.display = p.can_delete === false || (!mine && !p.can_delete) ? 'none' : '';
@@ -212,7 +213,7 @@ export function openViewer(list, index, { onDelete, onChange } = {}) {
   };
   caption.addEventListener('click', () => {
     const p = list[i];
-    if (p.mine === false) return;
+    if (p.mine === false && !p.can_edit) return;
     haptic.tap();
     const input = h('input', { class: 'input', type: 'text', maxlength: '120', value: p.caption || '', placeholder: 'Например: лучший закат осени', 'aria-label': 'Подпись к фото' });
     const save = h('button', { type: 'button', class: 'btn block' }, 'Сохранить подпись');

@@ -67,14 +67,15 @@ function draw(body, el, ctx) {
           Array.from({ length: freeze.max }, (_, i) => h('span', { class: i < freeze.count ? 'on' : '' }, '❄️'))))),
     h('div', { style: { marginTop: '10px' } }, freezeBtn, starsFreeze(ctx, full, el))));
 
-  // Аксессуары
-  const grid = h('div', { class: 'shop-grid' }, [...shop.items.filter(i => i.kind === 'seasonal'), ...shop.items.filter(i => i.kind === 'accessory')].map(item => {
+  // Аксессуары: сначала тематические наборы (Хэллоуин, Осень…), потом обычные
+  const SET_MARK = { halloween: '🎃', autumn: '🍂', winter: '🎄' };
+  const accCard = item => {
     const state = item.equipped ? 'Снять' : item.owned ? 'Надеть' : `${item.price} XP`;
     const card = h('div', { class: `shop-item ${item.equipped ? 'on' : ''} ${worn === item.id ? 'trying' : ''}` },
       h('button', { type: 'button', class: 'shop-try', 'aria-label': `Примерить: ${item.name}` },
         h('span', { class: 'shop-img', html: mascotSVG(u.mascot, 'happy', item.id) }),
         h('span', { class: 'bold small' }, item.name),
-        item.until && !item.owned ? h('span', { class: 'tag c-orange', style: { marginTop: '4px' } }, `${['acorn', 'leafwreath', 'scarf', 'knithat'].includes(item.id) ? '🍂' : item.id === 'santa' ? '🎄' : '🎃'} до ${item.until}`) : null),
+        item.until && !item.owned ? h('span', { class: 'tag c-orange', style: { marginTop: '4px' } }, `${SET_MARK[item.set] || '🎁'} до ${item.until}`) : null),
       h('button', { type: 'button', class: `btn small ${item.owned ? 'ghost' : ''}`,
         disabled: !item.owned && shop.balance < item.price }, state));
     const [tryBtn, actBtn] = card.querySelectorAll('button');
@@ -89,9 +90,18 @@ function draw(body, el, ctx) {
       } catch (e) { toastError(e); }
     });
     return card;
-  }));
+  };
+  for (const set of shop.sets || []) {
+    const list = shop.items.filter(i => i.kind === 'seasonal' && i.set === set.id);
+    if (!list.length) continue;
+    body.append(sectionTitle(set.title),
+      h('p', { class: 'tiny muted bold', style: { margin: '-4px 4px 10px' } }, 'Тематический набор — продаётся только в свой сезон, купленное остаётся навсегда'),
+      h('div', { class: 'shop-grid' }, list.map(accCard)));
+  }
+  const other = shop.items.filter(i => i.kind === 'accessory' || (i.kind === 'seasonal' && !i.set));
   body.append(sectionTitle('Аксессуары для маскота'),
-    h('p', { class: 'tiny muted bold', style: { margin: '-4px 4px 10px' } }, 'Нажми на картинку, чтобы примерить'), grid);
+    h('p', { class: 'tiny muted bold', style: { margin: '-4px 4px 10px' } }, 'Нажми на картинку, чтобы примерить'),
+    h('div', { class: 'shop-grid' }, other.map(accCard)));
 
   // Premium-аксессуары: примерить может каждый, надеть — с Premium
   const premGrid = h('div', { class: 'shop-grid' }, shop.items.filter(i => i.kind === 'premium').map(item => {

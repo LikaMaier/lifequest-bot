@@ -9,7 +9,7 @@ import { sheet, toast, toastError, busy, skeleton } from './ui.js';
 import { lazyThumb, openViewer, uploadButtons } from './photoui.js';
 
 const KEY = 'lq-shared';
-const EMOJI = ['📸', '🏖️', '🎉', '🎂', '🌲', '🍕', '✈️', '💛', '🐾', '🎄'];
+export const ALBUM_EMOJI = ['📸', '🏖️', '🎉', '🎂', '🌲', '🍕', '✈️', '💛', '🐾', '🎄'];
 const KIND = { quest: 'Квест', plan: 'План', day: 'День', board: 'Цели месяца', album: 'Общий альбом' };
 
 /** Открыть общий альбом (kind 'album') или альбом друга (kind 'friend'). */
@@ -112,7 +112,7 @@ export function openCreateAlbum(ctx) {
   const s = sheet(h('div'), { label: 'Общий альбом' });
   const title = h('input', { class: 'input', type: 'text', maxlength: '50', placeholder: 'Например: Лето на даче', 'aria-label': 'Название альбома' });
   const emoji = h('div', { class: 'duel-chips' });
-  const drawEmoji = () => emoji.replaceChildren(...EMOJI.map(e => {
+  const drawEmoji = () => emoji.replaceChildren(...ALBUM_EMOJI.map(e => {
     const b = h('button', { type: 'button', class: `duel-chip ${form.emoji === e ? 'on' : ''}`, 'aria-pressed': String(form.emoji === e) }, e);
     b.addEventListener('click', () => { haptic.select(); form.emoji = e; drawEmoji(); });
     return b;
