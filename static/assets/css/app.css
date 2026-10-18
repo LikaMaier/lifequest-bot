@@ -1793,3 +1793,13 @@ p { margin: 0; }
 .hub-album-go { font-size: 26px; font-weight: 800; }
 .duel-cta .hub-album-go { color: var(--ink); opacity: .7; }
 .ct-owner { display: block; margin-top: -2px; font-size: 10px; font-weight: 800; color: var(--muted); }
+
+/* ---------- Подарок к Хэллоуину (карточка на главной) ---------- */
+.gift-card { display: flex; gap: 12px; margin-top: 12px; padding: 16px; border-radius: 22px; border: 2px solid #241F1A;
+  background: radial-gradient(circle at 85% 15%, #6B3FA0 0, transparent 45%), linear-gradient(135deg, #2A1F3D, #4B2A6B); color: #FFF3E0; box-shadow: 0 4px 0 #241F1A; }
+.gift-emoji { font-size: 44px; line-height: 1; animation: chest-shake 1.6s ease-in-out infinite; }
+.gift-kicker { font-size: 12px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; color: #FF9B45; }
+.gift-card b { display: block; font-size: 17px; margin-top: 2px; }
+.gift-card p { margin: 4px 0 10px; font-size: 13px; font-weight: 700; opacity: .85; }
+.gift-btn { min-height: 44px; padding: 0 16px; border: 0; border-radius: 14px; background: #FF8A2A; color: #241F1A; font-family: inherit; font-weight: 900; font-size: 15px; box-shadow: 0 3px 0 #A2531D; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .gift-emoji { animation: none; } }

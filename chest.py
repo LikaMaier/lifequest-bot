@@ -1,6 +1,6 @@
 """Сундук дня: открывается, когда сделаны 3 привычки на сегодня (или все,
 если их меньше). Один сундук в день. Первые 7 сундуков — вещи: шапочки,
-осенний набор для маскота и стиль приложения; дальше — XP или заморозка."""
+осенний набор для маскота и закрытый стиль приложения; дальше — XP или заморозка."""
 import json
 import random
 
@@ -50,7 +50,7 @@ def _roll(user: dict, rng) -> dict:
 # Первая неделя: что лежит в 1-м, 2-м, … 7-м сундуке
 WEEK_ONE = ("autumn", "hat", "style", "autumn", "hat", "autumn", "hat")
 HATS = ("cap", "beanie", "beret", "party", "cowboy", "chef", "graduate", "tophat", "crown")
-STYLE = "space"
+STYLES = ("ocean", "forest", "matrix")  # закрытые стили, которые может подарить сундук
 
 
 def _item_name(item: str) -> str:
@@ -62,15 +62,17 @@ def _item_name(item: str) -> str:
 
 def _week_one(user: dict, rng) -> dict:
     """Вещь для одного из первых семи сундуков (только то, чего ещё нет)."""
-    owned = game.owned_items(user["user_id"])
+    owned = game.owned_with_gifts(user)
     slot = WEEK_ONE[min(len(WEEK_ONE) - 1, user.get("chest_opens") or 0)]
     pools = {"autumn": game.AUTUMN_ACCESSORIES, "hat": HATS}
-    style_free = not game.is_premium(user) and f"theme:{STYLE}" not in owned
+    styles = [] if game.is_premium(user) else [t for t in STYLES if f"theme:{t}" not in owned]
+    theme_names = {k: n for k, n, _d in game.THEMES}
     order = [slot] + [k for k in ("autumn", "hat", "style") if k != slot]
     for kind in order:
         if kind == "style":
-            if style_free:
-                return {"kind": "theme", "id": STYLE, "name": "Космос", "item": f"theme:{STYLE}"}
+            if styles:
+                t = styles[0]
+                return {"kind": "theme", "id": t, "name": theme_names[t], "item": f"theme:{t}"}
             continue
         left = [x for x in pools[kind] if x not in owned]
         if left:

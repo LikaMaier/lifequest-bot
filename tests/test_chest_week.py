@@ -30,15 +30,17 @@ class ChestWeekOneTest(TempDBTestCase):
         self.assertEqual(len({r["item"] for r in rewards}), 7)  # без повторов
         self.assertIn(self._open()["kind"], ("xp", "freeze"))  # 8-й — обычный
 
-    def test_space_theme_owned_unlocks(self):
+    def test_chest_style_owned_unlocks(self):
         user = storage.get_user(1)
-        self.assertFalse(game.theme_owned(user, "space"))
+        self.assertTrue(game.theme_owned(user, "space"))  # «Космос» теперь открыт всем
+        self.assertFalse(game.theme_owned(user, "ocean"))
         with self.assertRaises(game.QuestError):
-            game.update_settings(1, {"theme": "space"})
+            game.update_settings(1, {"theme": "ocean"})
         for _ in range(3):
             self._open()
-        self.assertTrue(game.theme_owned(storage.get_user(1), "space"))
-        game.update_settings(1, {"theme": "space"})
-        self.assertEqual(game.visible_theme(storage.get_user(1)), "space")
+        self.assertTrue(game.theme_owned(storage.get_user(1), "ocean"))
+        game.update_settings(1, {"theme": "ocean"})
+        self.assertEqual(game.visible_theme(storage.get_user(1)), "ocean")
         themes = {t["id"]: t for t in game.get_state(1)["unlocks"]["themes"]}
-        self.assertFalse(themes["space"]["premium"])
+        self.assertFalse(themes["ocean"]["premium"])
+        self.assertTrue(themes["matrix"]["premium"])

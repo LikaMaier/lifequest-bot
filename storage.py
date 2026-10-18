@@ -421,6 +421,7 @@ def init_db():
 
     conn.commit()
     _backfill_history(conn)
+    _keep_current_themes(conn)
     _sync_titles(conn)
     conn.close()
 
@@ -434,6 +435,21 @@ def _title_for(key: str, text: str) -> str:
         return q["title"]
     first = (text or "").strip().split("\n")[0]
     return _TAG_RE.sub("", first).strip()[:120] or "Задание"
+
+
+def _keep_current_themes(conn):
+    """Разово: стили «Хэллоуин», «Матрица», «Лес», «Морской мир» стали платными —
+    у кого такой стиль уже включён, оставляем его навсегда."""
+    c = conn.cursor()
+    c.execute("SELECT value FROM meta WHERE key = 'themes_grandfathered'")
+    if c.fetchone():
+        return
+    now = utc_now_str()
+    c.execute("""INSERT INTO purchases (user_id, item, price, created_at)
+                 SELECT user_id, 'theme:' || theme, 0, ? FROM users
+                 WHERE theme IN ('halloween', 'matrix', 'forest', 'ocean')""", (now,))
+    c.execute("INSERT INTO meta (key, value) VALUES ('themes_grandfathered', ?)", (now,))
+    conn.commit()
 
 
 def _backfill_history(conn):
