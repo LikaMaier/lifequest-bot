@@ -1,4 +1,6 @@
+import os
 import random
+from unittest import mock
 
 from tests.helpers import TempDBTestCase
 import chest
@@ -76,3 +78,12 @@ class ChestWeekOneTest(TempDBTestCase):
         self._open()  # 1-й — осенний набор
         r = self._open(pick="crown")  # 2-й — шапочка: та, что поймали
         self.assertEqual(r["id"], "crown")
+
+    def test_owner_plays_unlimited(self):
+        with mock.patch.dict(os.environ, {"ADMIN_ID": "1"}):
+            self.assertTrue(chest.status(1)["ready"])  # даже без привычек за сегодня
+            for _ in range(3):
+                chest.open_chest(1, rng=random.Random(1))
+            self.assertTrue(chest.status(1)["ready"])
+        with self.assertRaises(game.QuestError):
+            chest.open_chest(1)  # обычный игрок — раз в день

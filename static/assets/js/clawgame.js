@@ -50,27 +50,29 @@ const STAR = 34;
 
 export function openClawGame() {
   const u = store.state ? store.state.user : { mascot: 'cat-purple' };
-  // витрина: два ряда капсул и звёздочки XP между ними
+  // витрина: 5 капсул и вдвое больше звёздочек XP — как и шансы (30/70)
   const caps = [], stars = [];
   const pile = h('div', { class: 'claw-pile' });
   // капсулы — вещи, которых ещё нет (их и можно выиграть); не хватает — добиваем витрину
   const fresh = ((store.state && store.state.chest && store.state.chest.machine) || []).slice().sort(() => Math.random() - 0.5);
-  const shuffled = [...fresh, ...DECOYS.filter(a => !fresh.includes(a)).sort(() => Math.random() - 0.5)].slice(0, 8);
+  const shuffled = [...fresh, ...DECOYS.filter(a => !fresh.includes(a)).sort(() => Math.random() - 0.5)].slice(0, 5);
+  const bottom = GLASS_H - CAP - 6;
+  const CAP_SPOTS = [[40, bottom], [140, bottom], [240, bottom], [90, bottom - 46], [190, bottom - 46]];
   shuffled.forEach((acc, i) => {
     const c = capsule(acc, i, u.mascot);
-    const row = i < 5 ? 0 : 1;
-    const x = row === 0 ? 34 + i * 53 : 60 + (i - 5) * 80;
-    const y = GLASS_H - CAP - 6 - row * 44;
+    const [x, y] = CAP_SPOTS[i];
     Object.assign(c.style, { left: `${x - CAP / 2 + ((i * 7) % 9) - 4}px`, top: `${y}px`, transform: `rotate(${((i * 37) % 31) - 15}deg)` });
     Object.assign(c.dataset, { x: String(x), y: String(y), acc });
     caps.push(c);
     pile.append(c);
   });
-  // звёздочки — в просветах верхнего ряда и сверху на капсулах
-  [[100, 1], [180, 1], [250, 1], [26, 1], [140, 2], [215, 2]].forEach(([sx, layer], i) => {
-    const sy = GLASS_H - CAP - 6 - 44 - (layer === 2 ? 26 : 0) + 18;
+  // звёздочки — в просветах между капсулами и горкой сверху
+  const STAR_SPOTS = [[90, bottom + 18], [190, bottom + 18], [22, bottom - 30], [254, bottom - 30],
+    [140, bottom - 48], [40, bottom - 62], [240, bottom - 62], [65, bottom - 86], [115, bottom - 90],
+    [165, bottom - 90], [215, bottom - 86], [90, bottom - 116], [140, bottom - 122], [190, bottom - 116]];
+  STAR_SPOTS.forEach(([sx, sy], i) => {
     const st = h('div', { class: 'claw-star', html: STAR_SVG });
-    Object.assign(st.style, { left: `${sx - STAR / 2}px`, top: `${sy}px`, transform: `rotate(${((i * 53) % 41) - 20}deg)` });
+    Object.assign(st.style, { left: `${sx - STAR / 2 + ((i * 13) % 11) - 5}px`, top: `${sy + ((i * 7) % 9) - 4}px`, transform: `rotate(${((i * 53) % 41) - 20}deg)` });
     Object.assign(st.dataset, { x: String(sx), y: String(sy) });
     stars.push(st);
     pile.append(st);

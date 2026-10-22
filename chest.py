@@ -4,6 +4,7 @@
 (иногда заморозка), 30% — вещь для маскота. В витрине лежат капсулы с вещами,
 которых у игрока ещё нет; выпала вещь — достаётся та капсула, которую ловили (pick)."""
 import json
+import os
 import random
 
 import game
@@ -11,6 +12,11 @@ import habits
 import storage
 
 CHEST_NEED = 3
+
+
+def _unlimited(user_id: int) -> bool:
+    """Владелица бота (ADMIN_ID) играет в автомат сколько угодно раз — чтобы проверять визуал."""
+    return user_id == int(os.getenv("ADMIN_ID", "0") or 0)
 # (вес, награда)
 REWARDS = [
     (55, {"kind": "xp", "amount": 20}),
@@ -33,7 +39,11 @@ def status(user_id: int, summary: dict = None) -> dict:
         except ValueError:
             reward = None
     ready = bool(need) and s["done"] >= need and not opened
-    return {"need": need, "have": min(s["done"], need) if need else 0, "ready": ready,
+    have = min(s["done"], need) if need else 0
+    if _unlimited(user_id):
+        need = have = need or 1
+        opened, ready = False, True
+    return {"need": need, "have": have, "ready": ready,
             "opened": opened, "reward": reward, "machine": _machine_pool(user) if ready else []}
 
 
@@ -122,9 +132,10 @@ def open_chest(user_id: int, rng=random, pick: str = None) -> dict:
     else:  # автомат: 30% — вещь для маскота, 70% — звёздочка XP (иногда заморозка)
         reward = (_machine_prize(user, rng, pick) if rng.random() < MERCH_SHARE else None) or _roll(user, rng)
     conn = storage.connect()
+    once_a_day = "" if _unlimited(user_id) else " AND COALESCE(chest_day, '') <> ?"
     cur = conn.execute("""UPDATE users SET chest_day = ?, chest_reward = ?, chest_opens = COALESCE(chest_opens, 0) + 1
-                          WHERE user_id = ? AND COALESCE(chest_day, '') <> ?""",
-                       (today, json.dumps(reward), user_id, today))
+                          WHERE user_id = ?""" + once_a_day,
+                       (today, json.dumps(reward), user_id) + (() if _unlimited(user_id) else (today,)))
     if cur.rowcount and reward["kind"] == "freeze":
         conn.execute("UPDATE users SET freeze_tokens = COALESCE(freeze_tokens, 0) + 1 WHERE user_id = ?", (user_id,))
     if cur.rowcount and reward.get("item"):
