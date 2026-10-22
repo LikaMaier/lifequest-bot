@@ -1,5 +1,5 @@
-// Приз дня — автомат с хваталкой. В витрине капсулы с маскотами в шапочках и
-// нарядах, которых у игрока ещё нет, и золотые звёздочки XP; двигаешь лапу
+// Приз дня — автомат с хваталкой. В витрине цветные капсулы с маскотами в
+// шапочках и нарядах, которых у игрока ещё нет, и золотые капсулы XP; двигаешь лапу
 // ◀ ▶, жмёшь «Хватай!». Вещь или звёздочка (30/70), решает сервер
 // (api.openChest); если вещь — это ровно та капсула, что под лапой.
 
@@ -14,7 +14,7 @@ import { showLevelUp } from './celebrate.js';
 // Запас для витрины, если почти вся коллекция уже собрана
 const DECOYS = ['cap', 'witch', 'beanie', 'crown', 'scarf', 'bow', 'cowboy', 'knithat', 'party', 'sunglasses', 'tophat', 'flower', 'leafwreath', 'beret'];
 const SHELLS = ['#F48AB5', '#8DB4F5', '#A6D96A', '#F7C84A', '#C9A2F2', '#FF9F6B'];
-const GLASS_W = 280, GLASS_H = 250, CAP = 56;
+const GLASS_W = 280, GLASS_H = 250, CAP = 52;
 
 const CLAW_SVG = `<svg viewBox="0 0 60 46" aria-hidden="true">
   <rect x="20" y="0" width="20" height="12" rx="4" fill="#B8BCC9" stroke="#2C2A22" stroke-width="2.5"/>
@@ -46,37 +46,36 @@ const STAR_SVG = `<svg viewBox="0 0 40 40" aria-hidden="true"><defs><linearGradi
   <stop offset="0" stop-color="#FFF3B0"/><stop offset=".55" stop-color="#FFD23F"/><stop offset="1" stop-color="#E0A800"/></linearGradient></defs>
   <path d="M20 2l5.3 11.2 12.2 1.6-9 8.4 2.3 12.1L20 29.4 9.2 35.3l2.3-12.1-9-8.4 12.2-1.6z" fill="url(#clawStar)" stroke="#2C2A22" stroke-width="2.4" stroke-linejoin="round"/>
   <ellipse cx="15" cy="14" rx="3.2" ry="2" fill="#fff" opacity=".85" transform="rotate(-30 15 14)"/></svg>`;
-const STAR = 34;
+
+/** Золотая капсула со звёздочкой XP. */
+function starCapsule() {
+  return h('div', { class: 'claw-cap gold', style: { '--shell': '#FFD23F' } }, h('span', { class: 'claw-cap-star', html: STAR_SVG }));
+}
 
 export function openClawGame() {
   const u = store.state ? store.state.user : { mascot: 'cat-purple' };
-  // витрина: 5 капсул и вдвое больше звёздочек XP — как и шансы (30/70)
+  // витрина — плотная горка одинаковых капсул, как в настоящем автомате:
+  // 4 цветные с маскотом в обновке и 8 золотых со звёздочкой XP (как шансы 30/70)
   const caps = [], stars = [];
   const pile = h('div', { class: 'claw-pile' });
-  // капсулы — вещи, которых ещё нет (их и можно выиграть); не хватает — добиваем витрину
+  // в цветных — вещи, которых ещё нет (их и можно выиграть); не хватает — добиваем витрину
   const fresh = ((store.state && store.state.chest && store.state.chest.machine) || []).slice().sort(() => Math.random() - 0.5);
-  const shuffled = [...fresh, ...DECOYS.filter(a => !fresh.includes(a)).sort(() => Math.random() - 0.5)].slice(0, 5);
-  const bottom = GLASS_H - CAP - 6;
-  const CAP_SPOTS = [[55, bottom], [145, bottom], [235, bottom], [100, bottom - 44], [190, bottom - 44]];
-  shuffled.forEach((acc, i) => {
-    const c = capsule(acc, i, u.mascot);
-    const [x, y] = CAP_SPOTS[i];
-    Object.assign(c.style, { left: `${x - CAP / 2 + ((i * 7) % 9) - 4}px`, top: `${y}px`, transform: `rotate(${((i * 37) % 31) - 15}deg)` });
-    Object.assign(c.dataset, { x: String(x), y: String(y), acc });
-    caps.push(c);
+  const shown = [...fresh, ...DECOYS.filter(a => !fresh.includes(a)).sort(() => Math.random() - 0.5)].slice(0, 4);
+  const y0 = GLASS_H - CAP - 4, dy = CAP - 8;
+  const SPOTS = [...[30, 84, 138, 192, 246].map(x => [x, y0]), ...[57, 111, 165, 219].map(x => [x, y0 - dy]),
+    ...[84, 138, 192].map(x => [x, y0 - 2 * dy])];
+  // цветные капсулы лежат сверху (2 в верхнем ряду, 2 во втором), золотые — вокруг и на дне
+  const pick = (row, n) => row.slice().sort(() => Math.random() - 0.5).slice(0, n);
+  const petSpots = new Set([...pick([9, 10, 11], 2), ...pick([5, 6, 7, 8], 2)].slice(0, shown.length));
+  let p = 0;
+  SPOTS.forEach(([x, y], i) => {
+    const pet = petSpots.has(i);
+    const c = pet ? capsule(shown[p], p, u.mascot) : starCapsule();
+    if (pet) { c.dataset.acc = shown[p]; p++; }
+    Object.assign(c.style, { left: `${x - CAP / 2 + ((i * 5) % 5) - 2}px`, top: `${y}px`, transform: `rotate(${((i * 37) % 25) - 12}deg)` });
+    Object.assign(c.dataset, { x: String(x), y: String(y) });
+    (pet ? caps : stars).push(c);
     pile.append(c);
-  });
-  // звёздочки лежат, а не висят: на дне между капсулами, в ложбинках и горкой сверху
-  const floor = GLASS_H - STAR - 4;
-  const STAR_SPOTS = [[16, floor], [100, floor], [190, floor], [266, floor],
-    [24, bottom - 18], [145, bottom - 30], [256, bottom - 18],
-    [76, bottom - 66], [118, bottom - 74], [145, bottom - 60], [172, bottom - 74], [214, bottom - 66]];
-  STAR_SPOTS.forEach(([sx, sy], i) => {
-    const st = h('div', { class: 'claw-star', html: STAR_SVG });
-    Object.assign(st.style, { left: `${sx - STAR / 2 + ((i * 13) % 7) - 3}px`, top: `${sy + ((i * 7) % 4)}px`, transform: `rotate(${((i * 53) % 41) - 20}deg)` });
-    Object.assign(st.dataset, { x: String(sx), y: String(sy) });
-    stars.push(st);
-    pile.append(st);
   });
   const rope = h('div', { class: 'claw-rope' });
   const head = h('div', { class: 'claw-head', html: CLAW_SVG });
@@ -86,7 +85,7 @@ export function openClawGame() {
   const left = h('button', { type: 'button', class: 'claw-btn', 'aria-label': 'Лапу влево' }, '◀');
   const right = h('button', { type: 'button', class: 'claw-btn', 'aria-label': 'Лапу вправо' }, '▶');
   const grab = h('button', { type: 'button', class: 'claw-grab' }, 'Хватай!');
-  const hint = h('p', { class: 'claw-hint' }, 'Капсула — обновка для маскота, звёздочка — XP. Подведи лапу к капсуле и жми «Хватай!»');
+  const hint = h('p', { class: 'claw-hint' }, 'Цветная капсула — обновка для маскота, золотая — XP. Подведи лапу и жми «Хватай!»');
   const machine = h('div', { class: 'claw-machine' },
     h('div', { class: 'claw-top' }, bulbs, h('b', null, '🎁 Приз дня')),
     glass,
@@ -114,8 +113,11 @@ export function openClawGame() {
     hint.textContent = 'Опускаем лапу… 🤞';
     haptic.tap('medium');
     // капсула под лапой — её вещь и достанется, если сервер скажет «вещь»;
-    // иначе лапа берёт ближайшую звёздочку XP
-    const nearest = pool => pool.slice().sort((a, b) => Math.abs(+a.dataset.x - x) - Math.abs(+b.dataset.x - x))[0];
+    // иначе лапа берёт ближайшую золотую капсулу XP
+    // лапа достаёт только из двух верхних рядов — сквозь горку не проходит
+    const reachable = pool => pool.filter(c => +c.dataset.y < GLASS_H - CAP - 10);
+    const nearest = pool => reachable(pool).sort((a, b) =>
+      Math.abs(+a.dataset.x - x) + +a.dataset.y / 1.5 - (Math.abs(+b.dataset.x - x) + +b.dataset.y / 1.5))[0];
     const aimed = nearest(caps);
     const res = await api.openChest(aimed.dataset.acc).catch(e => ({ error: e }));
     if (res.error) { toastError(res.error); m.close(); return; }
@@ -136,11 +138,11 @@ export function openClawGame() {
     }
     target.classList.add('held');
     target.style.transform = 'rotate(0deg)';
-    target.style.left = `${30 - (merch ? CAP : STAR) / 2}px`;
+    target.style.left = `${30 - CAP / 2}px`;
     target.style.top = '38px';
     head.append(target);
     rope.style.height = '8px';
-    hint.textContent = merch ? 'Есть! Тянем капсулу…' : 'Звёздочка! Тянем…';
+    hint.textContent = merch ? 'Есть! Тянем капсулу…' : 'Золотая капсула! Тянем…';
     await wait(900);
     target.classList.add('pop');
     haptic.success();

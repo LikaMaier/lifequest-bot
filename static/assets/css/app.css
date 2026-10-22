@@ -1902,13 +1902,15 @@ p { margin: 0; }
 .claw-head.closed .claw-l { transform: rotate(-6deg); }
 .claw-head.closed .claw-r { transform: rotate(6deg); }
 .claw-pile { position: absolute; inset: 0; }
-.claw-cap { position: absolute; width: 56px; height: 56px; border-radius: 50%; border: 2.5px solid #2C2A22; overflow: hidden;
+.claw-cap { position: absolute; width: 52px; height: 52px; border-radius: 50%; border: 2.5px solid #2C2A22; overflow: hidden;
   background: linear-gradient(180deg, rgba(255,255,255,.9) 0 50%, var(--shell) 50% 100%); box-shadow: inset 0 -6px 0 rgba(0,0,0,.12);
   transition: top .85s ease-in-out, left .3s, transform .3s; }
 .claw-cap::after { content: ''; position: absolute; top: 7px; left: 11px; width: 12px; height: 7px; border-radius: 50%; background: #fff; opacity: .8; }
 .claw-cap-pet { position: absolute; inset: 5px 4px 3px; display: flex; }
 .claw-cap-pet svg { width: 100%; height: 100%; }
 .claw-cap-emoji { margin: auto; font-size: 28px; }
+.claw-cap-star { position: absolute; inset: 9px; display: flex; }
+.claw-cap-star svg { width: 100%; height: 100%; }
 .claw-cap.held { position: absolute; z-index: 2; }
 .claw-cap.fall { animation: claw-fall .6s ease-in forwards; }
 @keyframes claw-fall { to { transform: translateY(200px) rotate(25deg); opacity: 0; } }
@@ -1941,13 +1943,10 @@ p { margin: 0; }
 .jar-chart .jar-ball { opacity: 0; animation: none; }
 .jar-chart.go .jar-ball { animation: jar-drop .6s cubic-bezier(.3, 1.4, .5, 1) both; }
 @media (prefers-reduced-motion: reduce) { .jar-chart .jar-ball { opacity: 1; } .jar-chart.go .jar-ball { animation: none; } }
-.claw-star { position: absolute; width: 34px; height: 34px; z-index: 1; transition: top .85s ease-in-out, left .3s, transform .3s;
-  filter: drop-shadow(0 2px 2px rgba(44,42,34,.25)); }
-.claw-star svg { width: 100%; height: 100%; }
-.claw-cap, .claw-star { will-change: top; }
-.claw-cap.pop, .claw-star.pop { animation: claw-pop .45s ease-out forwards; }
+.claw-cap { will-change: top; }
+.claw-cap.pop { animation: claw-pop .45s ease-out forwards; }
 @keyframes claw-pop { 40% { transform: scale(1.35); } to { transform: scale(1.6); opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .claw-cap.pop, .claw-star.pop { animation: none; } .claw-star { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .claw-cap.pop { animation: none; } }
 /* Полароид в просмотре: ширину задаёт фото, а не длинная подпись (в веб-версии
    подпись растягивала рамку, и фото прижималось влево с пустой полосой справа) */
 .viewer-photo { display: flex; justify-content: center; align-items: center; }
