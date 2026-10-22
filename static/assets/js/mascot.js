@@ -33,9 +33,9 @@ function eyesSVG(expr) {
       + `<path d="M73 36 l-12 4" stroke="${INK}" stroke-width="3" stroke-linecap="round"/>`
       + `<path d="M70 52 q3 7 0 9 q-3 -2 0 -9 z" fill="#7FB6F0"/>`;
   }
-  if (expr === 'dizzy') { // укачало: глаза-спиральки
-    const swirl = (x, y) => `<path d="M${x} ${y} m0 -1.5 a1.5 1.5 0 1 1 -1.5 1.5 a3 3 0 1 1 3 3 a4.5 4.5 0 1 1 -4.5 -4.5 a6 6 0 0 1 6 6" stroke="${INK}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`;
-    return swirl(35, 44) + swirl(65, 44);
+  if (expr === 'dizzy') { // укачало: глаза-спиральки (правая — зеркальная)
+    const swirl = flip => `<path transform="translate(${flip ? 65 : 35} 44) scale(${flip ? -1 : 1} 1)" d="${SPIRAL}" stroke="${INK}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+    return swirl(false) + swirl(true);
   }
   if (expr === 'love') {
     const heart = (x, y) => `<path d="M${x} ${y + 5} c-7 -5 -8 -11 -3.5 -12.5 c2 -0.6 3.5 0.6 3.5 2.2 c0 -1.6 1.5 -2.8 3.5 -2.2 c4.5 1.5 3.5 7.5 -3.5 12.5 z" fill="#FB4645"/>`;
@@ -52,12 +52,15 @@ function mouthSVG(expr) {
   }
   if (expr === 'sad') return `<path d="M40 64 q10 -8 20 0" stroke="${INK}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
   if (expr === 'sleepy') return `<ellipse cx="50" cy="62" rx="4" ry="3" fill="${INK}"/>`;
-  if (expr === 'dizzy') return `<path d="M37 62 q3.25 -4 6.5 0 t6.5 0 t6.5 0 t6.5 0" stroke="${INK}" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`
-    + '<ellipse cx="24" cy="56" rx="6" ry="3.5" fill="#8CC63F" opacity=".45"/><ellipse cx="76" cy="56" rx="6" ry="3.5" fill="#8CC63F" opacity=".45"/>';
+  if (expr === 'dizzy') return `<path d="M42 62 q4 -3.5 8 0 t8 0" stroke="${INK}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
   return `<path d="M38 58 q12 9 24 0" stroke="${INK}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
 }
 
 const blush = '<ellipse cx="24" cy="56" rx="6" ry="3.5" fill="#F3619C" opacity=".35"/><ellipse cx="76" cy="56" rx="6" ry="3.5" fill="#F3619C" opacity=".35"/>';
+const SPIRAL = 'M1.2 0.0 L1.3 0.3 L1.3 0.6 L1.3 0.9 L1.1 1.2 L0.9 1.5 L0.7 1.7 L0.3 2.0 L-0.1 2.1 L-0.5 2.1 L-1.0 2.1 L-1.5 1.9 L-1.9 1.7 L-2.3 1.3 L-2.6 0.9 L-2.9 0.4 L-3.0 -0.2 L-3.0 -0.8 L-2.9 -1.5 L-2.6 -2.1 L-2.2 -2.7 L-1.7 -3.1 L-1.0 -3.5 L-0.3 -3.8 L0.4 -3.9 L1.2 -3.8 L2.0 -3.6 L2.8 -3.2 L3.4 -2.6 L4.0 -1.9 L4.4 -1.1 L4.7 -0.2 L4.7 0.7 L4.6 1.7 L4.3 2.6 L3.7 3.5 L3.0 4.3 L2.2 4.9 L1.2 5.3 L0.1 5.6 L-1.1 5.6 L-2.2 5.4 L-3.3 4.9 L-4.3 4.2 L-5.1 3.3 L-5.8 2.3 L-6.3 1.1 L-6.5 -0.2 L-6.4 -1.5 L-6.1 -2.8 L-5.5 -4.0';
+// Укачало: над головой кружатся звёздочки
+const dizzyStars = [[22, 12, 0], [50, 5, -.4], [78, 12, -.8]].map(([x, y, d]) =>
+  `<path class="dz-star" style="animation-delay:${d}s" d="M${x} ${y - 5} l1.6 3.4 3.4 1.6 -3.4 1.6 -1.6 3.4 -1.6 -3.4 -3.4 -1.6 3.4 -1.6z" fill="#FFD23F" stroke="#2C2A22" stroke-width="1.2" stroke-linejoin="round"/>`).join('');
 const zzz = '<text x="80" y="14" font-family="Unbounded, sans-serif" font-weight="800" font-size="16" fill="#6B4B9E">z</text><text x="92" y="2" font-family="Unbounded, sans-serif" font-weight="800" font-size="11" fill="#6B4B9E">z</text>';
 
 // ---------- Звери ----------
@@ -66,8 +69,8 @@ const zzz = '<text x="80" y="14" font-family="Unbounded, sans-serif" font-weight
 function animalSVG(kind, expr) {
   let eyes = eyesSVG(expr);
   let mouth = mouthSVG(expr);
-  const cheeks = expr === 'love' || expr === 'happy' || expr === 'silly' ? blush : '';
-  const z = expr === 'sleepy' ? zzz : '';
+  const cheeks = expr === 'love' || expr === 'happy' || expr === 'silly' || expr === 'dizzy' ? blush : '';
+  const z = expr === 'sleepy' ? zzz : expr === 'dizzy' ? dizzyStars : '';
   const nose = (fill = INK) => `<ellipse cx="50" cy="54" rx="5" ry="3.8" fill="${fill}"/>`;
   let body = '';
   if (kind === 'frog') {
@@ -243,7 +246,8 @@ function baseSVG(kind, expr) {
   if (['frog', 'puppy', 'bear', 'leopard', 'panda', 'pig'].includes(kind)) return animalSVG(kind, expr);
   const eyes = eyesSVG(expr);
   const mouth = mouthSVG(expr);
-  const extra = (expr === 'sleepy' ? zzz : '') + (expr === 'love' || expr === 'happy' || expr === 'silly' ? blush : '');
+  const extra = (expr === 'sleepy' ? zzz : expr === 'dizzy' ? dizzyStars : '')
+    + (expr === 'love' || expr === 'happy' || expr === 'silly' || expr === 'dizzy' ? blush : '');
   if (kind === 'star') {
     const starMouth = expr === 'sad' || expr === 'surprised' || expr === 'sleepy' ? mouth
       : `<path d="M40 60 q10 7 20 0" stroke="${INK}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
