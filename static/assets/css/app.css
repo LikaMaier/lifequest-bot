@@ -271,6 +271,13 @@ p { margin: 0; }
 .mascot svg { width: 100%; height: 100%; overflow: visible; }
 .mascot.jump { animation: jump .7s cubic-bezier(.3,1.6,.5,1); }
 .mascot.wiggle { animation: wiggle 1.2s ease-in-out infinite; }
+/* маскота укачало: качается из стороны в сторону */
+.mascot.dizzy { animation: dizzy 1.2s ease-in-out 2; transform-origin: 50% 95%; }
+.mascot.dizzy svg { overflow: visible; }
+@keyframes dizzy { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-6deg); } 75% { transform: rotate(6deg); } }
+.dz-star { transform-box: fill-box; transform-origin: center; animation: dz-star 1.2s ease-in-out infinite; }
+@keyframes dz-star { 0%, 100% { transform: translateY(0) rotate(0deg) scale(.85); } 50% { transform: translateY(-3px) rotate(45deg) scale(1.1); } }
+@media (prefers-reduced-motion: reduce) { .mascot.dizzy, .dz-star { animation: none; } }
 @keyframes jump { 0% { transform: translateY(0); } 35% { transform: translateY(-18px) rotate(-6deg); } 70% { transform: translateY(2px) rotate(3deg); } 100% { transform: none; } }
 @keyframes wiggle { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
 .speech {
@@ -1142,6 +1149,12 @@ p { margin: 0; }
 .cal2-save:active { transform: translateY(3px); box-shadow: 0 2px 0 #000; }
 .cal2-link { border: 0; background: none; color: var(--pink-deep); font-family: inherit; font-weight: 800; font-size: 14px; min-height: 44px; }
 .cal2-slot-body .cal2-time { display: none; }
+/* «Новый план» — только что, дата и время */
+.qa-field { display: block; }
+.qa-field .input { width: 100%; box-sizing: border-box; }
+.qa-opt { font-weight: 700; opacity: .75; }
+.qa-range { display: grid; grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; font-weight: 800; color: var(--muted); }
+.qa-range .input { min-width: 0; }
 
 /* Альбом: полароиды */
 .memo-snap {

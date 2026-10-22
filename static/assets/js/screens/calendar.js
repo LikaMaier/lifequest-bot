@@ -8,7 +8,7 @@ import { haptic } from '../tg.js';
 import { myMascot } from '../mascot.js';
 import { skeleton, toastError, toast, sectionTitle, emptyState, sheet, busy } from '../ui.js';
 import { refreshState } from '../store.js';
-import { planRow, openPlanSheet, openDaySheet, openQuestPicker, completePlan, pickDate, todayIso, addDays, dayTitle } from '../planui.js';
+import { planRow, openPlanSheet, openDaySheet, openQuestPicker, completePlan, todayIso, addDays, dayTitle } from '../planui.js';
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
@@ -582,119 +582,56 @@ async function drawList(body, el, ctx) {
 }
 
 // ---------- Быстрое добавление ----------
-const IDEAS = ['Прогулка', 'Звонок маме', 'Спортзал', 'Свидание', 'Кино', 'Уборка'];
-const TIMES = [['morning', 'Утро', '09:00'], ['day', 'День', '14:00'], ['evening', 'Вечер', '19:00'], ['own', 'Своё', '']];
-const REPEAT_ORDER = ['none', 'daily', 'weekdays', 'weekly'];
-
+// Максимально просто: что, дата и (по желанию) время «с … до …». Повтор,
+// напоминание и подпункты — потом, в карточке плана.
 export function openQuickAdd(date, { onChange } = {}) {
   const today = todayIso();
-  const sat = addDays(today, (5 - wdIndex(today) + 7) % 7);
-  const form = { title: '', date: date || today, time: '', timeKey: '', repeat_rule: 'none', remind: 'none', duration: 0, subtasks: [] };
   const s = sheet(h('div'), { label: 'Новый план' });
-  const chip = (text, on, fn, cls = '') => {
-    const b = h('button', { type: 'button', class: `cal2-chip ${cls} ${on ? 'on' : ''}`, 'aria-pressed': String(on) }, text);
-    b.addEventListener('click', () => { haptic.select(); fn(); draw(); });
-    return b;
+  const title = h('input', { class: 'cal2-title-input', type: 'text', maxlength: '80', placeholder: 'Что планируем?', 'aria-label': 'Что планируем' });
+  const day = h('input', { class: 'input', type: 'date', min: today, value: date && date > today ? date : today, 'aria-label': 'Дата' });
+  const start = h('input', { class: 'input', type: 'time', 'aria-label': 'Начало' });
+  const end = h('input', { class: 'input', type: 'time', 'aria-label': 'До скольки' });
+  const save = h('button', { type: 'button', class: 'cal2-save' });
+  const label = () => {
+    const d = day.value || today;
+    save.textContent = `Добавить в ${WD_ACC[wdIndex(d)]}, ${parseDate(d).getDate()}-го`;
   };
-  const title = h('input', { class: 'cal2-title-input', type: 'text', maxlength: '80', placeholder: 'Например: пикник в парке', 'aria-label': 'Что планируем' });
-  title.addEventListener('input', () => { form.title = title.value; });
-  const draw = () => {
-    title.value = form.title;
-    const when = [['Сегодня', today], ['Завтра', addDays(today, 1)], ['Выходные', sat]]
-      .filter(([, d], i, all) => all.findIndex(([, x]) => x === d) === i); // в пятницу и субботу «Выходные» совпадают с завтра/сегодня
-    const isCustom = !when.some(([, d]) => d === form.date);
-    const timeIn = h('input', { class: 'input', type: 'time', value: form.time, 'aria-label': 'Своё время' });
-    timeIn.addEventListener('change', () => { form.time = timeIn.value; if (!form.time) form.remind = 'none'; draw(); });
-    const save = h('button', { type: 'button', class: 'cal2-save' },
-      `Добавить в ${WD_ACC[wdIndex(form.date)]}, ${parseDate(form.date).getDate()}-го`);
-    save.addEventListener('click', busy(save, async () => {
-      const t = form.title.trim();
-      if (!t) { title.focus(); toast('Напиши, что планируем ✍️'); return; }
-      try {
-        await api.createPlan({ title: t, date: form.date, time: form.time || null, repeat_rule: form.repeat_rule,
-          remind: form.time ? form.remind : 'none', color: 'yellow', note: '', duration: form.duration || null,
-          subtasks: form.subtasks.map(x => ({ t: x, done: false })) });
-        haptic.success();
-        toast(`📅 Запланировано на ${fmtDay(form.date)}`, 'good');
-        s.close();
-        refreshState().catch(() => {});
-        onChange && onChange();
-      } catch (e) { toastError(e); }
-    }));
-    const toInbox = h('button', { type: 'button', class: 'cal2-link' }, '📥 Во входящие — без даты');
-    toInbox.addEventListener('click', busy(toInbox, async () => {
-      const t = form.title.trim();
-      if (!t) { title.focus(); toast('Напиши, что запомнить ✍️'); return; }
-      try { await api.addInbox(t); haptic.success(); toast('📥 Во входящих — разберёшь потом', 'good'); s.close(); onChange && onChange(); } catch (e) { toastError(e); }
-    }));
-    const subInput = h('input', { class: 'input', type: 'text', maxlength: '60', placeholder: 'Добавить пункт и Enter', 'aria-label': 'Подпункт' });
-    const addSub = () => { const v = subInput.value.trim(); if (v && form.subtasks.length < 12) { form.subtasks.push(v); draw(); } };
-    subInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addSub(); } });
-    const subPlus = h('button', { type: 'button', class: 'cal2-icon-btn soft', 'aria-label': 'Добавить пункт' }, ico('plus'));
-    subPlus.addEventListener('click', addSub);
-    const subsList = h('div', { class: 'cal2-chips' }, form.subtasks.map((x, i) => chip(`✕ ${x}`, false, () => { form.subtasks.splice(i, 1); })));
-    const durations = [[0, 'Без длительности'], [15, '15 мин'], [30, '30 мин'], [60, '1 ч'], [120, '2 ч']];
-    const presetDur = durations.some(([m]) => m === form.duration);
-    const endIn = h('input', { class: 'input', type: 'time', value: form.time && form.duration ? endOf(form.time, form.duration) : '', 'aria-label': 'До скольки' });
-    endIn.addEventListener('change', () => {
-      const d = durationTo(form.time, endIn.value);
-      if (d === null) { toast('Окончание должно быть позже начала ⏰'); return; }
-      form.duration = d; form.ownEnd = true; draw();
-    });
-    const quest = h('button', { type: 'button', class: 'cal2-link' }, '🎯 Или выбрать задание из банка LifeQuest');
-    quest.addEventListener('click', () => { haptic.tap(); s.close(); openQuestPicker(form.date, { onChange }); });
-    const repeatBtn = h('button', { type: 'button', class: `cal2-toggle ${form.repeat_rule !== 'none' ? 'on' : ''}` }, ico('repeat'), REPEAT[form.repeat_rule]);
-    repeatBtn.addEventListener('click', () => {
-      haptic.select();
-      form.repeat_rule = REPEAT_ORDER[(REPEAT_ORDER.indexOf(form.repeat_rule) + 1) % REPEAT_ORDER.length];
-      draw();
-    });
-    const remindBtn = h('button', { type: 'button', class: `cal2-toggle ${form.remind === 'hour_before' ? 'on lime' : ''}`, disabled: !form.time },
-      ico('bell'), form.time ? (form.remind === 'hour_before' ? 'Напомню за час' : 'Без напоминания') : 'Напомнить (нужно время)');
-    remindBtn.addEventListener('click', () => { haptic.select(); form.remind = form.remind === 'hour_before' ? 'none' : 'hour_before'; draw(); });
-    s.setContent(h('div', { class: 'stack cal2-add' },
-      h('h2', null, 'Новый план'),
-      h('div', null, h('div', { class: 'cal2-label' }, 'Что планируем'), title,
-        h('div', { class: 'cal2-chips', style: { marginTop: '8px' } }, IDEAS.map(t => chip(t, false, () => { form.title = t; }, 'idea')))),
-      h('div', null, h('div', { class: 'cal2-label' }, 'Когда'),
-        h('div', { class: 'cal2-chips' },
-          when.map(([label, d]) => chip(label, form.date === d, () => { form.date = d; })),
-          pickChip(isCustom))),
-      h('div', null, h('div', { class: 'cal2-label' }, 'Время'),
-        h('div', { class: 'cal2-times' }, TIMES.map(([k, label, t]) => {
-          const on = form.timeKey === k;
-          const b = h('button', { type: 'button', class: `cal2-time-btn ${on ? 'on' : ''}`, 'aria-pressed': String(on) },
-            h('b', null, label), h('small', null, k === 'own' ? (on && form.time ? form.time : '--:--') : t));
-          b.addEventListener('click', () => {
-            haptic.select();
-            if (on) { form.timeKey = ''; form.time = ''; form.remind = 'none'; }
-            else { form.timeKey = k; form.time = t; if (!t) form.remind = 'none'; }
-            draw();
-          });
-          return b;
-        })),
-        form.timeKey === 'own' ? h('div', { style: { marginTop: '8px' } }, timeIn) : null),
-      form.time ? h('div', null, h('div', { class: 'cal2-label' }, 'Сколько займёт'),
-        h('div', { class: 'cal2-chips' }, durations.map(([m, t]) => chip(t, form.duration === m && !form.ownEnd, () => { form.duration = m; form.ownEnd = false; })),
-          chip(form.ownEnd || (!presetDur && form.duration) ? `до ${endOf(form.time, form.duration)}` : 'До…', form.ownEnd || (!presetDur && Boolean(form.duration)), () => { form.ownEnd = true; })),
-        form.ownEnd ? h('div', { class: 'cal2-end' }, h('span', { class: 'bold' }, `с ${form.time} до`), endIn) : null) : null,
-      h('div', null, h('div', { class: 'cal2-label' }, 'Подпункты'),
-        form.subtasks.length ? subsList : null,
-        h('div', { class: 'row', style: { gap: '8px', marginTop: form.subtasks.length ? '8px' : 0 } }, h('div', { class: 'grow' }, subInput), subPlus)),
-      h('div', { class: 'cal2-toggles' }, repeatBtn, remindBtn),
-      save, toInbox, quest));
-  };
-  const pickChip = isCustom => {
-    const b = h('button', { type: 'button', class: `cal2-chip ${isCustom ? 'on' : ''}`, 'aria-pressed': String(isCustom) },
-      isCustom ? fmtDay(form.date) : 'Выбрать дату');
-    b.addEventListener('click', async () => {
-      haptic.select();
-      const d = await pickDate(form.date, 'Выбери дату');
-      if (d) { form.date = d < today ? today : d; draw(); }
-    });
-    return b;
-  };
-  draw();
+  day.addEventListener('change', () => { if (!day.value || day.value < today) day.value = today; label(); });
+  label();
+
+  save.addEventListener('click', busy(save, async () => {
+    const t = title.value.trim();
+    if (!t) { title.focus(); toast('Напиши, что планируем ✍️'); return; }
+    let duration = null;
+    if (start.value && end.value) {
+      duration = durationTo(start.value, end.value);
+      if (duration === null) { toast('Окончание должно быть позже начала ⏰'); return; }
+    }
+    const d = day.value || today;
+    try {
+      await api.createPlan({ title: t, date: d, time: start.value || null, repeat_rule: 'none', remind: 'none',
+        color: 'yellow', note: '', duration, subtasks: [] });
+      haptic.success();
+      toast(`📅 Запланировано на ${fmtDay(d)}`, 'good');
+      s.close();
+      refreshState().catch(() => {});
+      onChange && onChange();
+    } catch (e) { toastError(e); }
+  }));
+  const toInbox = h('button', { type: 'button', class: 'cal2-link' }, '📥 Пока без даты');
+  toInbox.addEventListener('click', busy(toInbox, async () => {
+    const t = title.value.trim();
+    if (!t) { title.focus(); toast('Напиши, что запомнить ✍️'); return; }
+    try { await api.addInbox(t); haptic.success(); toast('📥 Во входящих — разберёшь потом', 'good'); s.close(); onChange && onChange(); } catch (e) { toastError(e); }
+  }));
+
+  s.setContent(h('div', { class: 'stack cal2-add' },
+    h('h2', null, 'Новый план'),
+    title,
+    h('label', { class: 'qa-field' }, h('span', { class: 'cal2-label' }, 'Дата'), day),
+    h('div', { class: 'qa-field' }, h('span', { class: 'cal2-label' }, 'Время ', h('span', { class: 'qa-opt' }, '· необязательно')),
+      h('div', { class: 'qa-range' }, h('span', null, 'с'), start, h('span', null, 'до'), end)),
+    save, toInbox));
   setTimeout(() => title.focus(), 250);
   return s;
 }
