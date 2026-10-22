@@ -3,8 +3,7 @@
 Стандартные можно переименовать, сменить эмодзи и цвет — ключ при этом
 остаётся прежним («Энергия»), поэтому квесты продолжают считаться в ту же
 сферу. Свои сферы получают ключ вида «c<id>». Удалить можно любую: у
-привычек сфера тогда просто сбрасывается; стандартная при этом лишь
-скрывается (hidden) и возвращается через reset."""
+привычек сфера тогда просто сбрасывается (стандартная помечается hidden)."""
 
 import game
 import storage
@@ -46,12 +45,6 @@ def list_spheres(user_id: int) -> list:
             out.append({"key": key, "name": r["name"], "emoji": r["emoji"] or "⭐", "color": r["color"] or "lav",
                         "custom": True})
     return out
-
-
-def hidden(user_id: int) -> list:
-    """Удалённые стандартные сферы — их можно вернуть."""
-    rows = _rows(user_id)
-    return [{"key": k, "name": k, "emoji": DEFAULTS[k][0]} for k in BINGO_SPHERES if (rows.get(k) or {}).get("hidden")]
 
 
 def keys(user_id: int) -> set:
@@ -122,7 +115,7 @@ def delete(user_id: int, key: str) -> list:
     if key not in keys(user_id):
         raise game.QuestError("Такой сферы нет")
     conn = storage.connect()
-    if key in DEFAULTS:  # стандартную прячем, чтобы её можно было вернуть
+    if key in DEFAULTS:  # стандартная зашита в каталог квестов — её просто прячем
         if not conn.execute("SELECT 1 FROM user_spheres WHERE user_id = ? AND key = ?", (user_id, key)).fetchone():
             conn.execute("INSERT INTO user_spheres (user_id, key) VALUES (?, ?)", (user_id, key))
         cur = conn.execute("UPDATE user_spheres SET hidden = 1 WHERE user_id = ? AND key = ?", (user_id, key))
