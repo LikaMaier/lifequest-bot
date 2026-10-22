@@ -74,7 +74,7 @@ function draw(body, el, ctx) {
     const card = h('div', { class: `shop-item ${item.equipped ? 'on' : ''} ${worn === item.id ? 'trying' : ''}` },
       h('button', { type: 'button', class: 'shop-try', 'aria-label': `Примерить: ${item.name}` },
         h('span', { class: 'shop-img', html: mascotSVG(u.mascot, 'happy', item.id) }),
-        h('span', { class: 'bold small' }, item.name),
+        h('span', { class: 'bold small shop-name' }, item.name),
         item.until && !item.owned ? h('span', { class: 'tag c-orange', style: { marginTop: '4px' } }, `${SET_MARK[item.set] || '🎁'} до ${item.until}`) : null),
       h('button', { type: 'button', class: `btn small ${item.owned ? 'ghost' : ''}`,
         disabled: !item.owned && shop.balance < item.price }, state));
@@ -109,7 +109,7 @@ function draw(body, el, ctx) {
     const card = h('div', { class: `shop-item premium ${item.equipped ? 'on' : ''} ${worn === item.id ? 'trying' : ''}` },
       h('button', { type: 'button', class: 'shop-try', 'aria-label': `Примерить: ${item.name}` },
         h('span', { class: 'shop-img', html: mascotSVG(u.mascot, 'happy', item.id) }),
-        h('span', { class: 'bold small' }, item.name)),
+        h('span', { class: 'bold small shop-name' }, item.name)),
       h('button', { type: 'button', class: `btn small ${shop.premium ? 'ghost' : 'colored c-yellow'}` }, state));
     const [tryBtn, actBtn] = card.querySelectorAll('button');
     tryBtn.addEventListener('click', () => { haptic.select(); preview = item.id; redraw(el, ctx); });
