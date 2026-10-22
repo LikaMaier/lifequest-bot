@@ -1,5 +1,5 @@
 // Сферы пользователя: стандартные (их можно переименовать, сменить эмодзи
-// и цвет, удалить и потом вернуть) и свои (можно добавить и удалить).
+// и цвет, удалить) и свои (можно добавить и удалить).
 // Используются у привычек и в статистике «Прогресс».
 
 import { h } from './dom.js';
@@ -30,30 +30,11 @@ export function openSphereManager({ onChange } = {}) {
     });
     const add = h('button', { type: 'button', class: 'btn block' }, '＋ Своя сфера');
     add.addEventListener('click', () => { haptic.tap(); openSphereEditor(null, { onDone: changed }); });
-    // удалённые стандартные сферы можно вернуть
-    const gone = (store.state && store.state.user_spheres_hidden) || [];
-    const back = gone.map(sp => {
-      const b = h('button', { type: 'button', class: 'chip' }, `↺ ${sp.emoji} ${sp.name}`);
-      b.addEventListener('click', busy(b, async () => {
-        try {
-          const res = await api.updateSphere(sp.key, { reset: true });
-          store.state.user_spheres = res.spheres;
-          store.state.user_spheres_hidden = res.hidden;
-          haptic.success();
-          refreshState().catch(() => {});
-          changed();
-        } catch (e) { toastError(e); }
-      }));
-      return b;
-    });
     s.setContent(h('div', null,
       h('h2', { class: 'center' }, 'Сферы жизни'),
       h('p', { class: 'center small bold muted', style: { margin: '4px 0 14px' } },
         'Привычки можно отнести к сфере — так в «Прогрессе» видно, чему ты уделяешь время'),
-      h('div', { class: 'stack-sm' }, rows), h('div', { style: { marginTop: '14px' } }, add),
-      back.length ? h('div', { style: { marginTop: '14px' } },
-        h('div', { class: 'small bold muted', style: { margin: '0 2px 6px' } }, 'Вернуть удалённые'),
-        h('div', { class: 'chips' }, back)) : null));
+      h('div', { class: 'stack-sm' }, rows), h('div', { style: { marginTop: '14px' } }, add)));
   };
   const changed = () => { draw(); onChange && onChange(); };
   s = sheet(h('div'), { label: 'Сферы жизни' });
@@ -68,7 +49,6 @@ export function openSphereEditor(sp, { onDone } = {}) {
   const s = sheet(h('div'), { label: isNew ? 'Новая сфера' : 'Сфера' });
   const finish = async res => {
     store.state.user_spheres = res.spheres;
-    if (res.hidden) store.state.user_spheres_hidden = res.hidden;
     haptic.success();
     s.close();
     refreshState().catch(() => {});
@@ -108,7 +88,7 @@ export function openSphereEditor(sp, { onDone } = {}) {
       del.addEventListener('click', busy(del, async () => {
         try {
           await finish(await api.deleteSphere(sp.key));
-          toast(sp.custom ? 'Сфера удалена — привычки остались без сферы' : 'Сфера удалена — вернуть её можно в списке сфер', '', 2600);
+          toast('Сфера удалена — привычки остались без сферы', '', 2400);
         } catch (e) { toastError(e); }
       }));
       extra.push(del);
