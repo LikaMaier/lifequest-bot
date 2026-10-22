@@ -8,7 +8,7 @@ import game
 import storage
 
 CHECK = {"title": "Без сахара", "emoji": "🍬", "kind": "check", "points": 10}
-COUNT = {"title": "Отжимания", "emoji": "💪", "kind": "count", "unit": "раз", "norm": 30, "points": 1}
+SPORT = {"title": "Зарядка", "emoji": "💪", "points": 5}
 
 
 class ContestsTest(TempDBTestCase):
@@ -25,7 +25,7 @@ class ContestsTest(TempDBTestCase):
         c = self._contest(days)
         contests.join(2, c["id"])
         contests.add_item(1, c["id"], CHECK)
-        contests.add_item(1, c["id"], COUNT)
+        contests.add_item(1, c["id"], SPORT)
         return c["id"]
 
     # ---------- лобби ----------
@@ -63,10 +63,10 @@ class ContestsTest(TempDBTestCase):
             contests.add_item(2, c["id"], CHECK)
         with self.assertRaises(game.QuestError):
             contests.add_item(4, c["id"], CHECK)
-        v = contests.add_item(1, c["id"], COUNT)["contest"]
+        v = contests.add_item(1, c["id"], SPORT)["contest"]
         item = v["items"][0]
-        self.assertEqual((item["kind"], item["unit"], item["norm"], item["points"]), ("count", "раз", 30, 1))
-        v = contests.update_item(1, c["id"], item["id"], {**COUNT, "points": 2})["contest"]
+        self.assertEqual((item["kind"], item["unit"], item["norm"], item["points"]), ("check", "", None, 5))
+        v = contests.update_item(1, c["id"], item["id"], {**SPORT, "points": 2})["contest"]
         self.assertEqual(v["items"][0]["points"], 2)
         v = contests.delete_item(1, c["id"], item["id"])["contest"]
         self.assertEqual(v["items"], [])
@@ -76,12 +76,16 @@ class ContestsTest(TempDBTestCase):
         with self.assertRaises(game.QuestError):
             contests.add_item(1, c["id"], {"title": "  ", "kind": "check"})
         with self.assertRaises(game.QuestError):
-            contests.add_item(1, c["id"], {**COUNT, "points": 0})
+            contests.add_item(1, c["id"], {**SPORT, "points": 0})
         with self.assertRaises(game.QuestError):
-            contests.add_item(1, c["id"], {**COUNT, "norm": "abc"})
-        v = contests.add_item(1, c["id"], {"title": "Чтение", "kind": "check", "norm": 5, "unit": "стр"})["contest"]
-        self.assertIsNone(v["items"][0]["norm"])
-        self.assertEqual(v["items"][0]["unit"], "")
+            contests.add_item(1, c["id"], {**SPORT, "points": contests.MAX_POINTS + 1})
+        contests.add_item(1, c["id"], {**SPORT, "points": 20})
+        # единицы и нормы больше нет: любой пункт — «сделал / не сделал»
+        v = contests.add_item(1, c["id"], {"title": "Чтение", "kind": "count", "norm": 5, "unit": "стр"})["contest"]
+        it = v["items"][1]
+        self.assertEqual((it["kind"], it["unit"], it["norm"], it["points"]), ("check", "", None, 10))
+        self.assertTrue(all(kind == "check" and points <= contests.MAX_POINTS
+                            for tpl in contests.TEMPLATES for _, _, kind, _, _, points in tpl["items"]))
 
     def test_items_limit_free_and_premium(self):
         c = self._contest()
@@ -107,39 +111,18 @@ class ContestsTest(TempDBTestCase):
         with self.assertRaises(game.QuestError):
             contests.apply_template(1, c["id"], "nope")
 
-    # ---------- предложения ----------
-    def test_proposals_accept_edit_reject(self):
+    # ---------- приглашение: только принять или отказаться ----------
+    def test_no_proposals_only_accept_or_decline(self):
         c = self._contest()
         contests.join(2, c["id"])
-        with self.assertRaises(game.QuestError):
-            contests.propose(1, c["id"], CHECK)  # создатель добавляет сам
-        with self.assertRaises(game.QuestError):
-            contests.propose(4, c["id"], CHECK)  # не участник
-        res = contests.propose(2, c["id"], {"title": "Планка", "kind": "count", "unit": "мин", "norm": 2})
+        self.assertFalse(hasattr(contests, "propose"))
+        self.assertNotIn("proposals", contests.view(c["id"], 1))
+        res = contests.decline(3, c["id"])
         self.assertEqual(res["messages"][0][0], 1)
-        self.assertEqual(len(res["contest"]["proposals"]), 1)  # свои видно
-        self.assertEqual(len(contests.view(c["id"], 1)["proposals"]), 1)
-        pid = res["contest"]["proposals"][0]["id"]
-        out = contests.decide(1, c["id"], pid, True, {"title": "Планка", "kind": "count", "unit": "мин", "norm": 3})
-        self.assertEqual(out["contest"]["items"][0]["norm"], 3)
-        self.assertEqual(out["contest"]["items"][0]["proposed_by"], "Вера")
-        self.assertIn("с правкой", out["messages"][0][1])
+        self.assertIn("не будет участвовать", res["messages"][0][1])
+        self.assertFalse(contests.is_member(c["id"], 3))
         with self.assertRaises(game.QuestError):
-            contests.decide(1, c["id"], pid, False)  # уже решено
-        pid2 = contests.propose(2, c["id"], CHECK)["contest"]["proposals"][0]["id"]
-        with self.assertRaises(game.QuestError):
-            contests.decide(2, c["id"], pid2, True)  # решает только создатель
-        out = contests.decide(1, c["id"], pid2, False)
-        self.assertIn("не вошло", out["messages"][0][1])
-        self.assertEqual(len(out["contest"]["items"]), 1)
-
-    def test_pending_proposals_limit(self):
-        c = self._contest()
-        contests.join(2, c["id"])
-        for i in range(contests.PENDING_PROPOSALS_LIMIT):
-            contests.propose(2, c["id"], {**CHECK, "title": f"Идея {i}"})
-        with self.assertRaises(game.QuestError):
-            contests.propose(2, c["id"], CHECK)
+            contests.decline(2, c["id"])  # уже участвует
 
     # ---------- запуск и заморозка ----------
     def test_launch_requires_item_and_two_members(self):
@@ -159,17 +142,6 @@ class ContestsTest(TempDBTestCase):
         self.assertEqual({m[0] for m in res["messages"]}, {1, 2})
         self.assertIn("Правила", res["messages"][0][1])
 
-    def test_launch_asks_about_pending_then_force_rejects(self):
-        cid = self._ready()
-        contests.propose(2, cid, {**CHECK, "title": "Йога"})
-        with self.assertRaises(game.QuestError) as e:
-            contests.launch(1, cid)
-        self.assertEqual(e.exception.code, "proposals")
-        res = contests.launch(1, cid, force=True)
-        self.assertEqual(res["contest"]["status"], "active")
-        self.assertTrue(any(m[0] == 2 and "не вошло" in m[1] for m in res["messages"]))
-        self.assertEqual(contests.view(cid, 1)["proposals"], [])
-
     def test_frozen_after_launch_and_closed_doors(self):
         cid = self._ready()
         contests.launch(1, cid)
@@ -178,7 +150,6 @@ class ContestsTest(TempDBTestCase):
                      lambda: contests.update_item(1, cid, item["id"], CHECK),
                      lambda: contests.delete_item(1, cid, item["id"]),
                      lambda: contests.apply_template(1, cid, "sport"),
-                     lambda: contests.propose(2, cid, CHECK),
                      lambda: contests.join(3, cid),
                      lambda: contests.launch(1, cid)):
             with self.assertRaises(game.QuestError):
@@ -190,27 +161,24 @@ class ContestsTest(TempDBTestCase):
         cid = self._ready()
         contests.launch(1, cid)
         items = contests.view(cid, 1)["items"]
-        chk, cnt = items[0]["id"], items[1]["id"]
+        chk, sport = items[0]["id"], items[1]["id"]
         with self.assertRaises(game.QuestError):
             contests.log(4, cid, chk, 1)
-        contests.log(1, cid, chk, 1)
-        contests.log(1, cid, cnt, 25)
-        v = contests.log(2, cid, cnt, 40)["contest"]
+        contests.log(1, cid, sport, 1)
+        v = contests.log(2, cid, chk, 1)["contest"]
         board = {r["id"]: r for r in v["board"]}
-        self.assertEqual(board[1]["score"], 35)
-        self.assertEqual(board[2]["score"], 40)
+        self.assertEqual(board[1]["score"], 5)
+        self.assertEqual(board[2]["score"], 10)
         self.assertEqual(v["board"][0]["id"], 2)
-        self.assertEqual(board[1]["done_today"], 1)  # 25 < нормы 30
-        self.assertEqual(board[2]["done_today"], 1)
-        v = contests.log(1, cid, cnt, 30)["contest"]
+        self.assertEqual(board[1]["done_today"], 1)
+        v = contests.log(1, cid, chk, 7)["contest"]  # «сделал» — это 1, а не 7
         me = v["me"]
         self.assertTrue(me["all_today"])
-        self.assertEqual(me["score"], 40)
-        self.assertEqual([r["place"] for r in v["board"]], [1, 1])  # ничья
+        self.assertEqual(me["score"], 15)
         v = contests.log(1, cid, chk, 0)["contest"]
-        self.assertEqual(v["me"]["score"], 30)
+        self.assertEqual(v["me"]["score"], 5)
         with self.assertRaises(game.QuestError):
-            contests.log(1, cid, cnt, -1)
+            contests.log(1, cid, chk, "x")
 
     def test_log_only_inside_dates(self):
         cid = self._ready(days=3)
@@ -224,12 +192,10 @@ class ContestsTest(TempDBTestCase):
     def test_leave_lobby_and_give_up(self):
         c = self._contest()
         contests.join(2, c["id"])
-        contests.propose(2, c["id"], CHECK)
         res = contests.leave(2, c["id"])
         self.assertEqual(res["messages"][0][0], 1)
         v = contests.view(c["id"], 1)
         self.assertEqual(v["members_count"], 1)
-        self.assertEqual(v["proposals"], [])
         cid = self._ready()
         contests.join(3, cid)
         contests.launch(1, cid)
@@ -253,9 +219,9 @@ class ContestsTest(TempDBTestCase):
         contests.join(3, cid)
         contests.launch(1, cid)
         items = contests.view(cid, 1)["items"]
-        contests.log(1, cid, items[1]["id"], 50)
-        contests.log(2, cid, items[1]["id"], 50)
-        contests.log(3, cid, items[0]["id"], 1)
+        contests.log(1, cid, items[0]["id"], 1)
+        contests.log(2, cid, items[0]["id"], 1)
+        contests.log(3, cid, items[1]["id"], 1)
         self.assertEqual(contests.finalize_due(), [])  # ещё идёт
         later = date.today() + timedelta(days=3)
         with mock.patch("game.local_today", return_value=later):

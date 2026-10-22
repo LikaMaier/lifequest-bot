@@ -441,28 +441,9 @@ async def contest_template(request):
                                                      str(data.get("template") or "")))
 
 
-async def contest_propose(request):
-    _limit(request, "write")
-    data = await _body(request)
-    return web.json_response(_with_notify(contests.propose(request["user_id"], _contest_id(request), data)))
-
-
-async def contest_decide(request):
-    _limit(request, "write")
-    action = request.match_info["action"]
-    if action not in ("accept", "reject"):
-        raise web.HTTPNotFound()
-    data = await _body(request)
-    edits = data.get("item") if isinstance(data.get("item"), dict) else None
-    return web.json_response(_with_notify(contests.decide(request["user_id"], _contest_id(request),
-                                                          _int(request.match_info["pid"]), action == "accept", edits)))
-
-
 async def contest_launch(request):
     _limit(request, "write")
-    data = await _body(request)
-    return web.json_response(_with_notify(contests.launch(request["user_id"], _contest_id(request),
-                                                          force=bool(data.get("force")))))
+    return web.json_response(_with_notify(contests.launch(request["user_id"], _contest_id(request))))
 
 
 async def contest_log(request):
@@ -736,7 +717,9 @@ async def login_claim(request):
 
 async def chest_open(request):
     _limit(request, "write")
-    return web.json_response(chest.open_chest(request["user_id"]))
+    data = await _body(request)
+    pick = data.get("pick") if isinstance(data.get("pick"), str) else None
+    return web.json_response(chest.open_chest(request["user_id"], pick=pick))
 
 
 async def plan_subtask(request):
@@ -1050,8 +1033,6 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_patch("/api/contests/{id:[0-9]+}/items/{item:[0-9]+}", contest_item_update)
     app.router.add_delete("/api/contests/{id:[0-9]+}/items/{item:[0-9]+}", contest_item_delete)
     app.router.add_post("/api/contests/{id:[0-9]+}/template", contest_template)
-    app.router.add_post("/api/contests/{id:[0-9]+}/proposals", contest_propose)
-    app.router.add_post("/api/contests/{id:[0-9]+}/proposals/{pid:[0-9]+}/{action}", contest_decide)
     app.router.add_post("/api/contests/{id:[0-9]+}/launch", contest_launch)
     app.router.add_post("/api/contests/{id:[0-9]+}/log", contest_log)
     app.router.add_post("/api/contests/{id:[0-9]+}/leave", contest_leave)

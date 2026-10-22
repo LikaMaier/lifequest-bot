@@ -10,7 +10,7 @@ import { buildRecapCard } from '../share.js';
 import { openSphereManager } from '../sphereui.js';
 const RANGE_WORD = { 1: 'сегодня', 7: 'неделя', 30: 'месяц', all: 'всё время' };
 import { handlePremiumError } from '../premium.js';
-import { hbars, jarChart, ACTIVITY_COLORS, ACTIVITY_LABELS } from '../charts.js';
+import { hbars, jarChart, ACTIVITY_LABELS } from '../charts.js';
 import { openPhotoReport } from '../photoui.js';
 
 const view = { range: '7', kind: 'bar', stats: {} };
@@ -171,30 +171,27 @@ function activityCard(a) {
       const d = value - p[key];
       delta = h('span', { class: `act-delta ${d > 0 ? 'up' : d < 0 ? 'down' : ''}` }, d > 0 ? `▲ ${d}` : d < 0 ? `▼ ${-d}` : '=');
     }
-    return h('div', { class: 'act-tile', style: { '--c': color } },
+    return h('div', { class: `act-tile c-${color}` },
       h('span', { class: 'act-emoji', 'aria-hidden': 'true' }, emoji),
       h('b', null, String(value)), h('span', { class: 'act-name' }, name), delta);
   };
   const empty = !t.habits && !t.plans && !t.quests;
   const total = t.habits + t.plans + t.quests;
-  const spell = empty ? 'Магия ждёт первого шага — отметь что-нибудь, и здесь заискрится ✨'
-    : total >= 30 ? 'Настоящая магия — звёзды в восторге! 🌟'
-    : total >= 12 ? 'Чары работают: каждый шаг добавляет искорку ✨'
-    : 'Первые искры уже летят — продолжай колдовать 🪄';
-  const sparkles = h('div', { class: 'act-magic', 'aria-hidden': 'true' },
-    ['s1', 's2', 's3', 's4', 's5', 's6', 's7'].map(k => h('i', { class: `act-spark ${k}` })));
-  const card = h('section', { class: 'card act-card', style: { marginTop: '14px' } }, sparkles,
+  const sub = empty ? 'Отметь первое дело — и итоги оживут'
+    : total >= 30 ? 'Мощный период — так держать! 💪'
+    : total >= 12 ? 'Хороший темп, продолжай 🙌'
+    : 'Начало положено — дальше больше 🌱';
+  const card = h('section', { class: 'card act-card', style: { marginTop: '14px' } },
     h('div', { class: 'act-head' },
-      h('span', { class: 'act-wand', 'aria-hidden': 'true' }, '🪄'),
       h('div', { class: 'grow' },
         h('h2', null, PERIOD_TITLE[view.range] || 'Итоги'),
-        h('p', { class: 'act-spell' }, spell)),
+        h('p', { class: 'act-sub' }, sub)),
       a.days > 1 ? h('span', { class: 'act-days' }, h('b', null, String(t.active_days)), `из ${a.days}`, h('small', null, 'дней')) : null),
     h('div', { class: 'act-tiles' },
-      tile('habits', '🌱', t.habits, plural(t.habits, 'привычка', 'привычки', 'привычек'), ACTIVITY_COLORS.habits),
-      tile('plans', '📅', t.plans, plural(t.plans, 'дело', 'дела', 'дел'), ACTIVITY_COLORS.plans),
-      tile('quests', '🎯', t.quests, plural(t.quests, 'квест', 'квеста', 'квестов'), ACTIVITY_COLORS.quests),
-      tile('xp', '⭐', t.xp, 'XP', '#E0B300')),
+      tile('habits', '🌱', t.habits, plural(t.habits, 'привычка', 'привычки', 'привычек'), 'lime'),
+      tile('plans', '📅', t.plans, plural(t.plans, 'дело', 'дела', 'дел'), 'blue'),
+      tile('quests', '🎯', t.quests, plural(t.quests, 'квест', 'квеста', 'квестов'), 'pink'),
+      tile('xp', '⭐', t.xp, 'XP', 'yellow')),
     p ? h('p', { class: 'act-note' }, `Стрелки — сравнение с ${PREV_WORD[view.range]}`) : null);
   if (empty) {
     card.append(h('p', { class: 'act-empty' }, 'Пока пусто — отметь привычку или дело из календаря, и в банке появится первая конфетка 🍬'));
@@ -208,7 +205,7 @@ function activityCard(a) {
     h('p', { class: 'act-jar-note' }, 'Чем больше сделано, тем полнее банка 🍬')));
   if (a.best_day && a.days > 1) {
     card.append(h('div', { class: 'act-best' }, h('span', { class: 'act-best-ico', 'aria-hidden': 'true' }, '🏆'),
-      h('span', null, 'Лучший день — ', h('b', null, fmtDay(a.best_day.date)), `: сделано ${a.best_day.total} ✨`)));
+      h('span', null, 'Лучший день — ', h('b', null, fmtDay(a.best_day.date)), `: сделано ${a.best_day.total}`)));
   }
   return card;
 }

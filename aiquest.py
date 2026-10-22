@@ -7,6 +7,7 @@
 
 import json
 import os
+import random
 
 import aiohttp
 
@@ -70,7 +71,7 @@ def get(quest_id: str, user_id: int = None):
 
 
 def _prompt(mood: str, time: str, place: str, done_titles: list) -> list:
-    avoid = "; ".join(done_titles[:15]) or "—"
+    avoid = "; ".join(done_titles[:25]) or "—"
     system = (
         "Ты — LifeQuest, игра, которая подкидывает необычные задания на день. Придумай ОДНО задание на русском. "
         "Оно должно быть конкретным, выполнимым, безопасным, законным и бесплатным или почти бесплатным, "
@@ -117,9 +118,23 @@ def _save(user_id: int, q: dict, today: str, ai: bool) -> dict:
     return quest
 
 
-def _fallback(user_id: int, mood: str, time: str, place: str, today: str) -> dict:
-    """Задание из банка mood_bank — точно под настроение, место и время."""
-    emoji, title, text, sphere = mood_bank.BANK[(mood, place)][time]
+def _recent_titles(user_id: int, limit: int = 30) -> list:
+    """Что недавно уже предлагали (свежие — первыми), чтобы «Другой вариант» не повторялся."""
+    conn = storage.connect()
+    rows = conn.execute("SELECT title FROM ai_quests WHERE user_id = ? ORDER BY id DESC LIMIT ?",
+                        (user_id, limit)).fetchall()
+    conn.close()
+    return [r[0] for r in rows]
+
+
+def _fallback(user_id: int, mood: str, time: str, place: str, today: str, rng=random) -> dict:
+    """Задание из банка mood_bank — точно под настроение, место и время.
+    Берём то, что ещё не предлагали; всё уже было — то, что было давнее всего."""
+    options = mood_bank.BANK[(mood, place)][time]
+    recent = _recent_titles(user_id)
+    fresh = [o for o in options if o[1] not in recent]
+    choice = rng.choice(fresh) if fresh else max(options, key=lambda o: recent.index(o[1]))
+    emoji, title, text, sphere = choice
     return _save(user_id, {"emoji": emoji, "title": title, "text": text, "sphere": sphere}, today, ai=False)
 
 
@@ -137,6 +152,7 @@ async def generate(user_id: int, mood: str, time: str, place: str) -> dict:
         "SELECT title FROM quest_history WHERE user_id = ? AND title IS NOT NULL ORDER BY id DESC LIMIT 15",
         (user_id,)).fetchall()]
     conn.close()
+    done_titles = _recent_titles(user_id, 10) + done_titles  # и то, что ИИ уже предлагал
     try:
         q = await _ask_groq(_prompt(mood, time, place, done_titles))
     except Exception as e:  # сеть, лимиты Groq, кривой JSON — не страшно, есть каталог

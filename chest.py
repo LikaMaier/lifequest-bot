@@ -1,7 +1,10 @@
 """Приз дня (автомат с хваталкой): открывается, когда сделаны 3 привычки на
 сегодня (или все, если их меньше). Один приз в день. Первые 7 сундуков — вещи: шапочки,
-осенний набор для маскота и закрытый стиль приложения; дальше — XP или заморозка."""
+осенний набор для маскота и закрытый стиль приложения; дальше 70% — звёздочки XP
+(иногда заморозка), 30% — вещь для маскота. В витрине лежат капсулы с вещами,
+которых у игрока ещё нет; выпала вещь — достаётся та капсула, которую ловили (pick)."""
 import json
+import os
 import random
 
 import game
@@ -9,6 +12,11 @@ import habits
 import storage
 
 CHEST_NEED = 3
+
+
+def _unlimited(user_id: int) -> bool:
+    """Владелица бота (ADMIN_ID) играет в автомат сколько угодно раз — чтобы проверять визуал."""
+    return user_id == int(os.getenv("ADMIN_ID", "0") or 0)
 # (вес, награда)
 REWARDS = [
     (55, {"kind": "xp", "amount": 20}),
@@ -30,8 +38,13 @@ def status(user_id: int, summary: dict = None) -> dict:
             reward = json.loads(user["chest_reward"])
         except ValueError:
             reward = None
-    return {"need": need, "have": min(s["done"], need) if need else 0, "ready": bool(need) and s["done"] >= need and not opened,
-            "opened": opened, "reward": reward}
+    ready = bool(need) and s["done"] >= need and not opened
+    have = min(s["done"], need) if need else 0
+    if _unlimited(user_id):
+        need = have = need or 1
+        opened, ready = False, True
+    return {"need": need, "have": have, "ready": ready,
+            "opened": opened, "reward": reward, "machine": _machine_pool(user) if ready else []}
 
 
 def _roll(user: dict, rng) -> dict:
@@ -60,7 +73,7 @@ def _item_name(item: str) -> str:
     return item
 
 
-def _week_one(user: dict, rng) -> dict:
+def _week_one(user: dict, rng, pick: str = None) -> dict:
     """Вещь для одного из первых семи сундуков (только то, чего ещё нет)."""
     owned = game.owned_with_gifts(user)
     slot = WEEK_ONE[min(len(WEEK_ONE) - 1, user.get("chest_opens") or 0)]
@@ -76,29 +89,35 @@ def _week_one(user: dict, rng) -> dict:
             continue
         left = [x for x in pools[kind] if x not in owned]
         if left:
-            item = rng.choice(left)
+            # поймали капсулу с вещью, которой ещё нет, — её и отдаём
+            item = pick if pick and pick in _machine_pool(user) else rng.choice(left)
             return {"kind": "accessory", "id": item, "name": _item_name(item), "item": item}
     return {"kind": "xp", "amount": 35}
 
 
-MERCH_SHARE = 0.5  # доля призов-вещей в автомате (остальное — XP или заморозка)
+MERCH_SHARE = 0.3  # доля призов-вещей в автомате (остальное — звёздочки XP или заморозка)
 
 
-def _machine_prize(user: dict, rng):
-    """Автомат с призами: шапочка или наряд для маскота, которых ещё нет.
-    Собрана вся коллекция — None (тогда XP или заморозка)."""
+def _machine_pool(user: dict) -> list:
+    """Что лежит в капсулах: шапочки и наряды для маскота, которых ещё нет."""
     owned = game.owned_items(user["user_id"])
     today = game.local_today(user)
     pool = [a[0] for a in game.ACCESSORIES]
     pool += [a[0] for a in game.SEASONAL_ACCESSORIES if game._in_season(a[3], a[4], today)]
-    left = [x for x in pool if x not in owned]
+    return [x for x in pool if x not in owned]
+
+
+def _machine_prize(user: dict, rng, pick: str = None):
+    """Автомат с призами: пойманная капсула (pick), если такой вещи ещё нет,
+    иначе случайная. Собрана вся коллекция — None (тогда XP или заморозка)."""
+    left = _machine_pool(user)
     if not left:
         return None
-    item = rng.choice(left)
+    item = pick if pick in left else rng.choice(left)
     return {"kind": "accessory", "id": item, "name": _item_name(item), "item": item}
 
 
-def open_chest(user_id: int, rng=random) -> dict:
+def open_chest(user_id: int, rng=random, pick: str = None) -> dict:
     st = status(user_id)
     if st["opened"]:
         raise game.QuestError("Сундук на сегодня уже открыт — завтра будет новый 🎁")
@@ -109,13 +128,14 @@ def open_chest(user_id: int, rng=random) -> dict:
     today = game.local_today(user).isoformat()
     first_week = (user.get("chest_opens") or 0) < len(WEEK_ONE)
     if first_week:
-        reward = _week_one(user, rng)
-    else:  # автомат: 50/50 — вещь для маскота или звёздочка XP (иногда заморозка)
-        reward = (_machine_prize(user, rng) if rng.random() < MERCH_SHARE else None) or _roll(user, rng)
+        reward = _week_one(user, rng, pick)
+    else:  # автомат: 30% — вещь для маскота, 70% — звёздочка XP (иногда заморозка)
+        reward = (_machine_prize(user, rng, pick) if rng.random() < MERCH_SHARE else None) or _roll(user, rng)
     conn = storage.connect()
+    once_a_day = "" if _unlimited(user_id) else " AND COALESCE(chest_day, '') <> ?"
     cur = conn.execute("""UPDATE users SET chest_day = ?, chest_reward = ?, chest_opens = COALESCE(chest_opens, 0) + 1
-                          WHERE user_id = ? AND COALESCE(chest_day, '') <> ?""",
-                       (today, json.dumps(reward), user_id, today))
+                          WHERE user_id = ?""" + once_a_day,
+                       (today, json.dumps(reward), user_id) + (() if _unlimited(user_id) else (today,)))
     if cur.rowcount and reward["kind"] == "freeze":
         conn.execute("UPDATE users SET freeze_tokens = COALESCE(freeze_tokens, 0) + 1 WHERE user_id = ?", (user_id,))
     if cur.rowcount and reward.get("item"):

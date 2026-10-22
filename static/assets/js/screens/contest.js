@@ -1,4 +1,4 @@
-// Экран соревнования. Лобби: участники, пункты, шаблоны, предложения,
+// Экран соревнования. Лобби: участники, пункты, шаблоны,
 // запуск. После запуска правила заморожены 🔒: отметки за сегодня, таблица
 // лидеров. В конце — итоги.
 
@@ -100,7 +100,7 @@ function lobby(el, ctx, c) {
     h('div', { class: 'spread' }, h('h2', null, 'Пункты соревнования'),
       h('span', { class: 'tag c-paleyellow' }, `${c.items.length}/${c.limits.items}`)));
   if (!c.items.length) {
-    items.append(h('p', { class: 'ct-hint' }, c.mine ? 'Пока пусто. Возьми готовый набор или добавь свой пункт.' : `${c.creator.name} ещё собирает правила. Можешь предложить свой пункт 👇`));
+    items.append(h('p', { class: 'ct-hint' }, c.mine ? 'Пока пусто. Возьми готовый набор или добавь свой пункт.' : `${c.creator.name} ещё собирает правила — скоро старт.`));
   }
   items.append(h('div', { class: 'stack-sm' }, c.items.map(it => itemRow(it, c.mine ? [
     ['✏️', `Изменить: ${it.title}`, () => openItemForm({ mode: 'edit', item: it, submit: async v => apply(el, ctx, await api.contestUpdateItem(c.id, it.id, v)) })],
@@ -131,53 +131,14 @@ function lobby(el, ctx, c) {
         }));
         return b;
       })));
-  } else {
-    const propose = h('button', { type: 'button', class: 'btn block colored c-yellow', style: { marginTop: '10px' } }, '💡 Предложить пункт');
-    propose.addEventListener('click', () => {
-      haptic.tap();
-      openItemForm({ mode: 'propose', submit: async v => {
-        const res = await api.contestPropose(c.id, v);
-        toast('Отправлено создателю на рассмотрение', 'good');
-        apply(el, ctx, res);
-      } });
-    });
-    items.append(propose);
   }
   el.append(items);
-
-  // Предложения
-  if (c.proposals.length) {
-    const box = h('section', { class: 'ct-block ct-proposals' },
-      h('h2', null, c.mine ? `Предложения · ${c.proposals.length}` : 'Твои предложения'));
-    box.append(h('div', { class: 'stack-sm' }, c.proposals.map(p => {
-      if (!c.mine) return itemRow(p, [], h('span', { class: 'tag c-lav' }, 'ждёт ответа'));
-      const decide = async (accept, item = null) => {
-        const res = await api.contestDecide(c.id, p.id, accept, item);
-        toast(accept ? 'Пункт добавлен ✓' : 'Предложение отклонено', accept ? 'good' : '', 2000);
-        apply(el, ctx, res);
-      };
-      const tap = accept => async () => {
-        try { await decide(accept); } catch (e) { e.code === 'contest_items' ? limitHit(c) : toastError(e); }
-      };
-      const yes = h('button', { type: 'button', class: 'cal2-pill small', 'aria-label': `Принять: ${p.title}` }, '✅ Принять');
-      const edit = h('button', { type: 'button', class: 'cal2-pill small ghost', 'aria-label': `Принять с правкой: ${p.title}` }, '✏️ С правкой');
-      const no = h('button', { type: 'button', class: 'cal2-pill small ghost', 'aria-label': `Отклонить: ${p.title}` }, '❌');
-      yes.addEventListener('click', busy(yes, tap(true)));
-      no.addEventListener('click', busy(no, tap(false)));
-      edit.addEventListener('click', () => { haptic.tap(); openItemForm({ mode: 'review', item: p, submit: v => decide(true, v) }); });
-      return h('div', { class: 'ct-proposal' },
-        h('div', { class: 'ct-proposal-by' }, `💡 ${p.by} предлагает`),
-        itemRow(p, []),
-        h('div', { class: 'duel-actions' }, yes, edit, no));
-    })));
-    el.append(box);
-  }
 
   // Запуск / выход
   const foot = h('section', { class: 'ct-block ct-foot' });
   // Запустить может любой участник в любой момент — хватит и одного пункта
   if (c.member) {
-    const missing = !c.items.length ? (c.mine ? 'Добавь хотя бы один пункт' : 'Ждём хотя бы один пункт — предложи свой')
+    const missing = !c.items.length ? (c.mine ? 'Добавь хотя бы один пункт' : `Ждём, пока ${c.creator.name} добавит пункты`)
       : c.members_count < c.limits.min_members ? 'Нужно хотя бы 2 участника' : '';
     const go = h('button', { type: 'button', class: 'btn block', disabled: Boolean(missing) }, '🚀 Запустить');
     go.addEventListener('click', () => { haptic.tap(); confirmLaunch(el, ctx, c); });
@@ -195,14 +156,12 @@ function lobby(el, ctx, c) {
   el.append(foot);
 }
 
-function itemRow(it, actions = [], extra = null) {
+function itemRow(it, actions = []) {
   return h('div', { class: 'ct-item' },
     h('span', { class: 'ct-item-emoji', 'aria-hidden': 'true' }, it.emoji || '✅'),
     h('div', { class: 'grow' },
       h('div', { class: 'ct-item-title' }, it.title),
-      h('div', { class: 'ct-item-rule' }, it.kind === 'count' ? `🔢 ${it.rule}` : `☑️ ${it.rule}`,
-        it.proposed_by ? ` · идея: ${it.proposed_by}` : '')),
-    extra,
+      h('div', { class: 'ct-item-rule' }, `☑️ ${it.rule}`)),
     actions.map(([icon, label, fn]) => {
       const b = h('button', { type: 'button', class: 'ct-icon-btn', 'aria-label': label }, icon);
       b.addEventListener('click', busy(b, async () => { haptic.tap(); try { await fn(); } catch (e) { toastError(e); } }));
@@ -235,27 +194,7 @@ function confirmLaunch(el, ctx, c) {
       const res = await api.contestLaunch(c.id);
       m.close();
       launched(el, ctx, res);
-    } catch (e) {
-      if (e.code === 'proposals') { m.close(); askProposals(el, ctx, c, e.message); } else toastError(e);
-    }
-  }));
-}
-
-function askProposals(el, ctx, c, text) {
-  const review = h('button', { type: 'button', class: 'btn block' }, c.mine ? 'Рассмотреть' : 'Подождать');
-  const skip = h('button', { type: 'button', class: 'btn block ghost', style: { marginTop: '8px' } }, 'Запустить без них');
-  const note = c.mine ? `${text} Если запустить сейчас, они будут отклонены.`
-    : `${c.creator.name} ещё не ответил(а) на предложения. Если запустить сейчас, они не войдут в правила.`;
-  const m = modal(h('div', null, h('h2', null, '💡 Есть предложения'),
-    h('p', { class: 'bold muted', style: { margin: '6px 0 14px' } }, note),
-    review, skip), { label: 'Предложения без ответа' });
-  review.addEventListener('click', () => {
-    m.close();
-    const box = el.querySelector('.ct-proposals');
-    if (box) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
-  skip.addEventListener('click', busy(skip, async () => {
-    try { const res = await api.contestLaunch(c.id, true); m.close(); launched(el, ctx, res); } catch (e) { toastError(e); }
+    } catch (e) { toastError(e); }
   }));
 }
 
