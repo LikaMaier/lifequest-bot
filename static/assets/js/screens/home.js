@@ -3,7 +3,7 @@
 
 import { h, clear, plural } from '../dom.js';
 import { haptic } from '../tg.js';
-import { mascot, moodFor, jump } from '../mascot.js';
+import { mascot, moodFor, tapMascot } from '../mascot.js';
 import { progressBar, busy, toastError } from '../ui.js';
 import { buyStars } from '../premium.js';
 import { openQuest } from '../questflow.js';
@@ -37,7 +37,7 @@ export function render(el, ctx) {
   const allDone = hs.total && hs.done === hs.total;
   const expr = mood.expr === 'sleepy' || mood.expr === 'sad' ? mood.expr : allDone ? 'love' : hs.done ? 'happy' : mood.expr;
   const pet = mascot(u.mascot, expr, { size: 72, label: 'Твой маскот', acc: u.accessory });
-  pet.addEventListener('click', () => { haptic.tap('soft'); jump(pet); });
+  pet.addEventListener('click', () => { haptic.tap('soft'); tapMascot(pet, u.mascot, expr, u.accessory); });
   const petLine = !hs.total ? mood.line
     : allDone ? 'Все привычки на сегодня сделаны — я счастлив! 🎉'
     : hs.done ? `Уже ${hs.done} из ${hs.total} привычек — ещё чуть-чуть!`

@@ -33,6 +33,10 @@ function eyesSVG(expr) {
       + `<path d="M73 36 l-12 4" stroke="${INK}" stroke-width="3" stroke-linecap="round"/>`
       + `<path d="M70 52 q3 7 0 9 q-3 -2 0 -9 z" fill="#7FB6F0"/>`;
   }
+  if (expr === 'dizzy') { // укачало: глаза-спиральки
+    const swirl = (x, y) => `<path d="M${x} ${y} m0 -1.5 a1.5 1.5 0 1 1 -1.5 1.5 a3 3 0 1 1 3 3 a4.5 4.5 0 1 1 -4.5 -4.5 a6 6 0 0 1 6 6" stroke="${INK}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`;
+    return swirl(35, 44) + swirl(65, 44);
+  }
   if (expr === 'love') {
     const heart = (x, y) => `<path d="M${x} ${y + 5} c-7 -5 -8 -11 -3.5 -12.5 c2 -0.6 3.5 0.6 3.5 2.2 c0 -1.6 1.5 -2.8 3.5 -2.2 c4.5 1.5 3.5 7.5 -3.5 12.5 z" fill="#FB4645"/>`;
     return heart(35, 42) + heart(65, 42);
@@ -48,6 +52,8 @@ function mouthSVG(expr) {
   }
   if (expr === 'sad') return `<path d="M40 64 q10 -8 20 0" stroke="${INK}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
   if (expr === 'sleepy') return `<ellipse cx="50" cy="62" rx="4" ry="3" fill="${INK}"/>`;
+  if (expr === 'dizzy') return `<path d="M37 62 q3.25 -4 6.5 0 t6.5 0 t6.5 0 t6.5 0" stroke="${INK}" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`
+    + '<ellipse cx="24" cy="56" rx="6" ry="3.5" fill="#8CC63F" opacity=".45"/><ellipse cx="76" cy="56" rx="6" ry="3.5" fill="#8CC63F" opacity=".45"/>';
   return `<path d="M38 58 q12 9 24 0" stroke="${INK}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
 }
 
@@ -291,6 +297,24 @@ export function jump(el) {
   el.classList.remove('jump');
   void el.offsetWidth;
   el.classList.add('jump');
+}
+
+/** Тап по маскоту: подпрыгивает, а после 4 тапов подряд его «укачивает» на пару секунд. */
+export function tapMascot(el, kind, expr, acc) {
+  const now = Date.now();
+  const taps = (el._taps || []).filter(t => now - t < 1500);
+  taps.push(now);
+  el._taps = taps;
+  if (el.classList.contains('dizzy')) return;
+  if (taps.length < 4) { jump(el); return; }
+  el._taps = [];
+  el.classList.remove('jump');
+  el.classList.add('dizzy');
+  el.innerHTML = mascotSVG(kind, 'dizzy', acc);
+  setTimeout(() => {
+    el.classList.remove('dizzy');
+    el.innerHTML = mascotSVG(kind, expr, acc);
+  }, 2500);
 }
 
 /** Настроение маскота по состоянию: ночь — спит, серия сорвалась — грустит,
