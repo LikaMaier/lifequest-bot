@@ -661,7 +661,6 @@ p { margin: 0; }
 .shop-item { background: var(--white); border-radius: var(--r-md); padding: 10px; box-shadow: 0 3px 0 var(--line);
   display: flex; flex-direction: column; gap: 8px; }
 .shop-item.on { outline: 3px solid var(--accent-deep); outline-offset: -3px; }
-.shop-item.trying:not(.on) { outline: 2px dashed var(--accent-deep); outline-offset: -2px; }
 .shop-try { border: 0; background: var(--cream); border-radius: var(--r-sm); padding: 10px 4px 6px; color: var(--ink);
   display: flex; flex-direction: column; align-items: center; gap: 4px; }
 /* все карточки одинаковые: название всегда в две строки, кнопка прижата к низу */

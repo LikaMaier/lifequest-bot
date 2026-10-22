@@ -71,7 +71,7 @@ function draw(body, el, ctx) {
   const SET_MARK = { halloween: '🎃', autumn: '🍂', winter: '🎄' };
   const accCard = item => {
     const state = item.equipped ? 'Снять' : item.owned ? 'Надеть' : `${item.price} XP`;
-    const card = h('div', { class: `shop-item ${item.equipped ? 'on' : ''} ${worn === item.id ? 'trying' : ''}` },
+    const card = h('div', { class: `shop-item ${item.equipped ? 'on' : ''}` },
       h('button', { type: 'button', class: 'shop-try', 'aria-label': `Примерить: ${item.name}` },
         h('span', { class: 'shop-img', html: mascotSVG(u.mascot, 'happy', item.id) }),
         h('span', { class: 'bold small shop-name' }, item.name),
@@ -106,7 +106,7 @@ function draw(body, el, ctx) {
   // Premium-аксессуары: примерить может каждый, надеть — с Premium
   const premGrid = h('div', { class: 'shop-grid' }, shop.items.filter(i => i.kind === 'premium').map(item => {
     const state = !shop.premium ? '🔒 Premium' : item.equipped ? 'Снять' : 'Надеть';
-    const card = h('div', { class: `shop-item premium ${item.equipped ? 'on' : ''} ${worn === item.id ? 'trying' : ''}` },
+    const card = h('div', { class: `shop-item premium ${item.equipped ? 'on' : ''}` },
       h('button', { type: 'button', class: 'shop-try', 'aria-label': `Примерить: ${item.name}` },
         h('span', { class: 'shop-img', html: mascotSVG(u.mascot, 'happy', item.id) }),
         h('span', { class: 'bold small shop-name' }, item.name)),
