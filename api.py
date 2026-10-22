@@ -32,6 +32,7 @@ import friends
 import game
 import ops
 import habits
+import habit_catalog
 import notes
 import photos
 import plans
@@ -181,6 +182,9 @@ def _state(request) -> dict:
     data["user"]["morning_plans"] = bool(user.get("morning_plans", 1))
     data["premium"] = billing.premium_view(user)
     data["user_spheres"] = spheres.list_spheres(request["user_id"])
+    data["user_spheres_available"] = spheres.available(request["user_id"])
+    # приветствие v2 — только новым: ещё не видели его и нет ни одной привычки
+    data["user"]["needs_onboarding"] = not user.get("onboarded") and not _any_habits(request["user_id"])
     data["challenge"] = challenges.summary(request["user_id"])
     data["contests"] = contests.summary(request["user_id"])
     return data
@@ -245,9 +249,15 @@ async def get_stats(request):
         from datetime import date as _date
         by_habit = habits.done_by_sphere(request["user_id"], _date.fromisoformat(series[0]["date"]),
                                          _date.fromisoformat(series[-1]["date"]))
+    mine = spheres.list_spheres(request["user_id"])
     data["spheres"] = [{**s, "sphere": s["key"], "quests": by_quest.get(s["key"], 0), "habits": by_habit.get(s["key"], 0),
                         "count": by_quest.get(s["key"], 0) + by_habit.get(s["key"], 0)}
-                       for s in spheres.list_spheres(request["user_id"])]
+                       for s in mine]
+    # сферы квестов, которых нет среди сфер привычек (у новых пользователей), — квесты считаются как раньше
+    shown = {s["key"] for s in mine}
+    data["spheres"] += [{"key": k, "sphere": k, "name": k, "emoji": spheres.DEFAULTS[k][0], "color": spheres.DEFAULTS[k][1],
+                         "custom": False, "quests": n, "habits": 0, "count": n}
+                        for k, n in by_quest.items() if n and k not in shown and k in spheres.DEFAULTS]
     if series:  # итоги периода: привычки, дела, квесты и XP по дням + сравнение с прошлым периодом
         from datetime import date as _date
         data["activity"] = activity.summary(request["user_id"], _date.fromisoformat(series[0]["date"]),
@@ -544,8 +554,30 @@ async def get_recap(request):
     return web.json_response(game.recap(request["user_id"], period))
 
 
+def _any_habits(user_id: int) -> bool:
+    conn = storage.connect()
+    row = conn.execute("SELECT 1 FROM habits WHERE user_id = ? LIMIT 1", (user_id,)).fetchone()
+    conn.close()
+    return bool(row)
+
+
 async def get_spheres(request):
-    return web.json_response({"spheres": spheres.list_spheres(request["user_id"])})
+    return web.json_response({"spheres": spheres.list_spheres(request["user_id"]),
+                              "available": spheres.available(request["user_id"])})
+
+
+async def sphere_enable(request):
+    """Включить сферы из банка привычек (приветствие или настройки сфер)."""
+    _limit(request, "write")
+    data = await _body(request)
+    keys = data.get("keys") if isinstance(data.get("keys"), list) else []
+    return web.json_response({"spheres": spheres.enable(request["user_id"], keys[:8]),
+                              "available": spheres.available(request["user_id"])})
+
+
+async def habit_catalog_view(request):
+    """Каталог готовых привычек — из habits_bank.py (через habit_catalog)."""
+    return web.json_response({"spheres": habit_catalog.catalog()})
 
 
 async def sphere_create(request):
@@ -1053,6 +1085,8 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_post("/api/ai/quest", ai_quest)
     app.router.add_get("/api/recap", get_recap)
     app.router.add_get("/api/spheres", get_spheres)
+    app.router.add_post("/api/spheres/enable", sphere_enable)
+    app.router.add_get("/api/habits/catalog", habit_catalog_view)
     app.router.add_post("/api/spheres", sphere_create)
     app.router.add_patch("/api/spheres/{key}", sphere_update)
     app.router.add_delete("/api/spheres/{key}", sphere_delete)

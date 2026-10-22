@@ -11,7 +11,7 @@ import { sheet, toast, toastError, busy, ICONS, confetti } from './ui.js';
 import { userSpheres, sphereByKey, openSphereManager } from './sphereui.js';
 
 export const HABIT_COLORS = ['lime', 'blue', 'pink', 'yellow', 'lav', 'orange', 'purple', 'red'];
-const EMOJIS = ['💧', '🧘', '📖', '🚶', '😴', '📵', '🙏', '💪', '🥗', '✍️', '💊', '🧴', '🎨', '🎧', '🧹', '🌿', '🍎', '🏃', '🦷', '☀️', '🧠', '💤', '🚿', '✨', '🍬', '🚭', '🍷', '📱'];
+const EMOJIS = ['💧', '🧘', '📖', '🚶', '😴', '📵', '🙏', '💪', '🥗', '✍️', '💊', '🧴', '🎨', '🎧', '🧹', '🌿', '🍎', '🏃', '🦷', '☀️', '🧠', '💤', '🚿', '✨', '🍬', '📱'];
 const WD = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 export const TIMES = { morning: 'Утро', day: 'День', evening: 'Вечер', any: 'В любое время' };
 

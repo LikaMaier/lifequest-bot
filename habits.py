@@ -11,6 +11,7 @@
 from datetime import date, datetime, timedelta
 
 import game
+import habit_catalog
 import storage
 import spheres as user_spheres
 
@@ -66,7 +67,11 @@ def _clean_fields(data: dict, partial: bool, user_id: int = None) -> dict:
         fields["unit"] = _clean_text(data.get("unit"), UNIT_MAX, "единицу")
     if not partial or "sphere" in data:
         sp = data.get("sphere")
+        if sp and user_id is not None and sp in user_spheres.BANK and sp not in user_spheres.keys(user_id):
+            user_spheres.enable(user_id, [sp])  # привычка из каталога включает свою сферу банка
         fields["sphere"] = sp if sp and user_id is not None and sp in user_spheres.keys(user_id) else None
+    if not partial:  # готовая привычка из банка — чтобы показать подсказку на карточке
+        fields["bank_key"] = data.get("bank_key") if habit_catalog.by_key(data.get("bank_key")) else None
     if not partial or "target" in data:
         try:
             fields["target"] = max(1, min(TARGET_MAX, int(data.get("target") or 1)))
@@ -454,6 +459,12 @@ def _logs_by_habit(user_id: int, since: date) -> dict:
     return by_habit
 
 
+def _tip(bank_key):
+    """Подсказка с карточки готовой привычки: зачем и как начать с малого."""
+    item = habit_catalog.by_key(bank_key)
+    return {"tiny": item["tiny"], "why": item["why"]} if item else None
+
+
 def _views(user_id: int, rows: list) -> list:
     today = _today(user_id)
     since = today - timedelta(days=HISTORY_DAYS)
@@ -500,6 +511,7 @@ def _views(user_id: int, rows: list) -> list:
             "week": week, "streak": streak, "best": best, "streak_unit": unit,
             "total_days": sum(1 for v in logs.values() if v[1]),
             "slips_today": t_count if kind == "quit" else 0,
+            "tip": _tip(h.get("bank_key")),
         })
     return result
 

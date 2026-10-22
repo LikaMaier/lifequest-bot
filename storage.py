@@ -304,7 +304,9 @@ def init_db():
     _ensure_column(c, "users", "streak_undo", "TEXT")
     _ensure_column(c, "plans", "sphere", "TEXT")
     _ensure_column(c, "users", "kb_cleared", "INTEGER DEFAULT 0")
-    _ensure_column(c, "habits", "sphere", "TEXT")  # сфера привычки: Дисциплина, Энергия… — для статистики
+    _ensure_column(c, "habits", "sphere", "TEXT")  # сфера привычки: body, food… (раньше — Энергия, Дисциплина…)
+    _ensure_column(c, "habits", "bank_key", "TEXT")  # ключ готовой привычки из habits_bank (для подсказки на карточке)
+    _ensure_column(c, "users", "legacy_spheres", "INTEGER DEFAULT 0")  # видит прежние сферы привычек (до банка v2)
     # Расписание и виды привычек: build — делать, quit — бросить (отмечаются срывы).
     _ensure_column(c, "habits", "kind", "TEXT DEFAULT 'build'")
     _ensure_column(c, "habits", "schedule", "TEXT DEFAULT 'daily'")  # daily | days | weekly
@@ -423,6 +425,7 @@ def init_db():
     conn.commit()
     _backfill_history(conn)
     _keep_current_themes(conn)
+    _keep_legacy_spheres(conn)
     _sync_titles(conn)
     conn.close()
 
@@ -450,6 +453,20 @@ def _keep_current_themes(conn):
                  SELECT user_id, 'theme:' || theme, 0, ? FROM users
                  WHERE theme IN ('halloween', 'matrix', 'forest', 'ocean')""", (now,))
     c.execute("INSERT INTO meta (key, value) VALUES ('themes_grandfathered', ?)", (now,))
+    conn.commit()
+
+
+def _keep_legacy_spheres(conn):
+    """Разово (банк привычек v2): у тех, кто уже пользовался приложением — прошёл
+    приветствие или завёл привычку, — остаются прежние сферы привычек (Энергия,
+    Дисциплина…). Новые 8 сфер им просто доступны. Данные не меняются."""
+    c = conn.cursor()
+    c.execute("SELECT value FROM meta WHERE key = 'habit_spheres_v2'")
+    if c.fetchone():
+        return
+    c.execute("""UPDATE users SET legacy_spheres = 1
+                 WHERE COALESCE(onboarded, 0) = 1 OR user_id IN (SELECT DISTINCT user_id FROM habits)""")
+    c.execute("INSERT INTO meta (key, value) VALUES ('habit_spheres_v2', ?)", (utc_now_str(),))
     conn.commit()
 
 

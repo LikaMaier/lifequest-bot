@@ -146,6 +146,7 @@ class HabitStreakTest(TempDBTestCase):
 class HabitSphereTest(TempDBTestCase):
     def test_sphere_saved_and_counted(self):
         storage.ensure_user(4)
+        storage.update_user(4, legacy_spheres=1)  # пользователь до банка v2 — прежние сферы на месте
         today = game.local_today(storage.get_user(4))
         hb = habits.create_habit(4, {"title": "Зарядка", "target": 1, "sphere": "Энергия"})["habit"]
         self.assertEqual(hb["sphere"], "Энергия")
@@ -162,6 +163,7 @@ class UserSpheresTest(TempDBTestCase):
     def test_custom_and_renamed_spheres(self):
         import spheres
         storage.ensure_user(5)
+        storage.update_user(5, legacy_spheres=1)  # пользователь до банка v2
         lst = spheres.create(5, {"name": "Семья", "emoji": "👨‍👩‍👧", "color": "pink"})
         fam = next(s for s in lst if s["name"] == "Семья")
         self.assertTrue(fam["custom"])
