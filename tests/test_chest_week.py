@@ -15,7 +15,9 @@ class ChestWeekOneTest(TempDBTestCase):
 
     def _open(self):
         habits.log_habit(1, self.hid, count=1)
-        r = chest.open_chest(1, rng=random.Random(3))["reward"]
+        if not hasattr(self, "rng"):
+            self.rng = random.Random(3)
+        r = chest.open_chest(1, rng=self.rng)["reward"]
         storage.update_user(1, chest_day=None)  # «следующий день»
         return r
 
@@ -28,7 +30,7 @@ class ChestWeekOneTest(TempDBTestCase):
         owned = game.owned_items(1)
         self.assertTrue(all(r["item"] in owned for r in rewards))
         self.assertEqual(len({r["item"] for r in rewards}), 7)  # без повторов
-        self.assertEqual(self._open()["kind"], "accessory")  # дальше автомат выдаёт вещи, пока они не кончатся
+        self.assertIn(self._open()["kind"], ("accessory", "xp", "freeze"))  # дальше — автомат 50/50
 
     def test_chest_style_owned_unlocks(self):
         user = storage.get_user(1)
@@ -47,11 +49,11 @@ class ChestWeekOneTest(TempDBTestCase):
 
     def test_after_first_week_machine_gives_accessories_then_xp(self):
         storage.update_user(1, chest_opens=7)
-        got = set()
-        for _ in range(60):
-            r = self._open()
-            if r["kind"] != "accessory":
-                break
-            got.add(r["id"])
-        self.assertTrue(len(got) >= len(game.ACCESSORIES))  # все обычные вещи + сезонные
-        self.assertIn(r["kind"], ("xp", "freeze"))  # коллекция собрана — XP или заморозка
+        kinds = [self._open()["kind"] for _ in range(40)]
+        merch = kinds.count("accessory")
+        self.assertTrue(10 <= merch <= 30, kinds)  # примерно половина — вещи, остальное XP/заморозка
+        for _ in range(150):
+            self._open()
+        owned = game.owned_items(1)
+        self.assertTrue(all(a[0] in owned for a in game.ACCESSORIES))  # со временем — вся коллекция
+        self.assertIn(self._open()["kind"], ("xp", "freeze"))  # коллекция собрана — только XP/заморозка

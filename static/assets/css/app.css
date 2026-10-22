@@ -1973,3 +1973,14 @@ p { margin: 0; }
 .jar-chart .jar-ball { opacity: 0; animation: none; }
 .jar-chart.go .jar-ball { animation: jar-drop .6s cubic-bezier(.3, 1.4, .5, 1) both; }
 @media (prefers-reduced-motion: reduce) { .jar-chart .jar-ball { opacity: 1; } .jar-chart.go .jar-ball { animation: none; } }
+.claw-star { position: absolute; width: 34px; height: 34px; z-index: 1; transition: top .85s ease-in-out, left .3s, transform .3s;
+  filter: drop-shadow(0 2px 2px rgba(44,42,34,.25)); }
+.claw-star svg { width: 100%; height: 100%; }
+.claw-cap, .claw-star { will-change: top; }
+.claw-cap.pop, .claw-star.pop { animation: claw-pop .45s ease-out forwards; }
+@keyframes claw-pop { 40% { transform: scale(1.35); } to { transform: scale(1.6); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .claw-cap.pop, .claw-star.pop { animation: none; } .claw-star { transition: none; } }
+/* Полароид в просмотре: ширину задаёт фото, а не длинная подпись (в веб-версии
+   подпись растягивала рамку, и фото прижималось влево с пустой полосой справа) */
+.viewer-photo { display: flex; justify-content: center; align-items: center; }
+.viewer-hand { width: 0; min-width: 100%; box-sizing: border-box; }

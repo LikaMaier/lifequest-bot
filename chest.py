@@ -81,6 +81,9 @@ def _week_one(user: dict, rng) -> dict:
     return {"kind": "xp", "amount": 35}
 
 
+MERCH_SHARE = 0.5  # доля призов-вещей в автомате (остальное — XP или заморозка)
+
+
 def _machine_prize(user: dict, rng):
     """Автомат с призами: шапочка или наряд для маскота, которых ещё нет.
     Собрана вся коллекция — None (тогда XP или заморозка)."""
@@ -105,7 +108,10 @@ def open_chest(user_id: int, rng=random) -> dict:
     user = storage.get_user(user_id)
     today = game.local_today(user).isoformat()
     first_week = (user.get("chest_opens") or 0) < len(WEEK_ONE)
-    reward = _week_one(user, rng) if first_week else (_machine_prize(user, rng) or _roll(user, rng))
+    if first_week:
+        reward = _week_one(user, rng)
+    else:  # автомат: 50/50 — вещь для маскота или звёздочка XP (иногда заморозка)
+        reward = (_machine_prize(user, rng) if rng.random() < MERCH_SHARE else None) or _roll(user, rng)
     conn = storage.connect()
     cur = conn.execute("""UPDATE users SET chest_day = ?, chest_reward = ?, chest_opens = COALESCE(chest_opens, 0) + 1
                           WHERE user_id = ? AND COALESCE(chest_day, '') <> ?""",

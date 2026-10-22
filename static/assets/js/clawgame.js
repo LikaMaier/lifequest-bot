@@ -1,7 +1,7 @@
 // Приз дня — автомат с хваталкой. В витрине капсулы с маскотами в шапочках и
-// нарядах; двигаешь лапу ◀ ▶, жмёшь «Хватай!» — лапа достаёт капсулу и несёт
-// к окошку выдачи. Что выпадет, решает сервер (api.openChest): схваченная
-// капсула всегда оказывается настоящим призом.
+// нарядах и золотые звёздочки XP; двигаешь лапу ◀ ▶, жмёшь «Хватай!» — лапа
+// достаёт капсулу или звёздочку. Что выпадет (примерно 50/50), решает сервер
+// (api.openChest): лапа хватает ближайшую добычу нужного вида.
 
 import { h } from './dom.js';
 import { api } from './api.js';
@@ -42,32 +42,46 @@ function capsule(acc, i, kind) {
     h('span', { class: 'claw-cap-pet', html: mascotSVG(kind, 'happy', acc) }));
 }
 
+const STAR_SVG = `<svg viewBox="0 0 40 40" aria-hidden="true"><defs><linearGradient id="clawStar" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#FFF3B0"/><stop offset=".55" stop-color="#FFD23F"/><stop offset="1" stop-color="#E0A800"/></linearGradient></defs>
+  <path d="M20 2l5.3 11.2 12.2 1.6-9 8.4 2.3 12.1L20 29.4 9.2 35.3l2.3-12.1-9-8.4 12.2-1.6z" fill="url(#clawStar)" stroke="#2C2A22" stroke-width="2.4" stroke-linejoin="round"/>
+  <ellipse cx="15" cy="14" rx="3.2" ry="2" fill="#fff" opacity=".85" transform="rotate(-30 15 14)"/></svg>`;
+const STAR = 34;
+
 export function openClawGame() {
   const u = store.state ? store.state.user : { mascot: 'cat-purple' };
-  // витрина: два ряда капсул
-  const caps = [];
+  // витрина: два ряда капсул и звёздочки XP между ними
+  const caps = [], stars = [];
   const pile = h('div', { class: 'claw-pile' });
   const shuffled = [...DECOYS].sort(() => Math.random() - 0.5).slice(0, 8);
   shuffled.forEach((acc, i) => {
     const c = capsule(acc, i, u.mascot);
-    const row = i < 4 ? 0 : 1;
-    const x = row === 0 ? 96 + i * 44 : 118 + (i - 4) * 44; // слева — окошко выдачи, капсулы правее
-    const y = GLASS_H - CAP - 6 - row * 40;
+    const row = i < 5 ? 0 : 1;
+    const x = row === 0 ? 34 + i * 53 : 60 + (i - 5) * 80;
+    const y = GLASS_H - CAP - 6 - row * 44;
     Object.assign(c.style, { left: `${x - CAP / 2 + ((i * 7) % 9) - 4}px`, top: `${y}px`, transform: `rotate(${((i * 37) % 31) - 15}deg)` });
-    c.dataset.x = String(x);
+    Object.assign(c.dataset, { x: String(x), y: String(y) });
     caps.push(c);
     pile.append(c);
+  });
+  // звёздочки — в просветах верхнего ряда и сверху на капсулах
+  [[100, 1], [180, 1], [250, 1], [26, 1], [140, 2], [215, 2]].forEach(([sx, layer], i) => {
+    const sy = GLASS_H - CAP - 6 - 44 - (layer === 2 ? 26 : 0) + 18;
+    const st = h('div', { class: 'claw-star', html: STAR_SVG });
+    Object.assign(st.style, { left: `${sx - STAR / 2}px`, top: `${sy}px`, transform: `rotate(${((i * 53) % 41) - 20}deg)` });
+    Object.assign(st.dataset, { x: String(sx), y: String(sy) });
+    stars.push(st);
+    pile.append(st);
   });
   const rope = h('div', { class: 'claw-rope' });
   const head = h('div', { class: 'claw-head', html: CLAW_SVG });
   const arm = h('div', { class: 'claw-arm' }, rope, head);
-  const glass = h('div', { class: 'claw-glass' }, h('div', { class: 'claw-rail' }), pile, arm,
-    h('div', { class: 'claw-chute' }, h('span', null, 'ПРИЗ')));
+  const glass = h('div', { class: 'claw-glass' }, h('div', { class: 'claw-rail' }), pile, arm);
   const bulbs = h('div', { class: 'claw-bulbs', 'aria-hidden': 'true' }, Array.from({ length: 9 }, () => h('i')));
   const left = h('button', { type: 'button', class: 'claw-btn', 'aria-label': 'Лапу влево' }, '◀');
   const right = h('button', { type: 'button', class: 'claw-btn', 'aria-label': 'Лапу вправо' }, '▶');
   const grab = h('button', { type: 'button', class: 'claw-grab' }, 'Хватай!');
-  const hint = h('p', { class: 'claw-hint' }, 'Подведи лапу к капсуле и жми «Хватай!»');
+  const hint = h('p', { class: 'claw-hint' }, 'Капсула — обновка для маскота, звёздочка — XP. Подведи лапу и жми «Хватай!»');
   const machine = h('div', { class: 'claw-machine' },
     h('div', { class: 'claw-top' }, bulbs, h('b', null, '🎁 Приз дня')),
     glass,
@@ -77,7 +91,7 @@ export function openClawGame() {
 
   // положение лапы
   let x = GLASS_W / 2, busyNow = false;
-  const min = 34, max = GLASS_W - 34; // у левого края — окошко выдачи
+  const min = 30, max = GLASS_W - 30;
   const place = () => { arm.style.transform = `translateX(${x - 30}px)`; };
   place();
   const move = dir => { if (busyNow) return; x = Math.max(min, Math.min(max, x + dir * 23)); haptic.select(); place(); };
@@ -94,37 +108,36 @@ export function openClawGame() {
     left.disabled = right.disabled = grab.disabled = true;
     hint.textContent = 'Опускаем лапу… 🤞';
     haptic.tap('medium');
-    const prizeReq = api.openChest().catch(e => ({ error: e }));
-    // ближайшая к лапе капсула (верхний ряд в приоритете)
-    const target = caps.slice().sort((a, b) => Math.abs(+a.dataset.x - x) - Math.abs(+b.dataset.x - x)
-      + (caps.indexOf(a) >= 4 ? -12 : 0) - (caps.indexOf(b) >= 4 ? -12 : 0))[0];
-    const drop = parseFloat(target.style.top) - 20;
-    rope.style.height = `${drop}px`;
+    // что выпало, решает сервер; лапа хватает ближайшую капсулу (вещь) или звёздочку (XP)
+    const res = await api.openChest().catch(e => ({ error: e }));
+    if (res.error) { toastError(res.error); m.close(); return; }
+    const r = res.reward;
+    const merch = r.kind === 'accessory' || r.kind === 'theme';
+    const pool = merch ? caps : stars;
+    const target = pool.slice().sort((a, b) => Math.abs(+a.dataset.x - x) - Math.abs(+b.dataset.x - x))[0];
+    x = +target.dataset.x; place(); // лапа чуть подруливает к добыче
+    await wait(450);
+    rope.style.height = `${+target.dataset.y - 22}px`;
     await wait(900);
     head.classList.add('closed');
     haptic.tap('heavy');
     await wait(350);
-    const res = await prizeReq;
-    if (res.error) { toastError(res.error); m.close(); return; }
-    const r = res.reward;
-    // схваченная капсула становится настоящим призом
-    const pet = target.querySelector('.claw-cap-pet');
-    if (r.kind === 'accessory') pet.innerHTML = mascotSVG(u.mascot, 'love', r.id);
-    else pet.replaceChildren(h('span', { class: 'claw-cap-emoji' }, r.kind === 'freeze' ? '🧊' : r.kind === 'theme' ? '🌌' : '⭐'));
+    if (merch) { // схваченная капсула — настоящий приз
+      const pet = target.querySelector('.claw-cap-pet');
+      if (r.kind === 'accessory') pet.innerHTML = mascotSVG(u.mascot, 'love', r.id);
+      else pet.replaceChildren(h('span', { class: 'claw-cap-emoji' }, '🌌'));
+    }
     target.classList.add('held');
     target.style.transform = 'rotate(0deg)';
-    target.style.left = '2px';
-    target.style.top = '40px';
+    target.style.left = `${30 - (merch ? CAP : STAR) / 2}px`;
+    target.style.top = '38px';
     head.append(target);
     rope.style.height = '8px';
-    await wait(850);
-    hint.textContent = 'Несём к окошку…';
-    x = min; place();
-    await wait(800);
-    head.classList.remove('closed');
-    target.classList.add('fall');
+    hint.textContent = merch ? 'Есть! Тянем капсулу…' : 'Звёздочка! Тянем…';
+    await wait(900);
+    target.classList.add('pop');
     haptic.success();
-    await wait(650);
+    await wait(450);
     reveal(stage, r, res, u, m);
   }));
   return m;
@@ -135,7 +148,7 @@ function reveal(stage, r, res, u, m) {
   const text = r.kind === 'accessory' ? `«${r.name}» — теперь твоя`
     : r.kind === 'theme' ? `Стиль «${r.name}» открыт навсегда — включи в Профиле`
     : r.kind === 'freeze' ? 'Заморозка серии — спасёт пропущенный день'
-    : `+${r.amount} XP — все шапочки уже в коллекции 👑`;
+    : `+${r.amount} XP — звёздочка в копилку ⭐`;
   const art = r.kind === 'accessory'
     ? h('div', { class: 'claw-win-pet', html: mascotSVG(u.mascot, 'love', r.id) })
     : h('div', { class: 'claw-win-emoji' }, r.kind === 'freeze' ? '🧊' : r.kind === 'theme' ? '🌌' : '⭐');
