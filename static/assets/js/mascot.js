@@ -33,9 +33,13 @@ function eyesSVG(expr) {
       + `<path d="M73 36 l-12 4" stroke="${INK}" stroke-width="3" stroke-linecap="round"/>`
       + `<path d="M70 52 q3 7 0 9 q-3 -2 0 -9 z" fill="#7FB6F0"/>`;
   }
-  if (expr === 'dizzy') { // укачало: глаза-спиральки (правая — зеркальная)
-    const swirl = flip => `<path transform="translate(${flip ? 65 : 35} 44) scale(${flip ? -1 : 1} 1)" d="${SPIRAL}" stroke="${INK}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
-    return swirl(false) + swirl(true);
+  // после тряски: «укачало» — один глаз спиралькой, другой зажмурен; «мутит» — оба зажмурены
+  const squintR = `<path d="M71 39 L61 44 L71 49" stroke="${INK}" stroke-width="3.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+  if (expr === 'dizzy') {
+    return `<path transform="translate(35 44)" d="${SPIRAL}" stroke="${INK}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>` + squintR;
+  }
+  if (expr === 'queasy') {
+    return `<path d="M29 39 L39 44 L29 49" stroke="${INK}" stroke-width="3.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>` + squintR;
   }
   if (expr === 'love') {
     const heart = (x, y) => `<path d="M${x} ${y + 5} c-7 -5 -8 -11 -3.5 -12.5 c2 -0.6 3.5 0.6 3.5 2.2 c0 -1.6 1.5 -2.8 3.5 -2.2 c4.5 1.5 3.5 7.5 -3.5 12.5 z" fill="#FB4645"/>`;
@@ -52,7 +56,11 @@ function mouthSVG(expr) {
   }
   if (expr === 'sad') return `<path d="M40 64 q10 -8 20 0" stroke="${INK}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
   if (expr === 'sleepy') return `<ellipse cx="50" cy="62" rx="4" ry="3" fill="${INK}"/>`;
-  if (expr === 'dizzy') return `<path d="M42 62 q4 -3.5 8 0 t8 0" stroke="${INK}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+  if (expr === 'dizzy') return `<path d="M41 63 q5 -4 9 0 q4 3 9 -2" stroke="${INK}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+  if (expr === 'queasy') { // ротик «о» и капелька пота
+    return `<ellipse cx="50" cy="62" rx="4.2" ry="3.6" fill="${INK}"/>`
+      + `<path d="M78 30 q4 6 0 8 q-4 -2 0 -8 z" fill="#7FB6F0" stroke="${INK}" stroke-width="1.2"/>`;
+  }
   return `<path d="M38 58 q12 9 24 0" stroke="${INK}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
 }
 
@@ -61,6 +69,8 @@ const SPIRAL = 'M1.2 0.0 L1.3 0.3 L1.3 0.6 L1.3 0.9 L1.1 1.2 L0.9 1.5 L0.7 1.7 L
 // Укачало: над головой кружатся звёздочки
 const dizzyStars = [[22, 12, 0], [50, 5, -.4], [78, 12, -.8]].map(([x, y, d]) =>
   `<path class="dz-star" style="animation-delay:${d}s" d="M${x} ${y - 5} l1.6 3.4 3.4 1.6 -3.4 1.6 -1.6 3.4 -1.6 -3.4 -3.4 -1.6 3.4 -1.6z" fill="#FFD23F" stroke="#2C2A22" stroke-width="1.2" stroke-linejoin="round"/>`).join('');
+const greenCheeks = '<ellipse cx="24" cy="56" rx="7" ry="4" fill="#8CC63F" opacity=".55"/><ellipse cx="76" cy="56" rx="7" ry="4" fill="#8CC63F" opacity=".55"/>';
+const shaken = expr => expr === 'dizzy' || expr === 'queasy';
 const zzz = '<text x="80" y="14" font-family="Unbounded, sans-serif" font-weight="800" font-size="16" fill="#6B4B9E">z</text><text x="92" y="2" font-family="Unbounded, sans-serif" font-weight="800" font-size="11" fill="#6B4B9E">z</text>';
 
 // ---------- Звери ----------
@@ -69,8 +79,8 @@ const zzz = '<text x="80" y="14" font-family="Unbounded, sans-serif" font-weight
 function animalSVG(kind, expr) {
   let eyes = eyesSVG(expr);
   let mouth = mouthSVG(expr);
-  const cheeks = expr === 'love' || expr === 'happy' || expr === 'silly' || expr === 'dizzy' ? blush : '';
-  const z = expr === 'sleepy' ? zzz : expr === 'dizzy' ? dizzyStars : '';
+  const cheeks = expr === 'queasy' ? greenCheeks : expr === 'love' || expr === 'happy' || expr === 'silly' || expr === 'dizzy' ? blush : '';
+  const z = expr === 'sleepy' ? zzz : shaken(expr) ? dizzyStars : '';
   const nose = (fill = INK) => `<ellipse cx="50" cy="54" rx="5" ry="3.8" fill="${fill}"/>`;
   let body = '';
   if (kind === 'frog') {
@@ -246,8 +256,8 @@ function baseSVG(kind, expr) {
   if (['frog', 'puppy', 'bear', 'leopard', 'panda', 'pig'].includes(kind)) return animalSVG(kind, expr);
   const eyes = eyesSVG(expr);
   const mouth = mouthSVG(expr);
-  const extra = (expr === 'sleepy' ? zzz : expr === 'dizzy' ? dizzyStars : '')
-    + (expr === 'love' || expr === 'happy' || expr === 'silly' || expr === 'dizzy' ? blush : '');
+  const extra = (expr === 'sleepy' ? zzz : shaken(expr) ? dizzyStars : '')
+    + (expr === 'queasy' ? greenCheeks : expr === 'love' || expr === 'happy' || expr === 'silly' || expr === 'dizzy' ? blush : '');
   if (kind === 'star') {
     const starMouth = expr === 'sad' || expr === 'surprised' || expr === 'sleepy' ? mouth
       : `<path d="M40 60 q10 7 20 0" stroke="${INK}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
@@ -303,7 +313,8 @@ export function jump(el) {
   el.classList.add('jump');
 }
 
-/** Тап по маскоту: подпрыгивает, а после 4 тапов подряд его «укачивает» на пару секунд. */
+/** Тап по маскоту: подпрыгивает, а после 4 тапов подряд его на пару секунд
+ *  «мутит» (позеленел) или «укачало» (глаз-спиралька) — по очереди. */
 export function tapMascot(el, kind, expr, acc) {
   const now = Date.now();
   const taps = (el._taps || []).filter(t => now - t < 1500);
@@ -314,7 +325,8 @@ export function tapMascot(el, kind, expr, acc) {
   el._taps = [];
   el.classList.remove('jump');
   el.classList.add('dizzy');
-  el.innerHTML = mascotSVG(kind, 'dizzy', acc);
+  el._shaken = el._shaken === 'queasy' ? 'dizzy' : 'queasy';
+  el.innerHTML = mascotSVG(kind, el._shaken, acc);
   setTimeout(() => {
     el.classList.remove('dizzy');
     el.innerHTML = mascotSVG(kind, expr, acc);
