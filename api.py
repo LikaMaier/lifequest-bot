@@ -181,6 +181,7 @@ def _state(request) -> dict:
     data["user"]["morning_plans"] = bool(user.get("morning_plans", 1))
     data["premium"] = billing.premium_view(user)
     data["user_spheres"] = spheres.list_spheres(request["user_id"])
+    data["user_spheres_hidden"] = spheres.hidden(request["user_id"])
     data["challenge"] = challenges.summary(request["user_id"])
     data["contests"] = contests.summary(request["user_id"])
     return data
@@ -558,13 +559,15 @@ async def sphere_update(request):
     data = await _body(request)
     key = request.match_info["key"]
     if data.get("reset"):
-        return web.json_response({"spheres": spheres.reset(request["user_id"], key)})
+        return web.json_response({"spheres": spheres.reset(request["user_id"], key),
+                                  "hidden": spheres.hidden(request["user_id"])})
     return web.json_response({"spheres": spheres.update(request["user_id"], key, data)})
 
 
 async def sphere_delete(request):
     _limit(request, "write")
-    return web.json_response({"spheres": spheres.delete(request["user_id"], request.match_info["key"])})
+    return web.json_response({"spheres": spheres.delete(request["user_id"], request.match_info["key"]),
+                              "hidden": spheres.hidden(request["user_id"])})
 
 
 async def get_shop(request):

@@ -347,6 +347,7 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, key TEXT NOT NULL,
         name TEXT, emoji TEXT, color TEXT)""")
     c.execute("CREATE INDEX IF NOT EXISTS idx_user_spheres ON user_spheres(user_id, key)")
+    _ensure_column(c, "user_spheres", "hidden", "INTEGER DEFAULT 0")  # удалённая стандартная сфера
     c.execute("""CREATE TABLE IF NOT EXISTS payments (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, product TEXT NOT NULL,
         stars INTEGER NOT NULL, charge_id TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL,
