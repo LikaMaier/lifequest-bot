@@ -1,11 +1,11 @@
 """Свои соревнования с друзьями.
 
 Путь: создатель задаёт название и срок → делится ссылкой
-t.me/<bot>?start=c_<id> → друзья попадают в «лобби» → создатель собирает
-пункты соревнования (сам, из шаблонов или принимая предложения участников)
-→ «Запустить». После запуска правила заморожены и новые участники не
-входят. Каждый день участник отмечает пункты: «сделал» или число. Очки
-копятся, в конце — итоги и награды.
+t.me/<bot>?start=c_<id> → друг видит приглашение и жмёт «Участвую» или
+«Отказаться» (без обсуждений и предложений) → создатель собирает пункты
+(сам или из шаблонов) → «Запустить». После запуска правила заморожены и
+новые участники не входят. Каждый день участник отмечает пункты: сделал или
+нет. Очки копятся, в конце — итоги и награды.
 
 Статусы соревнования: lobby → active → done; lobby → cancelled (отменил
 создатель или истёк таймаут лобби).
@@ -22,15 +22,13 @@ import game
 import storage
 
 DAYS = (3, 7, 14, 30)
-KINDS = ("check", "count")
 MIN_MEMBERS = 2
 MAX_MEMBERS = 20
 ITEMS_FREE, ITEMS_PREMIUM = 5, 10
 ACTIVE_CREATED_LIMIT = 3       # своих соревнований в лобби или в игре одновременно
-PENDING_PROPOSALS_LIMIT = 5    # ожидающих предложений от одного участника
 LOBBY_DAYS = 7                 # лобби без запуска живёт неделю
 LOBBY_REMIND_DAY = 5           # за два дня до конца напоминаем создателю
-MAX_POINTS = 100
+MAX_POINTS = 20
 MAX_VALUE = 100000
 XP_PLAYED = 20                 # всем, кто набрал хоть одно очко, кроме победителей
 EVENING_HOUR = 21
@@ -38,9 +36,9 @@ EVENING_HOUR = 21
 # Готовые наборы пунктов: (эмодзи, название, тип, единица, норма, очки)
 TEMPLATES = [
     {"id": "sport", "emoji": "🏋️", "title": "Спорт", "items": [
-        ("💪", "Отжимания", "count", "раз", 30, 1),
-        ("🦵", "Приседания", "count", "раз", 40, 1),
-        ("👟", "Шаги", "count", "тыс. шагов", 8, 2),
+        ("💪", "30 отжиманий", "check", "", None, 10),
+        ("🦵", "40 приседаний", "check", "", None, 10),
+        ("👟", "8 000 шагов", "check", "", None, 10),
     ]},
     {"id": "clean", "emoji": "🍩", "title": "Без вредного", "items": [
         ("🍬", "Без сахара", "check", "", None, 10),
@@ -48,8 +46,8 @@ TEMPLATES = [
         ("📵", "Без соцсетей после 23:00", "check", "", None, 10),
     ]},
     {"id": "growth", "emoji": "📚", "title": "Саморазвитие", "items": [
-        ("📖", "Чтение", "count", "страниц", 20, 1),
-        ("🗣", "Иностранный язык", "count", "минут", 15, 1),
+        ("📖", "Чтение 20 страниц", "check", "", None, 10),
+        ("🗣", "Иностранный язык 15 минут", "check", "", None, 10),
         ("🧘", "Медитация", "check", "", None, 10),
     ]},
     {"id": "routine", "emoji": "🌅", "title": "Режим", "items": [
@@ -101,6 +99,10 @@ def _is_member(contest_id: int, user_id: int) -> bool:
     return user_id in _member_ids(contest_id)
 
 
+def is_member(contest_id: int, user_id: int) -> bool:
+    return _is_member(contest_id, user_id)
+
+
 def was_member(contest_id: int, user_id: int) -> bool:
     """Участник сейчас или раньше (сдавшийся видит итоги). Для доступа из API."""
     conn = _conn()
@@ -130,31 +132,18 @@ def _clean_text(value, limit: int, what: str, required: bool = True) -> str:
 
 
 def _clean_item(data: dict) -> dict:
-    """Проверка граф пункта (форма «Пункт соревнования»)."""
-    kind = data.get("kind") if data.get("kind") in KINDS else "check"
+    """Проверка граф пункта (форма «Пункт соревнования»). Пункт — всегда
+    «сделал / не сделал»: без единиц и нормы в день."""
     title = _clean_text(data.get("title"), 60, "Занятие")
-    emoji = _clean_text(data.get("emoji"), 8, "", required=False) or ("✅" if kind == "check" else "🔢")
-    unit = _clean_text(data.get("unit"), 16, "Единица", required=False) if kind == "count" else ""
-    if kind == "count" and not unit:
-        unit = "раз"
-    norm = data.get("norm")
-    if norm in (None, "", 0, "0") or kind == "check":
-        norm = None
-    else:
-        try:
-            norm = int(norm)
-        except (TypeError, ValueError):
-            raise game.QuestError("Норма — это целое число")
-        if not 1 <= norm <= MAX_VALUE:
-            raise game.QuestError(f"Норма — от 1 до {MAX_VALUE}")
+    emoji = _clean_text(data.get("emoji"), 8, "", required=False) or "✅"
     try:
         raw = data.get("points")
-        points = int(raw) if raw not in (None, "") else (10 if kind == "check" else 1)
+        points = int(raw) if raw not in (None, "") else 10
     except (TypeError, ValueError):
         raise game.QuestError("Очки — это целое число")
     if not 1 <= points <= MAX_POINTS:
         raise game.QuestError(f"Очки — от 1 до {MAX_POINTS}")
-    return {"title": title, "emoji": emoji, "kind": kind, "unit": unit, "norm": norm, "points": points}
+    return {"title": title, "emoji": emoji, "kind": "check", "unit": "", "norm": None, "points": points}
 
 
 def _require(c: dict, user_id: int, *, creator: bool = False, status: str = None):
@@ -226,9 +215,20 @@ def join(user_id: int, contest_id: int) -> dict:
     conn.commit()
     conn.close()
     n = len(_member_ids(contest_id))
-    note = (f"🙌 {html.escape(_name(user_id))} в лобби «{_title(c)}»! Участников: {n}."
+    note = (f"🙌 {html.escape(_name(user_id))} принимает приглашение в «{_title(c)}»! Участников: {n}."
             + ("\nМожно добавлять пункты и запускать." if n >= MIN_MEMBERS else ""))
     return {"contest": view(contest_id, user_id), "messages": [(c["creator_id"], note)]}
+
+
+def decline(user_id: int, contest_id: int) -> dict:
+    """«Отказаться» под приглашением: просто сообщаем создателю."""
+    c = _row(contest_id)
+    if _is_member(contest_id, user_id):
+        raise game.QuestError("Ты уже участвуешь — выйти можно в приложении")
+    if c["status"] != "lobby":
+        return {"ok": True, "messages": []}
+    return {"ok": True, "messages": [(c["creator_id"], f"🙅 {html.escape(_name(user_id))} не будет участвовать "
+                                                      f"в «{_title(c)}».")]}
 
 
 def leave(user_id: int, contest_id: int) -> dict:
@@ -242,9 +242,6 @@ def leave(user_id: int, contest_id: int) -> dict:
     conn = _conn()
     conn.execute("UPDATE contest_members SET status = 'left' WHERE contest_id = ? AND user_id = ?",
                  (contest_id, user_id))
-    if c["status"] == "lobby":  # неразобранные предложения уходящего больше не нужны
-        conn.execute("DELETE FROM contest_proposals WHERE contest_id = ? AND user_id = ? AND status = 'pending'",
-                     (contest_id, user_id))
     conn.commit()
     conn.close()
     who = html.escape(_name(user_id))
@@ -351,82 +348,10 @@ def apply_template(user_id: int, contest_id: int, template_id: str) -> dict:
     return out
 
 
-# ---------- предложения участников ----------
-def propose(user_id: int, contest_id: int, data: dict) -> dict:
-    c = _row(contest_id)
-    _require(c, user_id, status="lobby")
-    if c["creator_id"] == user_id:
-        raise game.QuestError("Создатель добавляет пункты сам — без предложений 🙂")
-    item = _clean_item(data)
-    conn = _conn()
-    pending = conn.execute("""SELECT COUNT(*) FROM contest_proposals WHERE contest_id = ? AND user_id = ?
-                              AND status = 'pending'""", (contest_id, user_id)).fetchone()[0]
-    if pending >= PENDING_PROPOSALS_LIMIT:
-        conn.close()
-        raise game.QuestError(f"У тебя уже {PENDING_PROPOSALS_LIMIT} предложений ждут ответа")
-    conn.execute("""INSERT INTO contest_proposals (contest_id, user_id, title, emoji, kind, unit, norm, points,
-                    status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)""",
-                 (contest_id, user_id, item["title"], item["emoji"], item["kind"], item["unit"], item["norm"],
-                  item["points"], storage.utc_now_str()))
-    conn.commit()
-    conn.close()
-    text = (f"💡 {html.escape(_name(user_id))} предлагает пункт в «{_title(c)}»: "
-            f"<b>{html.escape(item['emoji'])} {html.escape(item['title'])}</b>.\nПрими или отклони в приложении.")
-    return {"contest": view(contest_id, user_id), "messages": [(c["creator_id"], text)]}
-
-
-def _proposal(contest_id: int, proposal_id: int) -> dict:
-    conn = _conn()
-    r = conn.execute("SELECT * FROM contest_proposals WHERE id = ? AND contest_id = ?",
-                     (proposal_id, contest_id)).fetchone()
-    conn.close()
-    if not r:
-        raise game.QuestError("Предложение не найдено")
-    p = dict(r)
-    if p["status"] != "pending":
-        raise game.QuestError("На это предложение уже ответили")
-    return p
-
-
-def decide(user_id: int, contest_id: int, proposal_id: int, accept: bool, edits: dict = None) -> dict:
-    """✅ Принять, ✏️ Принять с правкой (edits — исправленные графы) или ❌ Отклонить."""
-    c = _row(contest_id)
-    _require(c, user_id, creator=True, status="lobby")
-    p = _proposal(contest_id, proposal_id)
-    title = f"{html.escape(p['emoji'] or '')} {html.escape(p['title'])}"
-    if accept:
-        item = _clean_item({**p, **(edits or {})})
-        _check_room(c)
-        _insert_item(contest_id, item, proposed_by=p["user_id"])
-        status = "accepted"
-        edited = any(item[k] != p[k] for k in ("title", "emoji", "kind", "unit", "norm", "points"))
-        now = f"{html.escape(item['emoji'])} {html.escape(item['title'])} — {html.escape(_rule_text(item))}"
-        text = (f"✅ Твоё предложение «{title}» в «{_title(c)}» принято"
-                + (f" с правкой. Теперь пункт такой: {now}." if edited else "!"))
-    else:
-        status = "rejected"
-        text = f"❌ Предложение «{title}» в «{_title(c)}» не вошло в правила."
-    conn = _conn()
-    conn.execute("UPDATE contest_proposals SET status = ? WHERE id = ?", (status, proposal_id))
-    conn.commit()
-    conn.close()
-    messages = [(p["user_id"], text)] if _is_member(contest_id, p["user_id"]) else []
-    return {"contest": view(contest_id, user_id), "messages": messages}
-
-
-def _pending(contest_id: int) -> list:
-    conn = _conn()
-    rows = [dict(r) for r in conn.execute("""SELECT * FROM contest_proposals WHERE contest_id = ? AND status = 'pending'
-                                             ORDER BY id""", (contest_id,)).fetchall()]
-    conn.close()
-    return rows
-
-
 # ---------- запуск и заморозка ----------
-def launch(user_id: int, contest_id: int, force: bool = False) -> dict:
+def launch(user_id: int, contest_id: int) -> dict:
     """Старт: нажать может любой участник в любой момент, если есть хотя бы
-    1 пункт и 2 участника. Незакрытые предложения — сначала спрашиваем
-    (code=proposals), с force=True отклоняем их."""
+    1 пункт и 2 участника."""
     c = _row(contest_id)
     _require(c, user_id, status="lobby")
     items = _items(contest_id)
@@ -435,25 +360,13 @@ def launch(user_id: int, contest_id: int, force: bool = False) -> dict:
         raise game.QuestError("Добавь хотя бы один пункт — без правил соревноваться не в чем")
     if len(members) < MIN_MEMBERS:
         raise game.QuestError("Нужно хотя бы 2 участника — отправь ссылку другу")
-    pending = _pending(contest_id)
-    if pending and not force:
-        n = len(pending)
-        raise game.QuestError(f"Есть {n} {_plural(n, 'предложение', 'предложения', 'предложений')} без ответа. "
-                              "Рассмотреть?", code="proposals")
     messages = []
-    if pending:
-        conn = _conn()
-        conn.execute("UPDATE contest_proposals SET status = 'rejected' WHERE contest_id = ? AND status = 'pending'",
-                     (contest_id,))
-        conn.commit()
-        conn.close()
-        for p in pending:
-            if p["user_id"] in members:
-                messages.append((p["user_id"], f"❌ Предложение «{html.escape(p['title'])}» не вошло в правила — "
-                                               f"соревнование «{_title(c)}» запущено."))
     start = _today(user_id)
     end = start + timedelta(days=c["days"] - 1)
     conn = _conn()
+    # предложения из старой версии (с модерацией) просто закрываем
+    conn.execute("UPDATE contest_proposals SET status = 'rejected' WHERE contest_id = ? AND status = 'pending'",
+                 (contest_id,))
     cur = conn.execute("""UPDATE contests SET status = 'active', start_date = ?, end_date = ?, started_at = ?
                           WHERE id = ? AND status = 'lobby'""",
                        (start.isoformat(), end.isoformat(), storage.utc_now_str(), contest_id))
@@ -588,14 +501,11 @@ def view(contest_id: int, user_id: int) -> dict:
     board = _board(c, items, everyone)
     mine = c["creator_id"] == user_id
     me = next((r for r in board if r["id"] == user_id), None)
-    proposals = [p for p in _pending(contest_id) if mine or p["user_id"] == user_id] if c["status"] == "lobby" else []
     out = {
         "id": c["id"], "title": c["title"], "emoji": c["emoji"], "days": c["days"], "status": c["status"],
         "creator": {"id": c["creator_id"], "name": _name(c["creator_id"])}, "mine": mine,
         "member": bool(me and not me["left"]),
         "items": [_public_item(i) for i in items], "board": board, "me": me,
-        "proposals": [{**_public_item(p), "id": p["id"], "by": _name(p["user_id"]), "by_id": p["user_id"]}
-                      for p in proposals],
         "start": c["start_date"], "end": c["end_date"], "winners": [],
         "limits": {"items": _items_limit(c["creator_id"]), "members": MAX_MEMBERS, "min_members": MIN_MEMBERS},
         "members_count": sum(1 for r in board if not r["left"]),

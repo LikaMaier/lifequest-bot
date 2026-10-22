@@ -177,27 +177,54 @@ async def handle_duel_link(message: Message, duel_id: int, inviter_id: int, is_n
 
 
 async def handle_contest_link(message: Message, contest_id: int, inviter_id: int, is_new: bool):
-    """Пришли по ссылке на соревнование: дружим с создателем и заходим в лобби."""
+    """Пришли по ссылке на соревнование: дружим с создателем и показываем
+    приглашение — «Участвую» или «Отказаться», без обсуждений."""
     user_id = message.from_user.id
     res = friends.handle_join(user_id, inviter_id, is_new)
     gift = "\n\n🧊 В подарок — по заморозке серии вам обоим." if res.get("gift") else ""
-    open_app = app_markup("friends")
     try:
-        result = contests.join(user_id, contest_id)
+        c = contests.public_invite(contest_id)
     except game.QuestError as e:
         await message.answer(f"{html.escape(str(e))}{gift}", parse_mode="HTML", reply_markup=build_start_menu_keyboard())
         return
-    c = result["contest"]
     title = f"{html.escape(c['emoji'] or '🏆')} <b>{html.escape(c['title'])}</b>"
-    if result.get("already"):
-        await message.answer(f"Ты уже в соревновании {title} 🙂", parse_mode="HTML", reply_markup=open_app)
+    if contests.is_member(contest_id, user_id):
+        await message.answer(f"Ты уже в соревновании {title} 🙂{gift}", parse_mode="HTML", reply_markup=app_markup("friends"))
         return
-    status = ("Сейчас создатель настраивает правила — можешь предложить свой пункт. "
-              "Как только соревнование запустят, придёт сообщение." if c["status"] == "lobby" else "")
+    if c["status"] != "lobby":
+        text = ("Соревнование уже началось — новых участников не принимаем 🔒" if c["status"] == "active"
+                else "Это соревнование уже закончилось")
+        await message.answer(f"{text}{gift}", parse_mode="HTML", reply_markup=build_start_menu_keyboard())
+        return
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="✅ Участвую", callback_data=f"ct:a:{contest_id}"),
+        InlineKeyboardButton(text="❌ Отказаться", callback_data=f"ct:d:{contest_id}")]])
     await message.answer(
-        f"🏆 <b>Ты в лобби!</b>\n\n{title} — {c['days']} дн., участников: {c['members_count']}.\n{status}{gift}",
-        parse_mode="HTML", reply_markup=open_app)
-    await send_duel_messages(result["messages"])
+        f"🏆 <b>{html.escape(c['creator'])} зовёт тебя на соревнование!</b>\n\n{title} — {c['days']} дн.\n"
+        f"Каждый день отмечаете пункты: сделал или нет. Кто наберёт больше очков — победил.{gift}",
+        parse_mode="HTML", reply_markup=kb)
+
+
+@dp.callback_query(F.data.regexp(r"^ct:[ad]:\d+$"))
+async def contest_button(callback: CallbackQuery):
+    """Кнопки «Участвую» / «Отказаться» под приглашением на соревнование."""
+    uid = callback.from_user.id
+    _, action, contest_id = callback.data.split(":")
+    try:
+        result = contests.join(uid, int(contest_id)) if action == "a" else contests.decline(uid, int(contest_id))
+    except game.QuestError as e:
+        await callback.answer(str(e), show_alert=True)
+        return
+    try:
+        await callback.message.edit_reply_markup(reply_markup=app_markup("friends") if action == "a" else None)
+    except Exception:
+        pass
+    if action == "a":
+        await callback.answer("Ты в игре! Как только соревнование запустят, придёт сообщение 🏆", show_alert=True)
+    else:
+        await callback.answer("Хорошо, в другой раз")
+    await send_duel_messages(result.get("messages"))
+
 
 async def handle_album_link(message: Message, album_id: int, inviter_id: int, is_new: bool):
     """Пришли по ссылке на общий альбом: дружим с создателем и добавляем в альбом."""

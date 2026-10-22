@@ -103,14 +103,24 @@ class AiQuestTest(TempDBTestCase, __import__("unittest").IsolatedAsyncioTestCase
         import mood_bank
         with mock.patch.dict(os.environ, {"GROQ_API_KEY": ""}):
             for (mood, place), by_time in mood_bank.BANK.items():
-                for time, item in by_time.items():
+                for time, items in by_time.items():
+                    self.assertGreaterEqual(len(items), 3)
                     res = await aiquest.generate(1, mood, time, place)
-                    self.assertEqual(res["quest"]["title"], item[1])
+                    self.assertIn(res["quest"]["title"], [i[1] for i in items])
             with self.assertRaises(game.QuestError):
                 await aiquest.generate(1, "bored", "60", "work")  # «на работе» больше нет
         acc = game.accept_quest(1, res["quest"]["id"])  # банк-квест принимается как обычный
         self.assertFalse(acc["already"])
         self.assertEqual(aiquest._today_count(1, game.local_today(storage.get_user(1)).isoformat()), 0)
+
+    async def test_another_variant_is_different(self):
+        import mood_bank
+        titles = [i[1] for i in mood_bank.BANK[("bored", "home")]["60"]]
+        with mock.patch.dict(os.environ, {"GROQ_API_KEY": ""}):
+            got = [(await aiquest.generate(1, "bored", "60", "home"))["quest"]["title"] for _ in range(len(titles) + 1)]
+        self.assertEqual(sorted(got[:len(titles)]), sorted(titles))  # пока есть новые — без повторов
+        self.assertEqual(got[-1], got[0])  # потом — самый давний
+        self.assertNotEqual(got[-1], got[-2])
 
     async def test_groq_error_falls_back(self):
         with mock.patch.dict(os.environ, {"GROQ_API_KEY": "x"}), \

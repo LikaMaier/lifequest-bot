@@ -206,24 +206,27 @@ export async function openMoodQuest() {
     h('div', { class: 'small bold muted', style: { margin: '8px 2px' } }, 'Настроение'), group('mood', aiOpts.moods),
     h('div', { class: 'small bold muted', style: { margin: '8px 2px' } }, 'Сколько времени'), group('time', aiOpts.times),
     h('div', { class: 'small bold muted', style: { margin: '8px 2px' } }, 'Где ты'), group('place', aiOpts.places), go);
-  const run = busy(go, async () => {
+  const generate = async () => {
     haptic.tap('medium');
     try {
       const res = await api.aiQuest(pick.mood, pick.time, pick.place);
       const q = res.quest;
       const acc = h('button', { type: 'button', class: 'btn grow' }, 'Принять вызов');
       acc.addEventListener('click', busy(acc, async () => { try { await accept(q); s.close(); } catch (e) { toastError(e); } }));
+      // «Другой вариант» сразу подбирает новое задание с теми же настройками
       const again = h('button', { type: 'button', class: 'btn ghost small' }, '↻ Другой вариант');
-      again.addEventListener('click', () => { s.setContent(form); });
+      again.addEventListener('click', busy(again, generate));
+      const change = h('button', { type: 'button', class: 'btn ghost small' }, 'Изменить настроение');
+      change.addEventListener('click', () => { haptic.tap(); s.setContent(form); });
       s.setContent(h('div', null, questCard(q, { flip: true }), actionsRow(acc),
-        h('div', { class: 'row', style: { justifyContent: 'center' } }, again),
+        h('div', { class: 'row', style: { justifyContent: 'center', gap: '8px', flexWrap: 'wrap' } }, again, change),
         res.ai && res.left !== undefined ? h('p', { class: 'center tiny muted bold' }, `ИИ-квестов на сегодня осталось: ${res.left}`) : null));
     } catch (e) {
       if (e.code === 'ai_limit' && !(store.state.premium || {}).active) { s.close(); openPaywall('ai_limit'); return; }
       toastError(e);
     }
-  });
-  go.addEventListener('click', run);
+  };
+  go.addEventListener('click', busy(go, generate));
   s.setContent(form);
 }
 
