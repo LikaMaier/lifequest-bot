@@ -2,8 +2,9 @@
 
 Стандартные можно переименовать, сменить эмодзи и цвет — ключ при этом
 остаётся прежним («Энергия»), поэтому квесты продолжают считаться в ту же
-сферу. Свои сферы получают ключ вида «c<id>» и их можно удалить: у привычек
-сфера тогда просто сбрасывается."""
+сферу. Свои сферы получают ключ вида «c<id>». Удалить можно любую: у
+привычек сфера тогда просто сбрасывается; стандартная при этом лишь
+скрывается (hidden) и возвращается через reset."""
 
 import game
 import storage
@@ -36,6 +37,8 @@ def list_spheres(user_id: int) -> list:
     for key in BINGO_SPHERES:
         emoji, color = DEFAULTS[key]
         r = rows.get(key) or {}
+        if r.get("hidden"):
+            continue
         out.append({"key": key, "name": r.get("name") or key, "emoji": r.get("emoji") or emoji,
                     "color": r.get("color") or color, "custom": False})
     for key, r in rows.items():
@@ -43,6 +46,12 @@ def list_spheres(user_id: int) -> list:
             out.append({"key": key, "name": r["name"], "emoji": r["emoji"] or "⭐", "color": r["color"] or "lav",
                         "custom": True})
     return out
+
+
+def hidden(user_id: int) -> list:
+    """Удалённые стандартные сферы — их можно вернуть."""
+    rows = _rows(user_id)
+    return [{"key": k, "name": k, "emoji": DEFAULTS[k][0]} for k in BINGO_SPHERES if (rows.get(k) or {}).get("hidden")]
 
 
 def keys(user_id: int) -> set:
@@ -99,7 +108,7 @@ def update(user_id: int, key: str, data: dict) -> list:
 
 
 def reset(user_id: int, key: str) -> list:
-    """Стандартная сфера — вернуть исходные название, эмодзи и цвет."""
+    """Стандартная сфера — вернуть исходные название, эмодзи и цвет (и вернуть удалённую)."""
     if key not in DEFAULTS:
         raise game.QuestError("Вернуть как было можно только стандартную сферу")
     conn = storage.connect()
@@ -110,10 +119,15 @@ def reset(user_id: int, key: str) -> list:
 
 
 def delete(user_id: int, key: str) -> list:
-    if key in DEFAULTS:
-        raise game.QuestError("Стандартную сферу удалить нельзя — по ней считаются квесты. Её можно переименовать")
+    if key not in keys(user_id):
+        raise game.QuestError("Такой сферы нет")
     conn = storage.connect()
-    cur = conn.execute("DELETE FROM user_spheres WHERE user_id = ? AND key = ?", (user_id, key))
+    if key in DEFAULTS:  # стандартную прячем, чтобы её можно было вернуть
+        if not conn.execute("SELECT 1 FROM user_spheres WHERE user_id = ? AND key = ?", (user_id, key)).fetchone():
+            conn.execute("INSERT INTO user_spheres (user_id, key) VALUES (?, ?)", (user_id, key))
+        cur = conn.execute("UPDATE user_spheres SET hidden = 1 WHERE user_id = ? AND key = ?", (user_id, key))
+    else:
+        cur = conn.execute("DELETE FROM user_spheres WHERE user_id = ? AND key = ?", (user_id, key))
     if cur.rowcount:
         conn.execute("UPDATE habits SET sphere = NULL WHERE user_id = ? AND sphere = ?", (user_id, key))
     conn.commit()

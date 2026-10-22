@@ -177,9 +177,17 @@ class UserSpheresTest(TempDBTestCase):
         habits.log_habit(5, hb["id"], delta=1)
         today = game.local_today(storage.get_user(5))
         self.assertEqual(habits.done_by_sphere(5, today, today), {fam["key"]: 1})
-        with self.assertRaises(game.QuestError):
-            spheres.delete(5, "Энергия")
         spheres.delete(5, fam["key"])
         self.assertIsNone(habits.habit_view(5, hb["id"])["sphere"])
-        spheres.reset(5, "Энергия")
+        # стандартную тоже можно удалить — она прячется, привычки остаются без сферы
+        hb2 = habits.create_habit(5, {"title": "Сон", "sphere": "Энергия"})["habit"]
+        lst = spheres.delete(5, "Энергия")
+        self.assertNotIn("Энергия", [s["key"] for s in lst])
+        self.assertEqual([h["key"] for h in spheres.hidden(5)], ["Энергия"])
+        self.assertIsNone(habits.habit_view(5, hb2["id"])["sphere"])
+        self.assertIsNone(habits.create_habit(5, {"title": "Y", "sphere": "Энергия"})["habit"]["sphere"])
+        with self.assertRaises(game.QuestError):
+            spheres.delete(5, "Энергия")  # уже удалена
+        spheres.reset(5, "Энергия")  # «вернуть» — снова на месте, с исходным названием
+        self.assertEqual(spheres.hidden(5), [])
         self.assertEqual(next(s for s in spheres.list_spheres(5) if s["key"] == "Энергия")["name"], "Энергия")
