@@ -57,7 +57,7 @@ export function openClawGame() {
   const fresh = ((store.state && store.state.chest && store.state.chest.machine) || []).slice().sort(() => Math.random() - 0.5);
   const shuffled = [...fresh, ...DECOYS.filter(a => !fresh.includes(a)).sort(() => Math.random() - 0.5)].slice(0, 5);
   const bottom = GLASS_H - CAP - 6;
-  const CAP_SPOTS = [[40, bottom], [140, bottom], [240, bottom], [90, bottom - 46], [190, bottom - 46]];
+  const CAP_SPOTS = [[55, bottom], [145, bottom], [235, bottom], [100, bottom - 44], [190, bottom - 44]];
   shuffled.forEach((acc, i) => {
     const c = capsule(acc, i, u.mascot);
     const [x, y] = CAP_SPOTS[i];
@@ -66,13 +66,14 @@ export function openClawGame() {
     caps.push(c);
     pile.append(c);
   });
-  // звёздочки — в просветах между капсулами и горкой сверху
-  const STAR_SPOTS = [[90, bottom + 18], [190, bottom + 18], [22, bottom - 30], [254, bottom - 30],
-    [140, bottom - 48], [40, bottom - 62], [240, bottom - 62], [65, bottom - 86], [115, bottom - 90],
-    [165, bottom - 90], [215, bottom - 86], [90, bottom - 116], [140, bottom - 122], [190, bottom - 116]];
+  // звёздочки лежат, а не висят: на дне между капсулами, в ложбинках и горкой сверху
+  const floor = GLASS_H - STAR - 4;
+  const STAR_SPOTS = [[16, floor], [100, floor], [190, floor], [266, floor],
+    [24, bottom - 18], [145, bottom - 30], [256, bottom - 18],
+    [76, bottom - 66], [118, bottom - 74], [145, bottom - 60], [172, bottom - 74], [214, bottom - 66]];
   STAR_SPOTS.forEach(([sx, sy], i) => {
     const st = h('div', { class: 'claw-star', html: STAR_SVG });
-    Object.assign(st.style, { left: `${sx - STAR / 2 + ((i * 13) % 11) - 5}px`, top: `${sy + ((i * 7) % 9) - 4}px`, transform: `rotate(${((i * 53) % 41) - 20}deg)` });
+    Object.assign(st.style, { left: `${sx - STAR / 2 + ((i * 13) % 7) - 3}px`, top: `${sy + ((i * 7) % 4)}px`, transform: `rotate(${((i * 53) % 41) - 20}deg)` });
     Object.assign(st.dataset, { x: String(sx), y: String(sy) });
     stars.push(st);
     pile.append(st);
