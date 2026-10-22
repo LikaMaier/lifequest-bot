@@ -83,6 +83,8 @@ export const api = {
   deleteHabit: id => request('POST', 'api/habits/delete', { id }),
   logHabit: (id, { delta, count, date } = {}) => request('POST', 'api/habits/log', { id, delta, count, date }),
   createHabits: items => request('POST', 'api/habits/many', { items }),
+  habitCatalog: () => request('GET', 'api/habits/catalog'),
+  enableSpheres: keys => request('POST', 'api/spheres/enable', { keys }),
   skipHabit: (id, { date, note } = {}) => request('POST', 'api/habits/skip', { id, date, note }),
   habitStats: id => request('GET', `api/habits/${id}/stats`),
   pauseHabits: days => request('POST', 'api/habits/pause', { days }),

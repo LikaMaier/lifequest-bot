@@ -15,31 +15,34 @@ const EMOJIS = ['💧', '🧘', '📖', '🚶', '😴', '📵', '🙏', '💪', 
 const WD = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 export const TIMES = { morning: 'Утро', day: 'День', evening: 'Вечер', any: 'В любое время' };
 
-// Шаблоны для старта и быстрого добавления — по наборам.
-export const TEMPLATE_PACKS = [
-  { key: 'popular', title: 'Популярные' },
-  { key: 'morning', title: 'Утро' },
-  { key: 'health', title: 'Здоровье' },
-  { key: 'study', title: 'Учёба' },
-  { key: 'quit', title: 'Бросить' },
-];
-export const TEMPLATES = [
-  { pack: ['popular', 'health'], emoji: '💧', title: 'Пить воду', sphere: 'Энергия', target: 8, unit: 'стаканов', color: 'blue', time_of_day: 'any', hint: '8 стаканов в день' },
-  { pack: ['popular', 'morning'], emoji: '💪', title: 'Зарядка', sphere: 'Энергия', target: 1, color: 'lime', time_of_day: 'morning', remind_time: '08:00', hint: 'каждое утро · 10 мин' },
-  { pack: ['popular', 'study'], emoji: '📖', title: 'Чтение 20 минут', sphere: 'Саморазвитие', target: 1, color: 'lav', time_of_day: 'evening', hint: 'каждый вечер' },
-  { pack: ['popular', 'health'], emoji: '🧘', title: 'Медитация', sphere: 'Дисциплина', target: 1, color: 'purple', time_of_day: 'morning', hint: '5 минут' },
-  { pack: ['popular', 'health'], emoji: '🚶', title: 'Прогулка', sphere: 'Энергия', target: 1, color: 'yellow', schedule: 'weekly', per_week: 3, time_of_day: 'day', hint: '30 минут · 3 раза в неделю' },
-  { pack: ['popular', 'quit'], emoji: '🍬', title: 'Без сахара', kind: 'quit', color: 'pink', hint: 'бросить' },
-  { pack: ['study'], emoji: '🧠', title: 'Английский', sphere: 'Саморазвитие', target: 1, color: 'blue', schedule: 'days', days: '1111100', time_of_day: 'evening', hint: 'по будням' },
-  { pack: ['popular', 'health'], emoji: '😴', title: 'Лечь до 23:30', sphere: 'Дисциплина', target: 1, color: 'purple', time_of_day: 'evening', remind_time: '23:00', hint: 'каждый день' },
-  { pack: ['morning'], emoji: '☀️', title: 'Утро без телефона', sphere: 'Дисциплина', target: 1, color: 'yellow', time_of_day: 'morning', hint: 'первый час' },
-  { pack: ['morning'], emoji: '💊', title: 'Витамины', sphere: 'Энергия', target: 1, color: 'orange', time_of_day: 'morning', remind_time: '09:00', hint: 'каждый день · 9:00' },
-  { pack: ['morning', 'health'], emoji: '🥗', title: 'Полезный завтрак', sphere: 'Энергия', target: 1, color: 'lime', time_of_day: 'morning', hint: 'каждый день' },
-  { pack: ['health'], emoji: '🏃', title: 'Спорт', sphere: 'Энергия', target: 1, color: 'pink', schedule: 'days', days: '1010100', time_of_day: 'day', hint: 'пн · ср · пт' },
-  { pack: ['study'], emoji: '✍️', title: 'Дневник', sphere: 'Саморазвитие', target: 1, color: 'yellow', time_of_day: 'evening', hint: 'пара строк вечером' },
-  { pack: ['study'], emoji: '🎧', title: 'Подкаст или лекция', sphere: 'Саморазвитие', target: 1, color: 'lav', schedule: 'weekly', per_week: 2, hint: '2 раза в неделю' },
-  { pack: ['quit'], emoji: '📱', title: 'Телефон после 23:00', kind: 'quit', color: 'purple', hint: 'бросить' },
-];
+// Готовые привычки — каталог с сервера (habits_bank.py → habit_catalog.py):
+// 8 сфер × 7 привычек. Грузим один раз и держим в памяти.
+let catalogCache = null;
+let catalogLoading = null;
+export function loadCatalog() {
+  if (catalogCache) return Promise.resolve(catalogCache);
+  catalogLoading = catalogLoading || api.habitCatalog()
+    .then(res => { catalogCache = res.spheres; return catalogCache; })
+    .catch(e => { catalogLoading = null; throw e; });
+  return catalogLoading;
+}
+export const catalogNow = () => catalogCache;
+
+/** Привычка каталога → данные для создания привычки (поля приложения + bank_key). */
+export function fromCatalog(t) {
+  return { title: t.title, emoji: t.emoji, color: t.color, sphere: t.sphere, bank_key: t.key, kind: 'build', target: 1,
+    schedule: t.schedule, days: t.days || '1111111', per_week: t.per_week || 3, time_of_day: 'any' };
+}
+
+/** Карточка готовой привычки: название, как часто, «начни с малого». */
+export function catalogCard(t, { on, onClick }) {
+  const b = h('button', { type: 'button', class: `hb2-tpl ${on ? 'on' : ''} c-${t.color}`, 'aria-pressed': String(on) },
+    h('span', { class: 'hb2-tpl-title' }, `${t.emoji} ${t.title}`),
+    h('span', { class: 'hb2-tpl-hint' }, `${t.freq_text} · начни с малого: ${t.tiny}`),
+    on ? h('span', { class: 'hb2-tpl-check', html: ICONS.check }) : null);
+  b.addEventListener('click', onClick);
+  return b;
+}
 
 const unitWord = (hb, n) => (hb.streak_unit === 'week' ? plural(n, 'неделя', 'недели', 'недель') : plural(n, 'день', 'дня', 'дней'));
 
@@ -190,7 +193,11 @@ export async function openHabitDetail(hb, { onChanged } = {}) {
       v.kind === 'quit' ? h('span', null, h('i', { class: 'miss' }), 'срыв') : h('span', null, h('i', { class: 'pause' }), 'пауза / пропуск'),
       v.kind === 'quit' ? null : h('span', null, h('i', { class: 'miss' }), 'не сделано')));
 
-  const body = h('div', { class: 'stack' }, head, gridCard);
+  const body = h('div', { class: 'stack' }, head,
+    v.tip ? h('section', { class: 'hb2-panel' },
+      h('div', { class: 'hb2-hint', style: { marginTop: 0 } }, v.tip.why),
+      h('div', { class: 'small bold muted', style: { marginTop: '6px' } }, `Начни с малого: ${v.tip.tiny}`)) : null,
+    gridCard);
 
   if (v.kind === 'build') {
     const max = 100;
@@ -290,39 +297,45 @@ export function openPause(current, { onChanged } = {}) {
   return s;
 }
 
-/** Выбор нескольких привычек из шаблонов (старт и пустой список). */
-export function templatePicker({ max = 3, onDone, title = 'С чего начнём?' } = {}) {
-  let pack = 'popular';
-  const picked = new Set();
-  const root = h('div', { class: 'hb2-picker' });
+/** Выбор нескольких привычек из каталога: вкладки-сферы (или только сферы
+ *  из only — тогда списком по сферам, как в приветствии). */
+export function templatePicker({ max = 3, onDone, title = 'С чего начнём?', only = null } = {}) {
+  let tab = null;
+  const picked = new Map(); // key → привычка каталога
+  const root = h('div', { class: 'hb2-picker' }, h('div', { class: 'skeleton', style: { height: '220px' } }));
+  const toggle = t => () => {
+    haptic.select();
+    if (picked.has(t.key)) picked.delete(t.key);
+    else if (picked.size < max) picked.set(t.key, t);
+    else { toast(`Для начала — не больше ${max}. Остальное добавишь потом 🙂`); return; }
+    draw();
+  };
+  let cat = [];
   const draw = () => {
     clear(root);
-    const tabs = h('div', { class: 'memo-chips' }, TEMPLATE_PACKS.map(p => {
-      const b = h('button', { type: 'button', class: `memo-chip ${pack === p.key ? 'on' : ''}` }, p.title);
-      b.addEventListener('click', () => { haptic.select(); pack = p.key; draw(); });
-      return b;
-    }));
-    const grid = h('div', { class: 'hb2-tpl-grid' }, TEMPLATES.filter(t => t.pack.includes(pack)).map(t => {
-      const on = picked.has(t.title);
-      const b = h('button', { type: 'button', class: `hb2-tpl ${on ? 'on' : ''} c-${t.color}`, 'aria-pressed': String(on) },
-        h('span', { class: 'hb2-tpl-title' }, `${t.emoji} ${t.title}`), h('span', { class: 'hb2-tpl-hint' }, t.hint),
-        on ? h('span', { class: 'hb2-tpl-check', html: ICONS.check }) : null);
-      b.addEventListener('click', () => {
-        haptic.select();
-        if (on) picked.delete(t.title);
-        else if (picked.size < max) picked.add(t.title);
-        else { toast(`Для начала — не больше ${max}. Остальное добавишь потом 🙂`); return; }
-        draw();
-      });
-      return b;
-    }));
+    const list = only ? cat.filter(sp => only.includes(sp.key)) : cat;
+    tab = tab || (list[0] && list[0].key);
+    const card = t => catalogCard(t, { on: picked.has(t.key), onClick: toggle(t) });
+    let content;
+    if (only) {
+      content = h('div', { class: 'stack-sm' }, list.map(sp => h('div', null,
+        h('div', { class: 'cal2-label' }, `${sp.emoji} ${sp.name}`),
+        h('div', { class: 'hb2-tpl-grid' }, sp.habits.map(card)))));
+    } else {
+      const tabs = h('div', { class: 'memo-chips' }, list.map(sp => {
+        const b = h('button', { type: 'button', class: `memo-chip ${tab === sp.key ? 'on' : ''}` }, `${sp.emoji} ${sp.name}`);
+        b.addEventListener('click', () => { haptic.select(); tab = sp.key; draw(); });
+        return b;
+      }));
+      const cur = list.find(sp => sp.key === tab) || list[0];
+      content = h('div', null, tabs, h('div', { class: 'hb2-tpl-grid' }, cur ? cur.habits.map(card) : []));
+    }
     const n = picked.size;
     const go = h('button', { type: 'button', class: 'btn block', disabled: !n },
       n ? `Добавить ${n} ${plural(n, 'привычку', 'привычки', 'привычек')}` : 'Выбери хотя бы одну');
     go.addEventListener('click', busy(go, async () => {
       try {
-        const items = TEMPLATES.filter(t => picked.has(t.title)).map(({ pack: _p, hint: _h, ...t }) => t);
-        const res = await api.createHabits(items);
+        const res = await api.createHabits([...picked.values()].map(fromCatalog));
         haptic.success();
         confetti(60);
         await refreshState();
@@ -331,9 +344,10 @@ export function templatePicker({ max = 3, onDone, title = 'С чего начн�
       } catch (e) { toastError(e); }
     }));
     if (title) root.append(h('h2', null, title));
-    root.append(tabs, grid, go);
+    root.append(content, go);
   };
-  draw();
+  loadCatalog().then(c => { cat = c; draw(); })
+    .catch(e => { clear(root).append(h('p', { class: 'muted bold' }, e.message)); });
   return root;
 }
 
@@ -377,6 +391,7 @@ export function openHabitEditor(habit = null, { onSaved, preset } = {}) {
     time_of_day: src.time_of_day || 'any', remind_time: src.remind_time || '',
   };
   const s = sheet(h('div'), { label: isNew ? 'Новая привычка' : 'Изменить привычку' });
+  if (isNew && !catalogNow()) loadCatalog().then(() => { if (s.panel.isConnected) draw(); }).catch(() => {});
 
   const draw = () => {
     const title = h('input', { class: 'input', type: 'text', maxlength: '40', placeholder: form.kind === 'quit' ? 'Например: Без сахара' : 'Например: Пить воду', value: form.title, 'aria-label': 'Название привычки' });
@@ -471,12 +486,13 @@ export function openHabitEditor(habit = null, { onSaved, preset } = {}) {
       isNew ? (() => {
         const more = h('button', { type: 'button', class: 'chip c-lime' }, '✨ Все шаблоны');
         more.addEventListener('click', () => { s.close(); openTemplatePicker({ onDone: () => onSaved && onSaved(null) }); });
+        // по одной первой привычке из каждой сферы каталога («бросить» в каталоге нет)
+        const quick = form.kind === 'build' && catalogNow() ? catalogNow().map(sp => sp.habits[0]).slice(0, 6) : [];
         return h('div', null, h('div', { class: 'cal2-label' }, 'Быстрый старт'),
-          h('div', { class: 'chips' }, TEMPLATES.filter(t => (t.kind || 'build') === form.kind).slice(0, 6).map(t => {
+          h('div', { class: 'chips' }, quick.map(t => {
             const b = h('button', { type: 'button', class: `chip c-${t.color}` }, `${t.emoji} ${t.title}`);
             b.addEventListener('click', pick(() => {
-              const { pack: _p, hint: _h, ...rest } = t;
-              Object.assign(form, { kind: 'build', target: 1, unit: '', schedule: 'daily', days: '1111111', per_week: 3, time_of_day: 'any', remind_time: '' }, rest);
+              Object.assign(form, { unit: '', remind_time: '' }, fromCatalog(t));
             }));
             return b;
           }), more));

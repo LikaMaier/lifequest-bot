@@ -1,5 +1,6 @@
-// Сферы пользователя: стандартные (их можно переименовать, сменить эмодзи
-// и цвет, удалить) и свои (можно добавить и удалить).
+// Сферы пользователя: стандартные — 8 сфер банка привычек (включаются по
+// выбору; можно переименовать, сменить эмодзи и цвет, удалить), прежние 6
+// у пользователей до банка v2 и свои (можно добавить и удалить).
 // Используются у привычек и в статистике «Прогресс».
 
 import { h } from './dom.js';
@@ -12,6 +13,9 @@ const COLORS = ['lime', 'blue', 'pink', 'yellow', 'lav', 'orange', 'purple', 're
 const EMOJIS = ['🛡️', '🔋', '📚', '🦁', '🧭', '🎨', '💼', '💰', '❤️', '👨‍👩‍👧', '🏠', '🧘', '🏃', '🍎', '😴', '🎵',
   '✈️', '🌱', '🧠', '🤝', '📈', '🎓', '🙏', '⭐'];
 
+// прежние стандартные сферы привычек — они же сферы квестов
+const QUEST_SPHERES = ['Дисциплина', 'Энергия', 'Саморазвитие', 'Смелость', 'Приключения', 'Творчество'];
+
 export const userSpheres = () => (store.state && store.state.user_spheres) || [];
 export const sphereByKey = key => userSpheres().find(s => s.key === key) || null;
 
@@ -23,18 +27,37 @@ export function openSphereManager({ onChange } = {}) {
       const b = h('button', { type: 'button', class: `quest-item c-${sp.color}` },
         h('span', { class: 'q-emoji', 'aria-hidden': 'true' }, sp.emoji),
         h('span', { class: 'grow' }, h('span', { class: 'q-title', style: { display: 'block' } }, sp.name),
-          h('span', { class: 'q-meta', style: { display: 'block' } }, sp.custom ? 'своя сфера' : 'стандартная · квесты тоже считаются сюда')),
+          h('span', { class: 'q-meta', style: { display: 'block' } }, sp.custom ? 'своя сфера' : QUEST_SPHERES.includes(sp.key) ? 'прежняя · квесты тоже считаются сюда' : 'стандартная')),
         h('span', { 'aria-hidden': 'true' }, '✏️'));
       b.addEventListener('click', () => { haptic.tap(); openSphereEditor(sp, { onDone: changed }); });
       return b;
     });
     const add = h('button', { type: 'button', class: 'btn block' }, '＋ Своя сфера');
     add.addEventListener('click', () => { haptic.tap(); openSphereEditor(null, { onDone: changed }); });
+    // сферы из банка привычек, которые ещё не включены
+    const more = ((store.state && store.state.user_spheres_available) || []).map(sp => {
+      const b = h('button', { type: 'button', class: `chip c-${sp.color}` }, `＋ ${sp.emoji} ${sp.name}`);
+      b.addEventListener('click', busy(b, async () => {
+        try {
+          const res = await api.enableSpheres([sp.key]);
+          store.state.user_spheres = res.spheres;
+          store.state.user_spheres_available = res.available;
+          haptic.success();
+          refreshState().catch(() => {});
+          changed();
+        } catch (e) { toastError(e); }
+      }));
+      return b;
+    });
     s.setContent(h('div', null,
       h('h2', { class: 'center' }, 'Сферы жизни'),
       h('p', { class: 'center small bold muted', style: { margin: '4px 0 14px' } },
         'Привычки можно отнести к сфере — так в «Прогрессе» видно, чему ты уделяешь время'),
-      h('div', { class: 'stack-sm' }, rows), h('div', { style: { marginTop: '14px' } }, add)));
+      h('div', { class: 'stack-sm' }, rows),
+      more.length ? h('div', { style: { marginTop: '14px' } },
+        h('div', { class: 'small bold muted', style: { margin: '0 2px 6px' } }, 'Добавить сферу'),
+        h('div', { class: 'chips' }, more)) : null,
+      h('div', { style: { marginTop: '14px' } }, add)));
   };
   const changed = () => { draw(); onChange && onChange(); };
   s = sheet(h('div'), { label: 'Сферы жизни' });
