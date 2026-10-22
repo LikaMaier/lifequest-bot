@@ -141,8 +141,8 @@ export function render(el, { state, go }) {
   const tour = h('button', { type: 'button', class: 'quest-item c-lav', style: { marginTop: '14px' } },
     h('span', { class: 'q-emoji', 'aria-hidden': 'true' }, '💡'),
     h('span', { class: 'grow' }, h('span', { class: 'q-title', style: { display: 'block' } }, 'Как устроен LifeQuest'),
-      h('span', { class: 'q-meta', style: { display: 'block' } }, 'Миссия и возможности приложения')));
-  tour.addEventListener('click', () => { haptic.tap(); import('../onboarding.js').then(m => m.showOnboarding()); });
+      h('span', { class: 'q-meta', style: { display: 'block' } }, 'Приветствие: сферы и первые привычки')));
+  tour.addEventListener('click', () => { haptic.tap(); import('../onboarding.js').then(m => m.showOnboarding({ go })); });
   el.append(tour);
 
   // Утренняя сводка планов
