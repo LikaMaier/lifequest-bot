@@ -66,6 +66,9 @@ class ApiTest(TempDBTestCase, AioHTTPTestCase):
 
     async def test_full_quest_cycle(self):
         h = headers(42)
+        free = await self.client.post("/api/quest/random", headers=h, json={"mode": "pair"})
+        self.assertEqual((await free.json()).get("code"), "premium_quests")  # случайные квесты — в Premium
+        storage.update_user(42, is_premium=1)
         quest = (await (await self.client.post("/api/quest/random", headers=h, json={"mode": "pair"})).json())["quest"]
         self.assertEqual(quest["mode"], "pair")
         acc = await (await self.client.post("/api/quest/accept", headers=h, json={"id": quest["id"]})).json()

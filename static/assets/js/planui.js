@@ -261,7 +261,7 @@ export function openPlanEditor({ date, plan = null, onChange, boardCell = null, 
 }
 
 export function openQuestPicker(date, { onChange } = {}) {
-  const st = { q: '', mode: '', sphere: '', items: [] };
+  const st = { q: '', mode: '', items: [] };
   const s = sheet(h('div'), { label: 'Запланировать задание' });
   const list = h('div', { class: 'stack-sm' });
   const search = h('input', { class: 'input', type: 'search', placeholder: 'Поиск по заданиям', 'aria-label': 'Поиск по заданиям' });
@@ -302,13 +302,7 @@ export function openQuestPicker(date, { onChange } = {}) {
   const modeChips = () => h('div', { class: 'chips', role: 'group', 'aria-label': 'Формат' },
     [['', '✨ Все', 'yellow'], ['solo', '🎯 Для себя', 'purple'], ['pair', '💞 Вдвоём', 'pink'], ['company', '👥 Компания', 'orange']].map(([k, label, color]) => {
       const b = h('button', { type: 'button', class: `chip c-${color}`, 'aria-pressed': String(st.mode === k) }, label);
-      b.addEventListener('click', () => { haptic.select(); st.mode = k; if (k !== 'solo') st.sphere = ''; draw(); load(); });
-      return b;
-    }));
-  const sphereChips = () => st.mode !== 'solo' ? null : h('div', { class: 'chips', role: 'group', 'aria-label': 'Сфера' },
-    ['', ...Object.keys(SPHERE_INFO)].map(sp => {
-      const b = h('button', { type: 'button', class: `chip c-${sp ? SPHERE_INFO[sp].color : 'yellow'}`, 'aria-pressed': String(st.sphere === sp) }, sp ? `${SPHERE_INFO[sp].emoji} ${sp}` : 'Любая сфера');
-      b.addEventListener('click', () => { haptic.select(); st.sphere = sp; draw(); load(); });
+      b.addEventListener('click', () => { haptic.select(); st.mode = k; draw(); load(); });
       return b;
     }));
   const random = h('button', { type: 'button', class: 'btn colored c-lime block' }, '🎲 Случайное');
@@ -319,7 +313,7 @@ export function openQuestPicker(date, { onChange } = {}) {
   });
   const draw = () => {
     search.value = st.q;
-    s.setContent(h('div', { class: 'stack' }, h('h2', null, `Задание на ${fmtDay(date)}`), search, modeChips(), sphereChips(), random, list));
+    s.setContent(h('div', { class: 'stack' }, h('h2', null, `Задание на ${fmtDay(date)}`), search, modeChips(), random, list));
   };
   draw();
   load();

@@ -41,17 +41,22 @@ class RandomQuestDBTest(TempDBTestCase):
         self.assertGreater(len(pool), game.RECENT_OFFERS)
 
     def test_done_quest_not_offered_again(self):
+        storage.update_user(1, is_premium=1)
         rng = random.Random(3)
-        pool = [q["id"] for q in CATALOG.values() if q["mode"] == "solo" and q["sphere"] == "Смелость"]
+        pool = [q["id"] for q in CATALOG.values() if q["mode"] == "pair" and not q.get("pack")]
         first = pool[0]
         res = game.accept_quest(1, first)
         game.complete_quest(1, res["active_id"])
-        offered = {game.random_quest(1, "solo", "Смелость", rng=rng)["id"] for _ in range(len(pool) - 1)}
+        offered = {game.random_quest(1, "pair", rng=rng)["id"] for _ in range(game.RECENT_OFFERS)}
         self.assertNotIn(first, offered)
 
-    def test_sphere_filter_and_daily_limit(self):
-        q = game.random_quest(1, "solo", "Энергия", rng=random.Random(1))
-        self.assertEqual(q["sphere"], "Энергия")
+    def test_premium_only_no_sphere_filter_and_daily_limit(self):
+        with self.assertRaises(game.QuestError) as err:
+            game.random_quest(1, "solo")
+        self.assertEqual(err.exception.code, "premium_quests")  # без Premium — только наборы
+        storage.update_user(1, is_premium=1)
+        spheres = {game.random_quest(1, "solo", "Энергия", rng=random.Random(k))["sphere"] for k in range(12)}
+        self.assertGreater(len(spheres), 1)  # сфера больше не фильтрует — задания случайные
         conn = storage.connect()
         today = game.local_today(storage.get_user(1)).isoformat()
         conn.executemany("INSERT INTO quest_offers (user_id, quest_key, mode, local_date) VALUES (1, 'x', 'solo', ?)",
@@ -61,8 +66,6 @@ class RandomQuestDBTest(TempDBTestCase):
         with self.assertRaises(game.QuestError) as err:
             game.random_quest(1, "solo")
         self.assertEqual(err.exception.code, "roll_limit")
-        storage.update_user(1, premium_until="2999-01-01 00:00:00")  # с Premium лимит выше
-        game.random_quest(1, "solo")
 
     def test_bad_mode(self):
         with self.assertRaises(game.QuestError):

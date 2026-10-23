@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+import os
 from unittest import mock
 
 from tests.helpers import TempDBTestCase
@@ -95,7 +96,9 @@ class PacksTest(TempDBTestCase):
         self.assertEqual(err.exception.code, "pack")
         storage.update_user(1, is_premium=1)
         game.accept_quest(1, paid)
-        view = {p["id"]: p for p in game.packs_view(1)}
+        self.assertNotIn("weekend", [p["id"] for p in game.packs_view(1)])  # скрыт у всех…
+        with mock.patch.dict(os.environ, {"ADMIN_ID": "1"}):  # …кроме владелицы
+            view = {p["id"]: p for p in game.packs_view(1)}
         statuses = [q["status"] for q in view["weekend"]["quests"]]
         self.assertEqual(statuses.count("active"), 2)
 
