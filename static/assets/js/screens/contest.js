@@ -15,6 +15,7 @@ import {
 } from '../contestui.js';
 
 let data = null; // { contest, templates }
+const TEMPLATE_COLOR = { sport: 'orange', clean: 'pink', growth: 'purple', routine: 'yellow' };
 let fetchedAt = 0;
 
 export async function render(el, ctx) {
@@ -117,7 +118,7 @@ function lobby(el, ctx, c) {
     items.append(add,
       h('div', { class: 'cal2-label', style: { marginTop: '14px' } }, 'Готовые наборы'),
       h('div', { class: 'ct-templates' }, data.templates.map(t => {
-        const b = h('button', { type: 'button', class: 'ct-template' },
+        const b = h('button', { type: 'button', class: `ct-template c-${TEMPLATE_COLOR[t.id] || 'lav'}` },
           h('span', { class: 'ct-template-emoji', 'aria-hidden': 'true' }, t.emoji),
           h('b', null, t.title),
           h('span', null, t.items.map(x => x.title).join(', ')));
@@ -140,8 +141,13 @@ function lobby(el, ctx, c) {
   if (c.member) {
     const missing = !c.items.length ? (c.mine ? 'Добавь хотя бы один пункт' : `Ждём, пока ${c.creator.name} добавит пункты`)
       : c.members_count < c.limits.min_members ? 'Нужно хотя бы 2 участника' : '';
-    const go = h('button', { type: 'button', class: 'btn block', disabled: Boolean(missing) }, '🚀 Запустить');
-    go.addEventListener('click', () => { haptic.tap(); confirmLaunch(el, ctx, c); });
+    // кнопка всегда яркая: если чего-то не хватает — подсказываем, чего именно
+    const go = h('button', { type: 'button', class: 'btn block' }, '🚀 Запустить');
+    go.addEventListener('click', () => {
+      if (missing) { haptic.warning(); toast(missing, 'bad'); return; }
+      haptic.tap();
+      confirmLaunch(el, ctx, c);
+    });
     foot.append(go);
     if (missing) foot.append(h('p', { class: 'ct-hint center' }, missing));
   }

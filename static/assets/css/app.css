@@ -1587,9 +1587,10 @@ p { margin: 0; }
 .ct-num { min-width: 52px; min-height: 38px; padding: 0 6px; border: 0; border-radius: 10px; background: var(--white); font-family: inherit; font-weight: 800; font-size: 14px; color: var(--ink); }
 
 .ct-templates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.ct-template { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px; border-radius: 16px; border: 2px solid var(--line); background: var(--white); font-family: inherit; text-align: left; color: var(--ink); }
-.ct-template b { font-size: 14px; }
-.ct-template span:last-child { font-size: 11.5px; font-weight: 700; color: var(--muted); line-height: 1.25; }
+.ct-template { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px; border-radius: 18px; border: 0; background: var(--c, var(--white)); box-shadow: 0 4px 0 var(--c-deep, var(--line)); font-family: inherit; text-align: left; color: var(--ink); }
+.ct-template:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--c-deep, var(--line)); }
+.ct-template b { font-size: 14.5px; }
+.ct-template span:last-child { font-size: 11.5px; font-weight: 700; color: color-mix(in srgb, var(--c-deep, var(--muted)) 75%, var(--ink)); line-height: 1.25; }
 .ct-template-emoji { font-size: 22px; }
 
 .ct-launch-items { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; padding: 10px 12px; border-radius: 14px; background: var(--cream-2); font-size: 13.5px; font-weight: 700; text-align: left; }
@@ -1729,7 +1730,6 @@ p { margin: 0; }
 
 /* ---------- Соревнование на Главной — яркая карточка ---------- */
 .dsp.contest { background: radial-gradient(circle at 85% 0%, #FFF3A8 0, transparent 40%), linear-gradient(135deg, #8EE3C8 0%, #7FB8FF 55%, #B79CFF 100%); }
-.dsp.contest.lobby { background: radial-gradient(circle at 85% 0%, #FFFFFF 0, transparent 40%), linear-gradient(135deg, #E5D9FF 0%, #C9E7FF 100%); border-style: dashed; }
 .cts-board { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .cts-row { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 16px; background: rgba(255,255,255,.5); }
 .cts-row.me { background: rgba(255,255,255,.88); box-shadow: inset 0 0 0 2px var(--ink); }
@@ -1745,7 +1745,9 @@ p { margin: 0; }
 /* ---------- Ещё ярче: соревнование — тёплый градиент и пьедестал ---------- */
 .dsp.contest { background: radial-gradient(circle at 12% 0%, #FFF27A 0, transparent 42%), radial-gradient(circle at 100% 100%, #7A5CFF 0, transparent 55%),
   linear-gradient(135deg, #FFB547 0%, #FF6FA1 50%, #A86BFF 100%); color: #2A1408; }
-.dsp.contest.lobby { background: radial-gradient(circle at 15% 0%, #FFFFFF 0, transparent 40%), linear-gradient(135deg, #FFE27A 0%, #FFB8D9 55%, #C7B2FF 100%); }
+.dsp.contest.lobby { background: radial-gradient(circle at 15% 0%, #FFF27A 0, transparent 42%), linear-gradient(135deg, #FFB547 0%, #FF7A8A 55%, #B57CFF 100%); border-style: solid; }
+.dsp.contest.lobby .cts-pet { background: rgba(255, 255, 255, .8); }
+.dsp.contest.lobby .dsp-badge.wait { background: var(--ink); color: #FFE27A; }
 .dsp.contest .dsp-title { text-shadow: 0 2px 0 rgba(255,255,255,.45); }
 .cts-podium { display: grid; gap: 8px; align-items: end; margin-top: 10px; }
 .cts-podium.n3 { grid-template-columns: 1fr 1.15fr 1fr; }
@@ -1786,7 +1788,6 @@ p { margin: 0; }
 .dsp-vs3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
 .dsp-vs3 .dsp-side { position: relative; }
 .dsp-medal { position: absolute; top: 4px; left: 6px; font-size: 18px; }
-.dsp.contest.lobby { background: radial-gradient(circle at 15% 0%, #FFF6C2 0, transparent 45%), linear-gradient(135deg, #FFE27A 0%, #FFC2DA 100%); }
 .login-pet { display: flex; width: 26px; height: 24px; }
 .login-pet .mascot { width: 26px; height: 24px; }
 .login-mascot-hint { margin: 2px 0 0; font-weight: 800; font-size: 13px; color: var(--accent-deep, var(--pink-deep)); }
