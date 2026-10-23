@@ -32,6 +32,7 @@ import compliments
 import admin_report
 import albums
 import contests
+import admin_tools
 import duels
 import friends
 import game
@@ -1171,6 +1172,28 @@ async def send_oneoff_note():
         print(f"One-off note failed: {e}")
 
 
+OWNER_RESET_KEY = "oneoff_owner_free_view_2026_10_23"
+
+
+async def run_owner_reset():
+    """Разово: у владелицы снять Premium и обнулить XP, у друга Алексея — обнулить XP."""
+    if not ADMIN_ID:
+        return
+    conn = storage.connect()
+    done = conn.execute("SELECT 1 FROM meta WHERE key = ?", (OWNER_RESET_KEY,)).fetchone()
+    if not done:
+        conn.execute("INSERT INTO meta (key, value) VALUES (?, ?)", (OWNER_RESET_KEY, storage.utc_now_str()))
+        conn.commit()
+    conn.close()
+    if done:
+        return
+    try:
+        report = admin_tools.owner_free_view(ADMIN_ID)
+        await ops.safe_send(ADMIN_ID, report)
+    except Exception as e:
+        await ops.alert("owner reset", e)
+
+
 # ==================== MAIN ====================
 async def main():
     # HTTP API и статика мини-аппа — в этом же процессе (Railway: тип web, $PORT).
@@ -1218,6 +1241,7 @@ async def main():
     print("Admin alerts and nightly backups: " + ("on" if ADMIN_ID else
           "OFF — задайте ADMIN_ID (ваш Telegram id), чтобы получать копии базы и ошибки"))
     await send_oneoff_note()
+    await run_owner_reset()
     scheduler.start()
 
     await dp.start_polling(bot)
