@@ -16,12 +16,16 @@ export function render(el, ctx) {
   const { state } = ctx;
   el.append(h('header', { class: 'page-head' }, myMascot('silly', { size: 56 }),
     h('div', { class: 'grow' }, h('h1', null, 'Квесты'), h('p', null, 'Выбери формат — я подкину задание. Не понравится — возьмём другое.'))));
-  // Брось вызов: дуэли и общие серии с друзьями
-  const duel = h('button', { type: 'button', class: 'duel-cta', style: { marginBottom: '16px' } },
-    h('span', { class: 'duel-cta-emoji', 'aria-hidden': 'true' }, '⚔️'),
-    h('span', { class: 'grow' }, h('b', null, 'Брось вызов'), h('span', { class: 'sub' }, 'Соревнуйся с друзьями')),
-    h('span', { class: 'hub-album-go', 'aria-hidden': 'true' }, '›'));
-  duel.addEventListener('click', () => { haptic.tap(); ctx.go('friends'); });
+  // Брось вызов — яркая карточка: сразу выбор формата (1 на 1 или компания)
+  const duel = h('button', { type: 'button', class: 'challenge-hero' },
+    h('span', { class: 'challenge-hero-emoji', 'aria-hidden': 'true' }, '⚔️'),
+    h('span', { class: 'grow' }, h('b', null, 'Брось вызов'),
+      h('span', null, 'Соревнуйся с друзьями — один на один или целой компанией')),
+    h('span', { class: 'challenge-hero-go' }, 'Вызвать'));
+  duel.addEventListener('click', async () => {
+    haptic.tap('medium');
+    (await import('./friends.js')).openChallengeChooser(ctx);
+  });
   el.append(duel);
 
   // Случайный квест — с Premium; наборы ниже — для всех

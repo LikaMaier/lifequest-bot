@@ -1,15 +1,37 @@
-// Друзья: свои соревнования (лобби → правила → игра), вызовы на привычки
-// (дуэль и «вместе»), лига недели, приглашения, серии, приглашение по ссылке.
+// Друзья: одна кнопка «Брось вызов» (1 на 1 по привычке — дуэль или «вместе»;
+// компания с пунктами — своё соревнование), лига недели, приглашения, серии.
 
 import { h, clear, plural } from '../dom.js';
 import { haptic, openTgLink } from '../tg.js';
 import { api } from '../api.js';
 import { mascot } from '../mascot.js';
-import { sectionTitle, skeleton, toastError, button } from '../ui.js';
+import { sectionTitle, skeleton, toastError, button, sheet } from '../ui.js';
 import { duelCard, openDuelCreator } from '../duelui.js';
 import { contestCard, openContestCreator } from '../contestui.js';
 
 let cache = null;
+
+/** Выбор формата вызова: 1 на 1 по привычке (дуэль) или компания с пунктами (соревнование). */
+export function openChallengeChooser(ctx, redraw = () => {}) {
+  const s = sheet(h('div'), { label: 'Брось вызов' });
+  // открыли не с экрана «Друзья» — список друзей для дуэли подгрузим сами
+  const friendsList = async () => (cache && cache.friends) || (await api.friends()).friends;
+  const option = (emoji, color, title, lines, onPick) => {
+    const b = h('button', { type: 'button', class: `ch-choice c-${color}` },
+      h('span', { class: 'ch-choice-emoji', 'aria-hidden': 'true' }, emoji),
+      h('span', { class: 'grow' }, h('b', null, title), lines.map(t => h('span', null, t))));
+    b.addEventListener('click', () => { haptic.tap(); s.close(); onPick(); });
+    return b;
+  };
+  s.setContent(h('div', { class: 'stack' },
+    h('h2', null, '⚔️ Брось вызов'),
+    h('p', { class: 'bold muted', style: { margin: '-6px 0 0' } }, 'Выбери формат'),
+    option('🤺', 'orange', '1 на 1 по привычке', ['С одним другом и одной привычкой', 'Засчитывается само, когда отмечаешь привычку', 'Дуэль — у кого серия длиннее, или «вместе» — общая серия'],
+      async () => { try { openDuelCreator(ctx, { friends: await friendsList(), onDone: () => { cache = null; redraw(); } }); } catch (e) { toastError(e); } }),
+    option('🏆', 'purple', 'Компания и несколько пунктов', ['До 20 человек по ссылке', 'Свои пункты: «без сахара», «зарядка», «8000 шагов»', 'Отмечаете каждый день — побеждает тот, у кого больше очков'],
+      () => openContestCreator(ctx, { onDone: () => { cache = null; } }))));
+  return s;
+}
 
 /** Ссылка-приглашение: новичку и пригласившему — по заморозке. */
 export function inviteLink(state, questId = null) {
@@ -51,34 +73,24 @@ async function draw(el, ctx) {
   clear(body);
   const du = cache.duels;
 
-  // Свои соревнования: сами решаем, в чём состязаться
+  // Одна кнопка «Брось вызов» — внутри выбор: 1 на 1 по привычке или компания с пунктами
   const co = cache.contests;
-  const ccta = h('button', { type: 'button', class: 'duel-cta ct-cta' },
-    h('span', { class: 'duel-cta-emoji', 'aria-hidden': 'true' }, '🏆'),
-    h('span', { class: 'grow' }, h('b', null, 'Своё соревнование'),
-      h('span', { class: 'sub' }, 'Собери друзей и придумайте вместе, в чём состязаться')));
-  ccta.addEventListener('click', () => { haptic.tap(); openContestCreator(ctx, { onDone: () => { cache = null; } }); });
-  body.append(ccta);
-  const contests = [...co.lobby, ...co.active, ...co.finished.slice(0, 2)];
-  if (contests.length) {
-    body.append(sectionTitle('Соревнования'), h('div', { class: 'stack-sm' }, contests.map(c => contestCard(c, { go: ctx.go }))));
-  }
-
-  // Вызовы на привычки — дуэль один на один
-  body.append(h('div', { style: { height: '12px' } }));
-  const cta = h('button', { type: 'button', class: 'duel-cta' },
-    h('span', { class: 'duel-cta-emoji', 'aria-hidden': 'true' }, '⚔️'),
-    h('span', { class: 'grow' }, h('b', null, 'Бросить вызов'),
-      h('span', { class: 'sub' }, 'Дуэль или общая серия по привычке — с другом')));
-  cta.addEventListener('click', () => { haptic.tap(); openDuelCreator(ctx, { friends: cache.friends, onDone: redraw }); });
+  const cta = h('button', { type: 'button', class: 'challenge-hero' },
+    h('span', { class: 'challenge-hero-emoji', 'aria-hidden': 'true' }, '⚔️'),
+    h('span', { class: 'grow' }, h('b', null, 'Брось вызов'),
+      h('span', null, 'Другу один на один или целой компании')),
+    h('span', { class: 'challenge-hero-go' }, 'Вызвать'));
+  cta.addEventListener('click', () => { haptic.tap(); openChallengeChooser(ctx, redraw); });
   body.append(cta);
+
+  const contests = [...co.lobby, ...co.active, ...co.finished.slice(0, 2)];
   const cards = [...du.incoming, ...du.active, ...du.outgoing, ...du.finished.slice(0, 2)];
-  if (cards.length) {
-    body.append(sectionTitle('Вызовы'), h('div', { class: 'stack-sm' },
-      cards.map(d => duelCard(d, { state, onChange: redraw }))));
+  if (cards.length || contests.length) {
+    body.append(sectionTitle('Твои вызовы'), h('div', { class: 'stack-sm' },
+      contests.map(c => contestCard(c, { go: ctx.go })), cards.map(d => duelCard(d, { state, onChange: redraw }))));
   } else {
     body.append(h('p', { class: 'small bold muted', style: { margin: '10px 4px 0' } },
-      '⚔️ Дуэль — кто чаще выполнит привычку. 🤝 Вместе — общая серия: день засчитан, только если сделали оба. Друг получит приглашение в боте, а прогресс друг друга видно каждый день.'));
+      'Вызови друга на привычку один на один или собери компанию и соревнуйтесь по очкам — кто больше сделает за неделю.'));
   }
 
   const invite = h('div', { class: 'card tinted c-blue', style: { marginTop: '14px' } },
