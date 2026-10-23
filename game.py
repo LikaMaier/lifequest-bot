@@ -465,11 +465,15 @@ def choose_quest(pool: list, done: set, active: set, recent: set, rng=random) ->
 
 
 def random_quest(user_id: int, mode: str, sphere: str = None, rng=random) -> dict:
+    """Случайный квест («Для себя», «На двоих», «Для компании») — только с Premium.
+    Сферы не выбираются: задание просто случайное в своём формате."""
     if mode not in MODES:
         raise QuestError("Неизвестный режим")
-    if sphere and (mode != "solo" or sphere not in BINGO_SPHERES):
-        sphere = None
+    sphere = None
     user = storage.get_user(user_id)
+    if not is_premium(user):
+        raise QuestError("Случайные квесты — в Premium 💛 Тематические наборы доступны всем",
+                         code="premium_quests")
     today = local_today(user)
     if rolls_today(user_id, today) >= roll_limit(user):
         raise QuestError("На сегодня попытки закончились — загляни завтра или возьми задание из избранного 💛",
@@ -1128,11 +1132,12 @@ def packs_view(user_id: int) -> list:
     user = storage.get_user(user_id)
     today = local_today(user)
     premium = is_premium(user)
+    owner = user_id == int(os.getenv("ADMIN_ID", "0") or 0)  # владелица видит и скрытые наборы
     done = _keys_with_status(user_id, "done")
     active = _active_keys(user_id)
     out = []
     for pid, emoji, name, about, mode, _season in packs.PACKS:
-        if not packs.in_season(pid, today):
+        if (pid in packs.HIDDEN and not owner) or not packs.in_season(pid, today):
             continue
         quests = []
         for qid, q in CATALOG.items():

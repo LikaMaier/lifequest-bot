@@ -1,15 +1,15 @@
-// ② Квесты: три кнопки случайного задания с выбором сферы, списки
-// активных / выполненных / избранных с поиском и фильтром по сфере.
+// ② Квесты: три кнопки случайного задания (Premium), тематические наборы
+// (первые задания — всем), списки активных / выполненных / избранных с поиском.
 
 import { h, clear, plural, fmtDay } from '../dom.js';
 import { haptic } from '../tg.js';
 import { api } from '../api.js';
 import { myMascot } from '../mascot.js';
 import { emptyState, sectionTitle, skeleton, busy, toastError, sheet, SPHERE_INFO } from '../ui.js';
-import { modeButtons, openQuest, questItem, completeQuest, sphereChips, openMoodQuest } from '../questflow.js';
+import { modeButtons, openQuest, questItem, completeQuest } from '../questflow.js';
 import { openPaywall } from '../premium.js';
 
-const view = { packs: null, tab: 'active', query: '', soloSphere: null, history: null, historyLoading: false };
+const view = { packs: null, tab: 'active', query: '', history: null, historyLoading: false };
 
 export function render(el, ctx) {
   clear(el);
@@ -24,13 +24,12 @@ export function render(el, ctx) {
   duel.addEventListener('click', () => { haptic.tap(); ctx.go('friends'); });
   el.append(duel);
 
-  // Генератор
-  el.append(h('div', { class: 'small bold muted', style: { margin: '0 2px 8px' } }, 'Сфера задания «Для себя»'),
-    sphereChips(view.soloSphere, sp => { view.soloSphere = sp; }),
-    modeButtons(() => view.soloSphere),
-    moodButton(),
-    h('p', { class: 'center tiny muted bold', style: { marginTop: '4px' } },
-      `Сегодня ещё ${state.rolls_left} ${plural(state.rolls_left, 'попытка', 'попытки', 'попыток')} — заданий без повторов хватит надолго`));
+  // Случайный квест — с Premium; наборы ниже — для всех
+  const premium = Boolean(state.premium && state.premium.active);
+  el.append(modeButtons(),
+    h('p', { class: 'center tiny muted bold', style: { marginTop: '4px' } }, premium
+      ? `Сегодня ещё ${state.rolls_left} ${plural(state.rolls_left, 'попытка', 'попытки', 'попыток')} — заданий без повторов хватит надолго`
+      : 'Случайные квесты — в Premium. Наборы ниже открыты всем 💛'));
 
   // Тематические наборы
   const packsHost = h('div', { class: 'pack-row', role: 'list', 'aria-label': 'Наборы квестов' });
@@ -52,12 +51,6 @@ export function render(el, ctx) {
   search.addEventListener('input', () => { view.query = search.value; drawList(listHost, ctx); });
   el.append(search, listHost);
   drawList(listHost, ctx);
-}
-
-function moodButton() {
-  const b = h('button', { type: 'button', class: 'btn block colored c-purple', style: { marginTop: '10px' } }, '✨ Квест под настроение');
-  b.addEventListener('click', () => { haptic.tap(); openMoodQuest(); });
-  return b;
 }
 
 async function drawPacks(host, ctx) {
