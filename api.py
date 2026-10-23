@@ -766,7 +766,10 @@ def _range(request) -> tuple:
 
 async def get_plans(request):
     start, end = _range(request)
-    return web.json_response({"plans": plans.occurrences(request["user_id"], start, end)})
+    items = plans.occurrences(request["user_id"], start, end)
+    for o in items:  # эмодзи дела для цветных карточек дня
+        o["emoji"] = plans.plan_emoji(o)
+    return web.json_response({"plans": items})
 
 
 async def create_plan(request):

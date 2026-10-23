@@ -2028,3 +2028,13 @@ p { margin: 0; }
 .cal2-check-row.done .cal2-check-title { text-decoration: line-through; opacity: .6; }
 .cal2-check-time { font-weight: 800; font-size: 12.5px; color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { .cal2-swipe .cal2-plan, .cal2-mood button { transition: none; } }
+/* день: цветные карточки как в макете */
+.cal2-timeline .cal2-slot-body { border-top: 0; padding: 5px 0; }
+.cal2-slot-body .cal2-plan.vivid { background: var(--c); box-shadow: 0 4px 0 var(--c-deep); padding: 10px 10px 10px 14px; }
+.cal2-plan.vivid .cal2-plan-title { font-size: 16px; }
+.cal2-plan.vivid .cal2-plan-meta { color: color-mix(in srgb, var(--c-deep) 75%, var(--ink)); font-weight: 800; }
+.cal2-plan.vivid .cal2-check { width: 38px; height: 38px; border-width: 2.5px; }
+.cal2-plan.vivid.done { opacity: .75; }
+.cal2-window.light { min-height: 46px; padding: 10px 14px; border: 2.5px dashed var(--line); background: none; font-weight: 800; font-size: 13.5px; color: var(--muted); }
+.cal2-window.light .cal2-window-sub { color: var(--lav-deep); font-size: 12.5px; }
+.cal2-gesture-hint { margin: 12px 0 0; padding: 10px 12px; border-radius: 16px; background: var(--white); text-align: left; font-size: 12.5px; line-height: 1.5; }

@@ -375,20 +375,27 @@ function moodPicker(date, current, onSet) {
 /** Карточка плана: время, название, повтор/напоминание и круглая галочка. */
 const durText = m => (m >= 60 ? `${Math.floor(m / 60)} ч${m % 60 ? ` ${m % 60} мин` : ''}` : `${m} мин`);
 
-function planCard(o, today, onChange) {
+// цвета карточек дня (как в макете): свой цвет плана, иначе — по кругу
+const VIVID = ['lime', 'blue', 'yellow', 'pink', 'purple', 'orange'];
+const vividColor = o => (o.color && o.color !== 'yellow' ? o.color : VIVID[Math.abs(Number(o.id) || 0) % VIVID.length]);
+/** «🏃 Пробежка» — эмодзи, если его ещё нет в начале названия. */
+const withEmoji = o => (o.emoji && !o.title.startsWith(o.emoji) ? `${o.emoji} ${o.title}` : o.title);
+
+function planCard(o, today, onChange, { vivid = false } = {}) {
   const done = o.status === 'done';
   const subs = o.subtasks || [];
   const subsDone = subs.filter(x => x.done).length;
-  const meta = [o.quest ? 'Квест' : null, o.end_time ? `до ${o.end_time}` : null, o.duration ? durText(o.duration) : null,
+  const range = o.time ? (o.end_time ? `${o.time} – ${o.end_time}` : o.duration ? `${o.time} – ${endOf(o.time, o.duration)}` : o.time) : null;
+  const meta = [vivid ? range : null, o.quest ? 'Квест' : null, !vivid && o.end_time ? `до ${o.end_time}` : null, !vivid && o.duration ? durText(o.duration) : null,
     subs.length ? `${subsDone} из ${subs.length} ${plural(subs.length, 'пункта', 'пунктов', 'пунктов')}` : null,
     REPEAT_SHORT[o.repeat_rule], o.remind === 'hour_before' ? 'напомню за час' : o.remind === 'at_time' ? 'напомню вовремя' : null,
     o.photos ? `📷 ${o.photos}` : null].filter(Boolean).join(' · ');
   const info = h('button', { type: 'button', class: 'cal2-plan-info', 'aria-label': `${o.title}${o.time ? `, ${o.time}` : ''}. Открыть` },
-    h('span', { class: `cal2-time ${o.time ? '' : 'none'}` }, o.time || (o.quest ? o.quest.emoji : '—')),
+    vivid ? null : h('span', { class: `cal2-time ${o.time ? '' : 'none'}` }, o.time || (o.quest ? o.quest.emoji : '—')),
     h('span', { class: 'grow' }, o.focus ? h('span', { class: 'cal2-focus-kicker' }, '🎯 Главное сегодня') : null,
-      h('span', { class: 'cal2-plan-title' }, o.title), meta ? h('span', { class: 'cal2-plan-meta' }, meta) : null));
+      h('span', { class: 'cal2-plan-title' }, vivid ? withEmoji(o) : o.title), meta ? h('span', { class: 'cal2-plan-meta' }, meta) : null));
   info.addEventListener('click', () => { haptic.tap(); openPlanSheet(o, { onChange }); });
-  const card = h('div', { class: `cal2-plan ${done ? 'done' : ''} ${o.overdue ? 'overdue' : ''} ${o.focus ? 'focus' : ''}` }, info);
+  const card = h('div', { class: `cal2-plan ${done ? 'done' : ''} ${o.overdue ? 'overdue' : ''} ${o.focus ? 'focus' : ''} ${vivid ? `vivid c-${vividColor(o)}` : ''}` }, info);
   if (o.date <= today) {
     const check = h('button', { type: 'button', class: 'cal2-check', 'aria-pressed': String(done),
       'aria-label': done ? `Снять отметку: ${o.title}` : `Выполнено: ${o.title}`, disabled: done && Boolean(o.quest_key) }, ico('check'));
@@ -409,7 +416,7 @@ function planCard(o, today, onChange) {
         try {
           const res = await api.subtaskPlan(o.id, i, !sub.done);
           o.subtasks = res.subtasks;
-          card.replaceWith(planCard(o, today, onChange));
+          card.replaceWith(planCard(o, today, onChange, { vivid: card.classList.contains('vivid') }));
         } catch (e) { toastError(e); }
       }));
       return b;
@@ -616,9 +623,8 @@ function drawTimeline(host, date, plans, today, onChange, habitItems = []) {
   }
   const freeSlot = (fromMin, toMin) => {
     const hours = Math.floor((toMin - fromMin) / 60);
-    const btn = h('button', { type: 'button', class: 'cal2-window' }, ico('spark'),
-      h('span', { class: 'grow' }, h('span', { class: 'bold', style: { display: 'block' } }, `Свободно ${hours} ${plural(hours, 'час', 'часа', 'часов')}`),
-        h('span', { class: 'cal2-window-sub' }, 'Нажми — подберём квест на это окно')));
+    const btn = h('button', { type: 'button', class: 'cal2-window light' },
+      h('span', { class: 'grow' }, `Свободно ${hours} ${plural(hours, 'час', 'часа', 'часов')}`), h('span', { class: 'cal2-window-sub' }, '✨ квест?'));
     btn.addEventListener('click', () => { haptic.tap(); openQuestPicker(date, { onChange }); });
     return h('div', { class: 'cal2-slot' }, h('span', { class: 'cal2-hour' }, hhmm(fromMin)), h('div', { class: 'cal2-slot-body' }, btn));
   };
@@ -632,7 +638,7 @@ function drawTimeline(host, date, plans, today, onChange, habitItems = []) {
   if (date >= today && FREE_TO * 60 - cursor >= FREE_MIN_HOURS * 60) line.append(freeSlot(cursor, FREE_TO * 60));
   if (!line.childElementCount) line.append(h('p', { class: 'cal2-empty' }, date < today ? 'В этот день планов не было' : 'Пока пусто'));
   host.append(h('section', { class: 'cal2-card cal2-timeline' }, line));
-  if (plans.length) host.append(h('p', { class: 'cal2-gesture-hint' }, '👉 вправо — сделано · 👈 влево — на завтра · зажми — другое время · ручка снизу — длительность'));
+  if (plans.length) host.append(h('p', { class: 'cal2-gesture-hint' }, '👉 вправо — сделано · 👈 влево — на завтра · зажми и перетащи — другое время · тяни за край — длительность · свайп по дням сверху'));
   if (date <= today) {
     const moodHost = h('div');
     host.append(moodHost);
@@ -645,7 +651,7 @@ function drawTimeline(host, date, plans, today, onChange, habitItems = []) {
  *  долгое нажатие — перетащить на другое время; ручка снизу — длительность.
  *  Время и длительность меняются только у разовых планов (у повторов — в карточке). */
 function swipeable(o, today, onChange) {
-  const card = planCard(o, today, onChange);
+  const card = planCard(o, today, onChange, { vivid: true });
   const canDone = o.date <= today && o.status !== 'done';
   const canTime = Boolean(o.time) && (o.repeat_rule || 'none') === 'none' && o.status !== 'done';
   const wrap = h('div', { class: 'cal2-swipe' },
