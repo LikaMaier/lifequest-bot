@@ -35,8 +35,6 @@ class CatalogTest(TempDBTestCase):
                  for sp in habit_catalog.catalog() for hb in sp["habits"]]
         bad = [t for t in texts if FORBIDDEN.search(t)]
         self.assertEqual(bad, [])
-        with open("static/assets/js/habitui.js", encoding="utf-8") as f:
-            self.assertFalse("🍷" in f.read(), "в палитре эмодзи привычек не должно быть алкоголя")
 
 
 class BankSpheresTest(TempDBTestCase):

@@ -639,7 +639,9 @@ p { margin: 0; }
 @keyframes onb-in-left { from { transform: translateX(-40px); opacity: 0; } to { transform: none; opacity: 1; } }
 .onb-hero {
   align-self: center; width: 164px; height: 150px; border-radius: 40px; display: grid; place-items: center;
-  background: var(--c); box-shadow: 0 7px 0 var(--c-deep); transform: rotate(-3deg); margin-bottom: 8px;
+  /* мягкий тон, чтобы маскот не сливался с фоном */
+  background: color-mix(in srgb, var(--c) 30%, var(--white)); box-shadow: 0 7px 0 color-mix(in srgb, var(--c-deep) 45%, var(--white));
+  transform: rotate(-3deg); margin-bottom: 8px;
 }
 .onb-title { font-size: 25px; text-align: center; }
 .onb-lead { text-align: center; font-weight: 700; font-size: 15px; line-height: 1.45; color: var(--ink-soft); }
