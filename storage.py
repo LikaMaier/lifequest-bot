@@ -375,6 +375,10 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, text TEXT NOT NULL, day TEXT NOT NULL,
         color TEXT DEFAULT 'yellow', pinned INTEGER DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)""")
     c.execute("CREATE INDEX IF NOT EXISTS idx_notes_user_day ON notes(user_id, day)")
+    # Настроение дня в календаре: sad | ok | good | great
+    c.execute("""CREATE TABLE IF NOT EXISTS day_moods (
+        user_id INTEGER NOT NULL, day TEXT NOT NULL, mood TEXT NOT NULL, updated_at TEXT,
+        PRIMARY KEY (user_id, day))""")
     # Общие фотоальбомы и доступ к своему альбому (albums.py)
     _ensure_column(c, "photos", "album_id", "INTEGER")
     c.execute("CREATE INDEX IF NOT EXISTS idx_photos_album ON photos(album_id)")

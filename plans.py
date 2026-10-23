@@ -13,6 +13,7 @@ import json
 from datetime import date, datetime, timedelta
 
 import game
+import photos
 import storage
 from quests_database import BINGO_SPHERES, CATALOG
 
@@ -292,6 +293,65 @@ def overdue_plans(user_id: int, days: int = 14) -> list:
     return [o for o in occurrences(user_id, t - timedelta(days=days), t - timedelta(days=1)) if o["overdue"]]
 
 
+# ==================== КАЛЕНДАРЬ-СТИКЕРБУК ====================
+MOODS = ("sad", "ok", "good", "great")
+# эмодзи дела по словам в названии (если в начале названия нет своего эмодзи)
+EMOJI_WORDS = [
+    (("день рожден", " др", "др ", "именин"), "🎂"), (("годовщин", "свадьб"), "💍"),
+    (("бег", "пробеж", "спорт", "трениров", "зал", "йог", "бассейн", "зарядк"), "🏃"),
+    (("звон", "созвон", "позвон"), "📞"), (("встреч", "кофе", "кафе"), "☕"),
+    (("кино", "фильм", "сериал"), "🎬"), (("книг", "чтени", "почитать", "читать"), "📚"),
+    (("врач", "доктор", "стоматолог", "анализ"), "🩺"), (("магазин", "купить", "покупк", "продукт"), "🛒"),
+    (("убор", "стирк", "помыть"), "🧹"), (("работ", "дедлайн", "отчёт", "отчет", "созвон по"), "💼"),
+    (("учёб", "учеб", "урок", "экзамен", "курс"), "🎓"), (("поездк", "поезд", "самолёт", "самолет", "путешеств"), "✈️"),
+    (("прогулк", "гулять", "парк"), "🚶"), (("свидани",), "💕"), (("праздник", "вечеринк", "тусовк"), "🎉"),
+    (("рисова", "рисунок"), "🎨"), (("музык", "концерт", "гитар"), "🎵"), (("готов", "ужин", "обед"), "🍳"),
+]
+_LEAD_EMOJI = re.compile(r"^\s*([\U0001F300-\U0001FAFF\u2600-\u27BF][\uFE0F\u200D\U0001F300-\U0001FAFF\u2600-\u27BF]*)")
+SPECIAL_WORDS = ("день рожден", "годовщин", "свадьб", "именин", "🎂")
+
+
+def plan_emoji(o: dict):
+    """Эмодзи дела для клетки календаря: квест → его эмодзи, эмодзи в начале
+    названия, иначе по словам; не нашли — None (клетка покажет точку)."""
+    if o.get("quest"):
+        return o["quest"].get("emoji")
+    title = o.get("title") or ""
+    m = _LEAD_EMOJI.match(title)
+    if m:
+        return m.group(1)
+    low = f" {title.lower()} "
+    for words, emoji in EMOJI_WORDS:
+        if any(w in low for w in words):
+            return emoji
+    return None
+
+
+def set_mood(user_id: int, day: str, mood) -> dict:
+    """Настроение дня (или None — убрать). Будущие дни не отмечаются."""
+    d = parse_date(day)
+    if d > _today(user_id):
+        raise game.QuestError("Настроение можно отметить за сегодня или прошедший день")
+    conn = storage.connect()
+    if mood in MOODS:
+        conn.execute("""INSERT INTO day_moods (user_id, day, mood, updated_at) VALUES (?, ?, ?, ?)
+                        ON CONFLICT(user_id, day) DO UPDATE SET mood = excluded.mood, updated_at = excluded.updated_at""",
+                     (user_id, d.isoformat(), mood, storage.utc_now_str()))
+    else:
+        conn.execute("DELETE FROM day_moods WHERE user_id = ? AND day = ?", (user_id, d.isoformat()))
+    conn.commit()
+    conn.close()
+    return {"day": d.isoformat(), "mood": mood if mood in MOODS else None}
+
+
+def moods(user_id: int, start: str, end: str) -> dict:
+    conn = storage.connect()
+    rows = conn.execute("SELECT day, mood FROM day_moods WHERE user_id = ? AND day BETWEEN ? AND ?",
+                        (user_id, start, end)).fetchall()
+    conn.close()
+    return dict(rows)
+
+
 def month_summary(user_id: int, month: str) -> dict:
     try:
         first = datetime.strptime(month, "%Y-%m").date()
@@ -300,19 +360,31 @@ def month_summary(user_id: int, month: str) -> dict:
     last = (first.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
     items = occurrences(user_id, first, last)
     conn = storage.connect()
-    photo_days = {r[0] for r in conn.execute("""
-        SELECT COALESCE(day, plan_date, substr(created_at, 1, 10)) FROM photos
-        WHERE user_id = ? AND COALESCE(day, plan_date, substr(created_at, 1, 10)) BETWEEN ? AND ?""",
-        (user_id, first.isoformat(), last.isoformat())).fetchall()}
+    photo_days = {}  # день → (сколько фото, id первого)
+    for pday, pid in conn.execute("""
+        SELECT COALESCE(day, plan_date, substr(created_at, 1, 10)) AS d, id FROM photos
+        WHERE user_id = ? AND COALESCE(day, plan_date, substr(created_at, 1, 10)) BETWEEN ? AND ?
+        ORDER BY created_at""", (user_id, first.isoformat(), last.isoformat())).fetchall():
+        n, first_id = photo_days.get(pday, (0, pid))
+        photo_days[pday] = (n + 1, first_id)
     quest_days = dict(conn.execute("""SELECT local_date, COUNT(*) FROM quest_history WHERE user_id = ? AND status = 'done'
                                       AND local_date BETWEEN ? AND ? GROUP BY local_date""",
                                    (user_id, first.isoformat(), last.isoformat())).fetchall())
     note_days = dict(conn.execute("""SELECT day, COUNT(*) FROM notes WHERE user_id = ? AND day BETWEEN ? AND ?
                                      GROUP BY day""", (user_id, first.isoformat(), last.isoformat())).fetchall())
+    day_mood = dict(conn.execute("SELECT day, mood FROM day_moods WHERE user_id = ? AND day BETWEEN ? AND ?",
+                                 (user_id, first.isoformat(), last.isoformat())).fetchall())
     conn.close()
     days = {}
     for o in items:
-        dd = days.setdefault(o["date"], {"modes": [], "planned": 0, "done": 0, "overdue": 0})
+        dd = days.setdefault(o["date"], {"modes": [], "planned": 0, "done": 0, "overdue": 0, "emojis": [], "special": None})
+        if o["status"] in ("planned", "done"):
+            em = plan_emoji(o)
+            if em and len(dd["emojis"]) < 3:
+                dd["emojis"].append(em)
+            title = o.get("title") or ""
+            if not dd["special"] and any(w in title.lower() for w in SPECIAL_WORDS):
+                dd["special"] = title[:24]
         if o["mode"] not in dd["modes"]:
             dd["modes"].append(o["mode"])
         if o["status"] == "done":
@@ -324,11 +396,13 @@ def month_summary(user_id: int, month: str) -> dict:
     d = first
     while d <= last:
         iso = d.isoformat()
-        dd = days.get(iso, {"modes": [], "planned": 0, "done": 0, "overdue": 0})
+        dd = days.get(iso, {"modes": [], "planned": 0, "done": 0, "overdue": 0, "emojis": [], "special": None})
         total = dd["planned"] + dd["done"]
-        result.append({**dd, "date": iso, "photo": iso in photo_days, "quests_done": quest_days.get(iso, 0),
-                       "notes": note_days.get(iso, 0),
-                       "complete": total > 0 and dd["planned"] == 0})
+        n_photos, photo_id = photo_days.get(iso, (0, None))
+        result.append({**dd, "date": iso, "photo": bool(n_photos), "photos": n_photos,
+                       "photo_thumb": photos.sign(user_id, photo_id, "thumb") if photo_id else None,
+                       "quests_done": quest_days.get(iso, 0), "notes": note_days.get(iso, 0),
+                       "mood": day_mood.get(iso), "complete": total > 0 and dd["planned"] == 0})
         d += timedelta(days=1)
     return {"month": month, "days": result, "today": _today(user_id).isoformat()}
 

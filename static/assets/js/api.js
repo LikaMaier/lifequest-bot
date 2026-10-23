@@ -128,6 +128,8 @@ export const api = {
   deleteInbox: id => request('DELETE', `api/inbox/${id}`),
   scheduleInbox: (id, data) => request('POST', `api/inbox/${id}/schedule`, data),
   calendarSummary: month => request('GET', `api/calendar/summary?month=${month}`),
+  setDayMood: (day, mood) => request('POST', 'api/day/mood', { day, mood }),
+  dayMoods: (from, to) => request('GET', `api/day/moods?from=${from}&to=${to}`),
   exportLink: (from, to) => request('POST', 'api/calendar/export-link', { from, to }),
   searchQuests: ({ q = '', mode = '', sphere = '' } = {}) =>
     request('GET', `api/quests/search?q=${encodeURIComponent(q)}&mode=${mode}&sphere=${encodeURIComponent(sphere)}`),
