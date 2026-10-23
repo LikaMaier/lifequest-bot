@@ -1962,9 +1962,6 @@ p { margin: 0; }
 .cal2-season { position: absolute; right: 64px; top: -14px; display: flex; gap: 2px; pointer-events: none; }
 .cal2-season i { font-style: normal; font-size: 18px; opacity: .6; }
 .cal2-season i + i { font-size: 13px; margin-top: 16px; }
-.cal2-heat-seg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; padding: 3px; margin: 2px 0 10px; border-radius: 14px; background: var(--cream-2); }
-.cal2-heat-seg button { min-width: 0; min-height: 36px; padding: 0 2px; border: 0; border-radius: 11px; background: none; color: var(--ink); font-family: inherit; font-weight: 800; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cal2-heat-seg button[aria-pressed="true"] { background: var(--white); box-shadow: 0 2px 0 var(--line); }
 .cal2-grid.sticker { gap: 5px; row-gap: 7px; }
 .cal2-grid.sticker .cal2-day { aspect-ratio: .82; overflow: visible; background: var(--white); box-shadow: 0 2px 0 var(--line); border-radius: 12px; }
 .cal2-grid.sticker .cal2-day.weekend { background: color-mix(in srgb, var(--lav) 28%, var(--white)); }
@@ -1986,23 +1983,6 @@ p { margin: 0; }
 .cal2-day-pet .mascot { display: block; }
 .cal2-tip { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 12px; padding: 10px 12px; border: 0; border-radius: 18px; background: var(--white); box-shadow: 0 4px 0 var(--line); color: var(--ink); font-family: inherit; font-weight: 700; font-size: 13.5px; line-height: 1.35; text-align: left; }
 .cal2-tip-pet { flex: none; }
-/* тепловая карта */
-.cal2-grid.heat .cal2-day { aspect-ratio: 1; background: var(--white); box-shadow: 0 2px 0 var(--line); }
-.cal2-grid.heat .cal2-num { top: 50%; transform: translateY(-50%); font-weight: 900; font-size: 13px; }
-.cal2-grid.heat .cal2-day.h1 { background: color-mix(in srgb, var(--c) 28%, var(--white)); }
-.cal2-grid.heat .cal2-day.h2 { background: color-mix(in srgb, var(--c) 55%, var(--white)); }
-.cal2-grid.heat .cal2-day.h3 { background: var(--c); }
-.cal2-grid.heat .cal2-day.h4 { background: var(--c-deep); color: #fff; }
-.cal2-grid.heat .cal2-day.today, .cal2-grid.heat .cal2-day.on { box-shadow: inset 0 0 0 2.5px var(--ink); }
-.cal2-heat-emoji { position: absolute; right: 2px; bottom: 1px; font-size: 11px; }
-.cal2-heat-legend { display: flex; justify-content: center; align-items: center; gap: 5px; margin: 10px 0; font-size: 12px; font-weight: 800; color: var(--muted); }
-.cal2-heat-legend i { width: 15px; height: 15px; border-radius: 5px; background: var(--white); box-shadow: inset 0 0 0 1.5px var(--line); }
-.cal2-heat-legend i.h1 { background: color-mix(in srgb, var(--c) 28%, var(--white)); box-shadow: none; }
-.cal2-heat-legend i.h2 { background: color-mix(in srgb, var(--c) 55%, var(--white)); box-shadow: none; }
-.cal2-heat-legend i.h3 { background: var(--c); box-shadow: none; }
-.cal2-heat-legend i.h4 { background: var(--c-deep); box-shadow: none; }
-.cal2-heat-best { display: flex; align-items: center; gap: 10px; padding: 11px 13px; border-radius: 16px; background: var(--yellow); box-shadow: 0 4px 0 var(--yellow-deep); font-weight: 700; font-size: 13.5px; }
-.cal2-heat-best > span:first-child { font-size: 22px; }
 /* день: лента дней, жесты, настроение */
 .cal2-daystrip-title { display: flex; align-items: center; justify-content: space-between; min-height: 32px; margin: 0 2px 6px; font-family: 'Unbounded', sans-serif; font-weight: 700; font-size: 15px; }
 .cal2-daystrip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; margin-bottom: 12px; touch-action: pan-y; }
@@ -2048,3 +2028,13 @@ p { margin: 0; }
 .cal2-check-row.done .cal2-check-title { text-decoration: line-through; opacity: .6; }
 .cal2-check-time { font-weight: 800; font-size: 12.5px; color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { .cal2-swipe .cal2-plan, .cal2-mood button { transition: none; } }
+/* день: цветные карточки как в макете */
+.cal2-timeline .cal2-slot-body { border-top: 0; padding: 5px 0; }
+.cal2-slot-body .cal2-plan.vivid { background: var(--c); box-shadow: 0 4px 0 var(--c-deep); padding: 10px 10px 10px 14px; }
+.cal2-plan.vivid .cal2-plan-title { font-size: 16px; }
+.cal2-plan.vivid .cal2-plan-meta { color: color-mix(in srgb, var(--c-deep) 75%, var(--ink)); font-weight: 800; }
+.cal2-plan.vivid .cal2-check { width: 38px; height: 38px; border-width: 2.5px; }
+.cal2-plan.vivid.done { opacity: .75; }
+.cal2-window.light { min-height: 46px; padding: 10px 14px; border: 2.5px dashed var(--line); background: none; font-weight: 800; font-size: 13.5px; color: var(--muted); }
+.cal2-window.light .cal2-window-sub { color: var(--lav-deep); font-size: 12.5px; }
+.cal2-gesture-hint { margin: 12px 0 0; padding: 10px 12px; border-radius: 16px; background: var(--white); text-align: left; font-size: 12.5px; line-height: 1.5; }
