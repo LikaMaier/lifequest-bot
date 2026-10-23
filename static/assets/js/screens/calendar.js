@@ -1,5 +1,5 @@
 // Календарь: месяц-стикербук (эмодзи дел, полароиды дней с фото, праздники
-// лентой, маскот на сегодняшнем дне) и тепловая карта; неделя кольцами с
+// лентой, маскот на сегодняшнем дне); неделя кольцами с
 // настроением дня; день — лента по часам: свайп плана вправо — сделано,
 // влево — на завтра, долгое нажатие — перетащить время, ручка — длительность.
 
@@ -21,7 +21,7 @@ const REPEAT_SHORT = { daily: 'каждый день', weekdays: 'по будн�
 const FREE_FROM = 9, FREE_TO = 22, FREE_MIN_HOURS = 3;
 
 const cache = new Map(); // 'YYYY-MM' -> summary
-const view = { month: null, mode: 'month', day: null, heat: 'calendar' };
+const view = { month: null, mode: 'month', day: null };
 
 const HOLIDAYS = {
   '01-01': '🎄 Новый год', '01-07': '⭐ Рождество', '02-14': '💝 14 февраля', '02-23': '🎖 23 февраля',
@@ -30,15 +30,8 @@ const HOLIDAYS = {
 };
 const MOODS = [['sad', '😞', 'Тяжело'], ['ok', '🙂', 'Нормально'], ['good', '😊', 'Хорошо'], ['great', '🤩', 'Отлично']];
 const MOOD_EMOJI = Object.fromEntries(MOODS.map(([k, e]) => [k, e]));
-const MOOD_LEVEL = { sad: 1, ok: 2, good: 3, great: 4 };
-const HEAT = [['calendar', '🗓', 'Обычный'], ['done', '✓', 'Дела'], ['photos', '📷', 'Фото'], ['mood', '😊', 'Настрой']];
-const HEAT_COLOR = { done: 'lime', photos: 'blue', mood: 'pink' };
 const seasonDecor = m => (m >= 9 && m <= 11 ? ['🍂', '🍁'] : m === 12 || m <= 2 ? ['❄️', '⛄'] : m <= 5 ? ['🌸', '🌱'] : ['☀️', '🌿']);
-const heatLevel = (d, mode) => {
-  if (mode === 'done') return d.done >= 5 ? 4 : d.done >= 3 ? 3 : d.done;
-  if (mode === 'photos') return Math.min(4, d.photos || 0);
-  return MOOD_LEVEL[d.mood] || 0;
-};
+
 
 const ICONS = {
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
@@ -176,15 +169,7 @@ async function drawMonth(body, el, ctx) {
   const done = summary.days.reduce((s, d) => s + d.done, 0);
   sub.textContent = total ? `${total} ${plural(total, 'план', 'плана', 'планов')} · ${done} ${plural(done, 'выполнен', 'выполнено', 'выполнено')}` : 'Пока без планов';
 
-  // переключатель: обычный вид или тепловая карта (дела / фото / настроение)
-  const heatSeg = h('div', { class: 'cal2-heat-seg', role: 'group', 'aria-label': 'Как раскрасить месяц' },
-    HEAT.map(([k, e, label]) => {
-      const b = h('button', { type: 'button', 'aria-pressed': String(view.heat === k) }, h('span', { 'aria-hidden': 'true' }, e), ` ${label}`);
-      b.addEventListener('click', () => { haptic.select(); view.heat = k; drawMonth(clear(body), el, ctx); });
-      return b;
-    }));
-  const heat = view.heat !== 'calendar';
-  const grid = h('div', { class: `cal2-grid ${heat ? `heat c-${HEAT_COLOR[view.heat]}` : 'sticker'}`, role: 'grid', 'aria-label': `${MONTHS[m - 1]} ${y}` });
+  const grid = h('div', { class: 'cal2-grid sticker', role: 'grid', 'aria-label': `${MONTHS[m - 1]} ${y}` });
   WD.forEach((w, i) => grid.append(h('div', { class: `cal2-wd ${i > 4 ? 'weekend' : ''}`, 'aria-hidden': 'true' }, w)));
   const offset = wdIndex(summary.days[0].date);
   for (let i = 0; i < offset; i++) grid.append(h('div', { 'aria-hidden': 'true' }));
@@ -197,14 +182,10 @@ async function drawMonth(body, el, ctx) {
       d.done ? `выполнено ${d.done}` : null, d.quests_done ? 'был квест' : null, d.photo ? 'есть фото' : null,
       d.mood ? `настроение ${MOOD_EMOJI[d.mood]}` : null, ribbon].filter(Boolean).join(', ');
     const isToday = d.date === today;
-    const cls = ['cal2-day', isToday ? 'today' : '', wdIndex(d.date) > 4 ? 'weekend' : '', !heat && d.complete ? 'complete' : '',
-      !heat && d.date < today && !n ? 'quiet' : '', d.overdue ? 'overdue' : '', d.date === view.day ? 'on' : ''];
+    const cls = ['cal2-day', isToday ? 'today' : '', wdIndex(d.date) > 4 ? 'weekend' : '', d.complete ? 'complete' : '',
+      d.date < today && !n ? 'quiet' : '', d.overdue ? 'overdue' : '', d.date === view.day ? 'on' : ''];
     let inner;
-    if (heat) {
-      cls.push(`h${heatLevel(d, view.heat)}`);
-      inner = [h('span', { class: 'cal2-num' }, String(parseDate(d.date).getDate())),
-        view.heat === 'mood' && d.mood ? h('span', { class: 'cal2-heat-emoji', 'aria-hidden': 'true' }, MOOD_EMOJI[d.mood]) : null];
-    } else if (d.photo_thumb) {
+    if (d.photo_thumb) {
       cls.push('photo', parseDate(d.date).getDate() % 2 ? 'tilt-l' : 'tilt-r');
       inner = [h('img', { src: d.photo_thumb, alt: '', loading: 'lazy', decoding: 'async' }),
         h('span', { class: 'cal2-num' }, String(parseDate(d.date).getDate()))];
@@ -218,8 +199,8 @@ async function drawMonth(body, el, ctx) {
         d.quests_done ? ico('star', 'cal2-star') : null];
     }
     const cell = h('button', { type: 'button', role: 'gridcell', 'aria-label': label, class: cls.filter(Boolean).join(' ') },
-      ...inner, !heat && ribbon ? h('span', { class: 'cal2-ribbon', 'aria-hidden': 'true' }, ribbon) : null,
-      !heat && isToday ? h('span', { class: 'cal2-day-pet', 'aria-hidden': 'true' }, myMascot('love', { size: 30 })) : null);
+      ...inner, ribbon ? h('span', { class: 'cal2-ribbon', 'aria-hidden': 'true' }, ribbon) : null,
+      isToday ? h('span', { class: 'cal2-day-pet', 'aria-hidden': 'true' }, myMascot('love', { size: 30 })) : null);
     cell.addEventListener('click', () => {
       haptic.select();
       cells.get(view.day)?.classList.remove('on');
@@ -241,27 +222,10 @@ async function drawMonth(body, el, ctx) {
     sx = null;
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1);
   });
-  let legend;
-  if (heat) {
-    // легенда и самый «яркий» день месяца
-    const best = summary.days.reduce((a, d) => (heatLevel(d, view.heat) > heatLevel(a, view.heat)
-      || (view.heat === 'done' && d.done > a.done) || (view.heat === 'photos' && (d.photos || 0) > (a.photos || 0)) ? d : a), summary.days[0]);
-    const word = { done: 'Самый насыщенный день', photos: 'Больше всего фото', mood: 'Лучшее настроение' }[view.heat];
-    const val = view.heat === 'done' ? `${best.done} ${plural(best.done, 'дело', 'дела', 'дел')}`
-      : view.heat === 'photos' ? `${best.photos} фото` : MOOD_EMOJI[best.mood] || '';
-    legend = h('div', null,
-      h('div', { class: `cal2-heat-legend c-${HEAT_COLOR[view.heat]}`, 'aria-hidden': 'true' }, 'меньше',
-        [0, 1, 2, 3, 4].map(l => h('i', { class: `h${l}` })), 'больше'),
-      heatLevel(best, view.heat)
-        ? h('div', { class: 'cal2-heat-best' }, h('span', { 'aria-hidden': 'true' }, view.heat === 'mood' ? '🌈' : '🔥'),
-          h('span', null, `${word} — `, h('b', null, `${parseDate(best.date).getDate()} ${MONTHS_GEN[parseDate(best.date).getMonth()]}`), val ? `: ${val}` : ''))
-        : h('p', { class: 'cal2-empty' }, view.heat === 'mood' ? 'Отмечай «Как прошёл день?» — и месяц раскрасится' : 'Пока пусто — месяц раскрасится сам'));
-  } else {
-    legend = h('div', { class: 'cal2-legend', 'aria-hidden': 'true' },
-      h('span', null, '🏃 дела'), h('span', null, h('i', { class: 'done' }), 'всё сделано'), h('span', null, ico('star'), 'квест'));
-  }
-  clear(gridHost).append(heatSeg, grid, legend);
-  if (!heat && monthKey(today) === key) gridHost.append(mascotTip(summary, today, onChange));
+  const legend = h('div', { class: 'cal2-legend', 'aria-hidden': 'true' },
+    h('span', null, '🏃 дела'), h('span', null, h('i', { class: 'done' }), 'всё сделано'), h('span', null, ico('star'), 'квест'));
+  clear(gridHost).append(grid, legend);
+  if (monthKey(today) === key) gridHost.append(mascotTip(summary, today, onChange));
   drawDay(dayHost, view.day, today, onChange, ctx, el);
 }
 
