@@ -64,9 +64,8 @@ export function openClawGame() {
   const y0 = GLASS_H - CAP - 4, dy = CAP - 8;
   const SPOTS = [...[30, 84, 138, 192, 246].map(x => [x, y0]), ...[57, 111, 165, 219].map(x => [x, y0 - dy]),
     ...[84, 138, 192].map(x => [x, y0 - 2 * dy])];
-  // цветные капсулы лежат сверху (2 в верхнем ряду, 2 во втором), золотые — вокруг и на дне
-  const pick = (row, n) => row.slice().sort(() => Math.random() - 0.5).slice(0, n);
-  const petSpots = new Set([...pick([9, 10, 11], 2), ...pick([5, 6, 7, 8], 2)].slice(0, shown.length));
+  // цветные капсулы — в любом ряду, вперемешку с золотыми (и на дне тоже)
+  const petSpots = new Set(SPOTS.map((_, k) => k).sort(() => Math.random() - 0.5).slice(0, shown.length));
   let p = 0;
   SPOTS.forEach(([x, y], i) => {
     const pet = petSpots.has(i);
@@ -113,11 +112,13 @@ export function openClawGame() {
     hint.textContent = 'Опускаем лапу… 🤞';
     haptic.tap('medium');
     // капсула под лапой — её вещь и достанется, если сервер скажет «вещь»;
-    // иначе лапа берёт ближайшую золотую капсулу XP
-    // лапа достаёт только из двух верхних рядов — сквозь горку не проходит
-    const reachable = pool => pool.filter(c => +c.dataset.y < GLASS_H - CAP - 10);
-    const nearest = pool => reachable(pool).sort((a, b) =>
-      Math.abs(+a.dataset.x - x) + +a.dataset.y / 1.5 - (Math.abs(+b.dataset.x - x) + +b.dataset.y / 1.5))[0];
+    // иначе лапа берёт золотую капсулу XP. Лапа достаёт из любого ряда и иногда
+    // ныряет сквозь горку к нижним — как в настоящем автомате, азарт.
+    const nearest = pool => {
+      const byX = pool.slice().sort((a, b) => Math.abs(+a.dataset.x - x) - Math.abs(+b.dataset.x - x));
+      const close = byX.filter(c => Math.abs(+c.dataset.x - x) <= Math.abs(+byX[0].dataset.x - x) + 30);
+      return close[Math.floor(Math.random() * close.length)];
+    };
     const aimed = nearest(caps);
     const res = await api.openChest(aimed.dataset.acc).catch(e => ({ error: e }));
     if (res.error) { toastError(res.error); m.close(); return; }
