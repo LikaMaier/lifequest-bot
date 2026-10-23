@@ -1,11 +1,12 @@
-// Календарь: месяц с планом выбранного дня прямо под сеткой, неделя лентой
-// по часам со свободными окнами (в них можно подкинуть квест) и список.
-// Быстрое добавление — кнопками «когда / во сколько», без лишних полей.
+// Календарь: месяц-стикербук (эмодзи дел, полароиды дней с фото, праздники
+// лентой, маскот на сегодняшнем дне) и тепловая карта; неделя кольцами с
+// настроением дня; день — лента по часам: свайп плана вправо — сделано,
+// влево — на завтра, долгое нажатие — перетащить время, ручка — длительность.
 
 import { h, clear, plural, fmtDay, parseDate } from '../dom.js';
 import { api } from '../api.js';
 import { haptic } from '../tg.js';
-import { myMascot } from '../mascot.js';
+import { myMascot, jump } from '../mascot.js';
 import { skeleton, toastError, toast, sectionTitle, emptyState, sheet, busy } from '../ui.js';
 import { refreshState } from '../store.js';
 import { planRow, openPlanSheet, openDaySheet, openQuestPicker, completePlan, todayIso, addDays, dayTitle } from '../planui.js';
@@ -20,7 +21,24 @@ const REPEAT_SHORT = { daily: 'каждый день', weekdays: 'по будн�
 const FREE_FROM = 9, FREE_TO = 22, FREE_MIN_HOURS = 3;
 
 const cache = new Map(); // 'YYYY-MM' -> summary
-const view = { month: null, mode: 'month', day: null };
+const view = { month: null, mode: 'month', day: null, heat: 'calendar' };
+
+const HOLIDAYS = {
+  '01-01': '🎄 Новый год', '01-07': '⭐ Рождество', '02-14': '💝 14 февраля', '02-23': '🎖 23 февраля',
+  '03-08': '🌷 8 Марта', '05-01': '🌼 1 мая', '05-09': '🎗 9 мая', '06-12': '🇷🇺 12 июня',
+  '09-01': '📚 1 сентября', '10-31': '🎃 Хэллоуин', '11-04': '🤝 4 ноября', '12-31': '🎄 Новый год',
+};
+const MOODS = [['sad', '😞', 'Тяжело'], ['ok', '🙂', 'Нормально'], ['good', '😊', 'Хорошо'], ['great', '🤩', 'Отлично']];
+const MOOD_EMOJI = Object.fromEntries(MOODS.map(([k, e]) => [k, e]));
+const MOOD_LEVEL = { sad: 1, ok: 2, good: 3, great: 4 };
+const HEAT = [['calendar', '🗓', 'Обычный'], ['done', '✓', 'Дела'], ['photos', '📷', 'Фото'], ['mood', '😊', 'Настрой']];
+const HEAT_COLOR = { done: 'lime', photos: 'blue', mood: 'pink' };
+const seasonDecor = m => (m >= 9 && m <= 11 ? ['🍂', '🍁'] : m === 12 || m <= 2 ? ['❄️', '⛄'] : m <= 5 ? ['🌸', '🌱'] : ['☀️', '🌿']);
+const heatLevel = (d, mode) => {
+  if (mode === 'done') return d.done >= 5 ? 4 : d.done >= 3 ? 3 : d.done;
+  if (mode === 'photos') return Math.min(4, d.photos || 0);
+  return MOOD_LEVEL[d.mood] || 0;
+};
 
 const ICONS = {
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
@@ -77,8 +95,10 @@ export function render(el, ctx) {
   }).catch(() => {});
   const add = iconBtn('plus', 'Добавить план', 'dark big');
   add.addEventListener('click', () => { haptic.tap(); openQuickAdd(view.day >= today ? view.day : today, { onChange }); });
+  const [s1, s2] = seasonDecor(parseDate(today).getMonth() + 1);
   el.append(h('header', { class: 'cal2-head' }, myMascot(ctx.state.plans_overdue ? 'wink' : 'happy', { size: 54 }),
-    h('div', { class: 'grow' }, h('h1', null, 'Календарь'), summary), add));
+    h('div', { class: 'grow' }, h('h1', null, 'Календарь'), summary),
+    h('span', { class: 'cal2-season', 'aria-hidden': 'true' }, h('i', null, s1), h('i', null, s2)), add));
 
   const seg = h('div', { class: 'cal2-seg', role: 'group', 'aria-label': 'Вид календаря' },
     [['day', 'День'], ['week', 'Неделя'], ['month', 'Месяц'], ['list', 'Список']].map(([k, label]) => {
@@ -156,25 +176,57 @@ async function drawMonth(body, el, ctx) {
   const done = summary.days.reduce((s, d) => s + d.done, 0);
   sub.textContent = total ? `${total} ${plural(total, 'план', 'плана', 'планов')} · ${done} ${plural(done, 'выполнен', 'выполнено', 'выполнено')}` : 'Пока без планов';
 
-  const grid = h('div', { class: 'cal2-grid', role: 'grid', 'aria-label': `${MONTHS[m - 1]} ${y}` });
+  // переключатель: обычный вид или тепловая карта (дела / фото / настроение)
+  const heatSeg = h('div', { class: 'cal2-heat-seg', role: 'group', 'aria-label': 'Как раскрасить месяц' },
+    HEAT.map(([k, e, label]) => {
+      const b = h('button', { type: 'button', 'aria-pressed': String(view.heat === k) }, h('span', { 'aria-hidden': 'true' }, e), ` ${label}`);
+      b.addEventListener('click', () => { haptic.select(); view.heat = k; drawMonth(clear(body), el, ctx); });
+      return b;
+    }));
+  const heat = view.heat !== 'calendar';
+  const grid = h('div', { class: `cal2-grid ${heat ? `heat c-${HEAT_COLOR[view.heat]}` : 'sticker'}`, role: 'grid', 'aria-label': `${MONTHS[m - 1]} ${y}` });
   WD.forEach((w, i) => grid.append(h('div', { class: `cal2-wd ${i > 4 ? 'weekend' : ''}`, 'aria-hidden': 'true' }, w)));
   const offset = wdIndex(summary.days[0].date);
   for (let i = 0; i < offset; i++) grid.append(h('div', { 'aria-hidden': 'true' }));
   const cells = new Map();
   for (const d of summary.days) {
     const n = d.planned + d.done;
+    const who = d.special ? d.special.replace(/^(🎂\s*)?(день рождения|др)\s*/i, '') : '';
+    const ribbon = d.special ? `🎂 ${who ? who[0].toUpperCase() + who.slice(1) : 'праздник'}` : HOLIDAYS[d.date.slice(5)];
     const label = [dayTitle(d.date), n ? `${n} ${plural(n, 'план', 'плана', 'планов')}` : 'нет планов',
-      d.done ? `выполнено ${d.done}` : null, d.quests_done ? 'был квест' : null, d.photo ? 'есть фото' : null].filter(Boolean).join(', ');
-    const cell = h('button', { type: 'button', role: 'gridcell', 'aria-label': label,
-      class: `cal2-day ${d.date === today ? 'today' : ''} ${d.complete ? 'complete' : ''} ${d.date < today && !n ? 'quiet' : ''} ${d.overdue ? 'overdue' : ''} ${d.date === view.day ? 'on' : ''}` },
-      h('span', { class: 'cal2-num' }, String(parseDate(d.date).getDate())),
-      h('span', { class: 'cal2-dots', 'aria-hidden': 'true' }, Array.from({ length: Math.min(3, n) }, () => h('i'))),
-      d.quests_done ? ico('star', 'cal2-star') : null);
+      d.done ? `выполнено ${d.done}` : null, d.quests_done ? 'был квест' : null, d.photo ? 'есть фото' : null,
+      d.mood ? `настроение ${MOOD_EMOJI[d.mood]}` : null, ribbon].filter(Boolean).join(', ');
+    const isToday = d.date === today;
+    const cls = ['cal2-day', isToday ? 'today' : '', wdIndex(d.date) > 4 ? 'weekend' : '', !heat && d.complete ? 'complete' : '',
+      !heat && d.date < today && !n ? 'quiet' : '', d.overdue ? 'overdue' : '', d.date === view.day ? 'on' : ''];
+    let inner;
+    if (heat) {
+      cls.push(`h${heatLevel(d, view.heat)}`);
+      inner = [h('span', { class: 'cal2-num' }, String(parseDate(d.date).getDate())),
+        view.heat === 'mood' && d.mood ? h('span', { class: 'cal2-heat-emoji', 'aria-hidden': 'true' }, MOOD_EMOJI[d.mood]) : null];
+    } else if (d.photo_thumb) {
+      cls.push('photo', parseDate(d.date).getDate() % 2 ? 'tilt-l' : 'tilt-r');
+      inner = [h('img', { src: d.photo_thumb, alt: '', loading: 'lazy', decoding: 'async' }),
+        h('span', { class: 'cal2-num' }, String(parseDate(d.date).getDate()))];
+    } else {
+      const shown = d.emojis || [];
+      const more = n - shown.length;
+      inner = [h('span', { class: 'cal2-num' }, String(parseDate(d.date).getDate())),
+        shown.length ? h('span', { class: 'cal2-emojis', 'aria-hidden': 'true' }, shown.join(''))
+          : h('span', { class: 'cal2-dots', 'aria-hidden': 'true' }, Array.from({ length: Math.min(3, n) }, () => h('i'))),
+        shown.length && more > 0 ? h('span', { class: 'cal2-more', 'aria-hidden': 'true' }, `+${more}`) : null,
+        d.quests_done ? ico('star', 'cal2-star') : null];
+    }
+    const cell = h('button', { type: 'button', role: 'gridcell', 'aria-label': label, class: cls.filter(Boolean).join(' ') },
+      ...inner, !heat && ribbon ? h('span', { class: 'cal2-ribbon', 'aria-hidden': 'true' }, ribbon) : null,
+      !heat && isToday ? h('span', { class: 'cal2-day-pet', 'aria-hidden': 'true' }, myMascot('love', { size: 30 })) : null);
     cell.addEventListener('click', () => {
       haptic.select();
       cells.get(view.day)?.classList.remove('on');
       view.day = d.date;
       cell.classList.add('on');
+      const pet = cell.querySelector('.cal2-day-pet .mascot');
+      if (pet) jump(pet);
       drawDay(dayHost, d.date, today, onChange, ctx, el);
     });
     cells.set(d.date, cell);
@@ -189,11 +241,41 @@ async function drawMonth(body, el, ctx) {
     sx = null;
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1);
   });
-  const legend = h('div', { class: 'cal2-legend', 'aria-hidden': 'true' },
-    h('span', null, h('i', { class: 'dot' }), 'планы'), h('span', null, h('i', { class: 'done' }), 'всё сделано'),
-    h('span', null, ico('star'), 'квест'));
-  clear(gridHost).append(grid, legend);
+  let legend;
+  if (heat) {
+    // легенда и самый «яркий» день месяца
+    const best = summary.days.reduce((a, d) => (heatLevel(d, view.heat) > heatLevel(a, view.heat)
+      || (view.heat === 'done' && d.done > a.done) || (view.heat === 'photos' && (d.photos || 0) > (a.photos || 0)) ? d : a), summary.days[0]);
+    const word = { done: 'Самый насыщенный день', photos: 'Больше всего фото', mood: 'Лучшее настроение' }[view.heat];
+    const val = view.heat === 'done' ? `${best.done} ${plural(best.done, 'дело', 'дела', 'дел')}`
+      : view.heat === 'photos' ? `${best.photos} фото` : MOOD_EMOJI[best.mood] || '';
+    legend = h('div', null,
+      h('div', { class: `cal2-heat-legend c-${HEAT_COLOR[view.heat]}`, 'aria-hidden': 'true' }, 'меньше',
+        [0, 1, 2, 3, 4].map(l => h('i', { class: `h${l}` })), 'больше'),
+      heatLevel(best, view.heat)
+        ? h('div', { class: 'cal2-heat-best' }, h('span', { 'aria-hidden': 'true' }, view.heat === 'mood' ? '🌈' : '🔥'),
+          h('span', null, `${word} — `, h('b', null, `${parseDate(best.date).getDate()} ${MONTHS_GEN[parseDate(best.date).getMonth()]}`), val ? `: ${val}` : ''))
+        : h('p', { class: 'cal2-empty' }, view.heat === 'mood' ? 'Отмечай «Как прошёл день?» — и месяц раскрасится' : 'Пока пусто — месяц раскрасится сам'));
+  } else {
+    legend = h('div', { class: 'cal2-legend', 'aria-hidden': 'true' },
+      h('span', null, '🏃 дела'), h('span', null, h('i', { class: 'done' }), 'всё сделано'), h('span', null, ico('star'), 'квест'));
+  }
+  clear(gridHost).append(heatSeg, grid, legend);
+  if (!heat && monthKey(today) === key) gridHost.append(mascotTip(summary, today, onChange));
   drawDay(dayHost, view.day, today, onChange, ctx, el);
+}
+
+/** Подсказка маскота под месяцем: сколько дел сегодня и ближайший свободный выходной. */
+function mascotTip(summary, today, onChange) {
+  const t = summary.days.find(d => d.date === today) || { planned: 0, done: 0 };
+  const left = t.planned;
+  const freeWeekend = summary.days.find(d => d.date > today && wdIndex(d.date) > 4 && !(d.planned + d.done));
+  const parts = [left ? `Сегодня ${left} ${plural(left, 'дело', 'дела', 'дел')}` : t.done ? 'На сегодня всё сделано 🎉' : 'Сегодня свободно'];
+  if (freeWeekend) parts.push(`${WD_ACC[wdIndex(freeWeekend.date)] === 'субботу' ? 'суббота' : 'воскресенье'}, ${parseDate(freeWeekend.date).getDate()}-е, пока свободно — запланируем что-нибудь приятное? ✨`);
+  const b = h('button', { type: 'button', class: 'cal2-tip' }, h('span', { class: 'cal2-tip-pet' }, myMascot('wink', { size: 46 })),
+    h('span', { class: 'grow' }, parts.join(', а ')));
+  b.addEventListener('click', () => { haptic.tap(); openQuickAdd(freeWeekend ? freeWeekend.date : today, { onChange }); });
+  return b;
 }
 
 /** Месяц: краткий список выбранного дня и переход к ленте по часам. */
@@ -244,15 +326,9 @@ async function drawDayTab(body, el, ctx) {
   const onChange = () => refresh(el, ctx);
   const date = view.day || today;
   const go = n => { haptic.select(); view.day = addDays(date, n); render(el, ctx); };
-  const prev = iconBtn('left', 'Предыдущий день', 'soft');
-  const next = iconBtn('right', 'Следующий день', 'soft');
-  prev.addEventListener('click', () => go(-1));
-  next.addEventListener('click', () => go(1));
-  const todayBtn = h('button', { type: 'button', class: 'cal2-pill', disabled: date === today }, 'Сегодня');
-  todayBtn.addEventListener('click', () => { haptic.select(); view.day = today; render(el, ctx); });
-  body.append(h('div', { class: 'cal2-week-nav' }, prev,
-    h('div', { class: 'cal2-week-range', 'aria-live': 'polite' }, `${WD[wdIndex(date)]}, ${parseDate(date).getDate()} ${MONTHS_GEN[parseDate(date).getMonth()].slice(0, 3)}`),
-    todayBtn, next));
+  // лента дней недели: тап — день, свайп по ленте — соседняя неделя
+  body.append(dayStrip(date, today, d => { haptic.select(); view.day = d; render(el, ctx); },
+    n => { haptic.select(); view.day = addDays(date, 7 * n); render(el, ctx); }));
   const host = h('div');
   body.append(host);
   host.append(skeleton(160));
@@ -272,8 +348,64 @@ async function drawDayTab(body, el, ctx) {
     if (sx === null) return;
     const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
     sx = null;
+    if (e.target.closest('.cal2-swipe')) return; // это был свайп по плану
     if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 2) go(dx < 0 ? 1 : -1);
   });
+}
+
+/** Лента из 7 дней недели (как в макете): выбранный — тёмный, сегодня — розовый. */
+function dayStrip(sel, today, onPick, onWeek) {
+  const from = mondayOf(sel);
+  const strip = h('div', { class: 'cal2-daystrip', role: 'group', 'aria-label': 'Дни недели' });
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(from, i);
+    const b = h('button', { type: 'button', class: `${d === sel ? 'on' : ''} ${d === today ? 'today' : ''}`, 'aria-pressed': String(d === sel),
+      'aria-label': `${WD_FULL[i]}, ${parseDate(d).getDate()} ${MONTHS_GEN[parseDate(d).getMonth()]}` },
+      h('span', null, WD[i]), h('b', null, String(parseDate(d).getDate())));
+    b.addEventListener('click', () => onPick(d));
+    strip.append(b);
+  }
+  let sx = null;
+  strip.addEventListener('touchstart', e => { sx = e.touches.length === 1 ? e.touches[0].clientX : null; }, { passive: true });
+  strip.addEventListener('touchend', e => {
+    if (sx === null) return;
+    const dx = e.changedTouches[0].clientX - sx;
+    sx = null;
+    if (Math.abs(dx) > 50) onWeek(dx < 0 ? 1 : -1);
+  });
+  const title = h('div', { class: 'cal2-daystrip-title' },
+    h('span', null, `${MONTHS[parseDate(sel).getMonth()]} ${parseDate(sel).getFullYear()}`),
+    sel !== today ? (() => {
+      const t = h('button', { type: 'button', class: 'cal2-pill small' }, 'Сегодня');
+      t.addEventListener('click', () => onPick(today));
+      return t;
+    })() : null);
+  return h('div', null, title, strip);
+}
+
+/** «Как прошёл день?» — 4 эмодзи; повторный тап снимает отметку. */
+function moodPicker(date, current, onSet) {
+  let mood = current || null;
+  const row = h('div', { class: 'cal2-mood', role: 'group', 'aria-label': 'Как прошёл день?' });
+  const draw = () => {
+    clear(row).append(h('span', { class: 'grow' }, 'Как прошёл день?'), ...MOODS.map(([k, e, label]) => {
+      const b = h('button', { type: 'button', class: mood === k ? 'on' : '', 'aria-pressed': String(mood === k), 'aria-label': label }, e);
+      b.addEventListener('click', busy(b, async () => {
+        const next = mood === k ? null : k;
+        try {
+          await api.setDayMood(date, next);
+          mood = next;
+          haptic.success();
+          cache.clear();
+          draw();
+          onSet && onSet(next);
+        } catch (e) { toastError(e); }
+      }));
+      return b;
+    }));
+  };
+  draw();
+  return row;
 }
 
 /** Карточка плана: время, название, повтор/напоминание и круглая галочка. */
@@ -384,6 +516,7 @@ async function drawWeek(body, el, ctx) {
   const today = todayIso();
   const onChange = () => refresh(el, ctx);
   const sel = view.day || today;
+  view.day = sel;
   const from = mondayOf(sel);
   const to = addDays(from, 6);
   const go = n => { haptic.select(); view.day = addDays(sel, 7 * n); render(el, ctx); };
@@ -397,72 +530,80 @@ async function drawWeek(body, el, ctx) {
   const todayBtn = h('button', { type: 'button', class: 'cal2-pill' }, 'Сегодня');
   todayBtn.addEventListener('click', () => { haptic.select(); view.day = today; render(el, ctx); });
   body.append(h('div', { class: 'cal2-week-nav' }, prev, h('div', { class: 'cal2-week-range', 'aria-live': 'polite' }, range), todayBtn, next));
-  const strip = h('div', { class: 'cal2-strip' });
+  const rings = h('div', { class: 'cal2-rings' }, skeleton(84));
   const dayHost = h('div');
-  const statsHost = h('div');
-  body.append(strip, dayHost, statsHost);
-  strip.append(skeleton(84));
-  let plans;
+  body.append(rings, dayHost);
+  let plans, moods;
   try {
-    plans = (await api.plans(from, to)).plans;
+    [plans, moods] = await Promise.all([api.plans(from, to).then(r => r.plans), api.dayMoods(from, to).then(r => r.moods).catch(() => ({}))]);
   } catch (e) {
-    clear(strip).append(h('p', { class: 'muted bold' }, e.message));
+    clear(rings).append(h('p', { class: 'muted bold' }, e.message));
     return;
   }
   if (view.mode !== 'week') return;
-  clear(strip);
   const byDay = d => visiblePlans(plans.filter(o => o.date === d));
-  const buttons = [];
-  for (let i = 0; i < 7; i++) {
-    const date = addDays(from, i);
-    const list = byDay(date);
-    const btn = h('button', { type: 'button', class: `cal2-strip-day ${date === today ? 'today' : ''} ${date === sel ? 'on' : ''}`,
-      'aria-label': `${WD_FULL[i]}, ${parseDate(date).getDate()} ${MONTHS_GEN[parseDate(date).getMonth()]}: ${list.length} ${plural(list.length, 'план', 'плана', 'планов')}`, 'aria-pressed': String(date === sel) },
-      h('span', { class: 'wd' }, WD[i]), h('span', { class: 'n' }, String(parseDate(date).getDate())),
-      h('span', { class: 'load', 'aria-hidden': 'true' }, Array.from({ length: Math.min(3, list.length) }, () => h('i'))));
-    btn.addEventListener('click', () => { haptic.select(); view.day = date; view.mode = 'day'; render(el, ctx); });
-    buttons.push(btn);
-    strip.append(btn);
-  }
-  // вся неделя сразу: по каждому дню — его дела
-  const agenda = h('div', { class: 'cal2-agenda' });
-  for (let i = 0; i < 7; i++) {
-    const date = addDays(from, i);
-    const list = byDay(date);
-    const head = h('button', { type: 'button', class: 'cal2-agenda-head', 'aria-label': `${WD_FULL[i]}, ${parseDate(date).getDate()}: открыть день по часам` },
-      h('span', { class: 'cal2-agenda-date' }, h('b', null, String(parseDate(date).getDate())), h('span', null, WD[i])),
-      h('span', { class: 'grow' }, date === today ? 'Сегодня' : date === addDays(today, 1) ? 'Завтра' : WD_FULL[i]),
-      h('span', { class: 'cal2-agenda-go', 'aria-hidden': 'true' }, '›'));
-    head.addEventListener('click', () => { haptic.tap(); view.day = date; view.mode = 'day'; render(el, ctx); });
-    agenda.append(h('section', { class: `cal2-agenda-day ${date === today ? 'today' : ''} ${date < today ? 'past' : ''}` }, head,
-      list.length ? h('div', { class: 'cal2-mini-list' }, byTime(list).map(o => miniPlan(o, { onChange })))
-        : h('p', { class: 'cal2-agenda-free' }, date < today ? '—' : 'свободно')));
-  }
-  dayHost.append(agenda);
-  // свайп по ленте дней — соседняя неделя
+  const full = Array.from({ length: 7 }, (_, i) => byDay(addDays(from, i))).filter(l => l.length && l.every(o => o.status === 'done')).length;
+  const drawRings = () => {
+    clear(rings);
+    for (let i = 0; i < 7; i++) {
+      const date = addDays(from, i);
+      const list = byDay(date);
+      const doneN = list.filter(o => o.status === 'done').length;
+      const pct = list.length ? Math.round((doneN / list.length) * 100) : 0;
+      const color = pct === 100 ? 'lime' : pct ? 'yellow' : 'lav';
+      const b = h('button', { type: 'button', class: `cal2-ring-day ${date === sel ? 'on' : ''} ${date === today ? 'today' : ''}`,
+        'aria-pressed': String(date === sel), 'aria-label': `${WD_FULL[i]}, ${parseDate(date).getDate()}: сделано ${doneN} из ${list.length}${moods[date] ? `, настроение ${MOOD_EMOJI[moods[date]]}` : ''}` },
+        h('span', { class: `cal2-ring c-${color}`, style: { '--p': pct } }, h('i', null, moods[date] ? MOOD_EMOJI[moods[date]] : list.length ? `${doneN}/${list.length}` : '')),
+        h('small', null, WD[i]), h('b', null, String(parseDate(date).getDate())));
+      b.addEventListener('click', () => { haptic.select(); view.day = date; drawRings(); drawSel(); });
+      rings.append(b);
+    }
+  };
+  const drawSel = () => {
+    const date = view.day;
+    const list = byTime(byDay(date));
+    const doneN = list.filter(o => o.status === 'done').length;
+    const toDay = h('button', { type: 'button', class: 'cal2-open-day' }, '🕒 Открыть день по часам', h('span', { 'aria-hidden': 'true' }, '›'));
+    toDay.addEventListener('click', () => { haptic.tap(); view.mode = 'day'; render(el, ctx); });
+    clear(dayHost).append(h('section', { class: 'cal2-card cal2-weekday' },
+      h('div', { class: 'cal2-sec-head' }, h('h2', null, date === today ? 'Сегодня' : `${WD_FULL[wdIndex(date)]}, ${parseDate(date).getDate()}`),
+        list.length ? h('span', { class: 'cal2-count lime' }, `${doneN} из ${list.length}`) : null),
+      list.length ? h('div', { class: 'cal2-checklist' }, list.map(o => weekRow(o, today, onChange)))
+        : h('p', { class: 'cal2-empty' }, date < today ? 'В этот день планов не было' : 'Пока свободно — самое время что-нибудь придумать'),
+      date <= today ? moodPicker(date, moods[date], m => { moods[date] = m; drawRings(); }) : null,
+      toDay),
+      date >= today ? quickInput(date, onChange) : null);
+  };
+  drawRings();
+  drawSel();
+  // свайп по кольцам — соседняя неделя
   let sx = null;
-  strip.addEventListener('touchstart', e => { sx = e.touches.length === 1 ? e.touches[0].clientX : null; }, { passive: true });
-  strip.addEventListener('touchend', e => {
+  rings.addEventListener('touchstart', e => { sx = e.touches.length === 1 ? e.touches[0].clientX : null; }, { passive: true });
+  rings.addEventListener('touchend', e => {
     if (sx === null) return;
     const dx = e.changedTouches[0].clientX - sx;
     sx = null;
     if (Math.abs(dx) > 60) go(dx < 0 ? 1 : -1);
   });
+  if (full) body.insertBefore(h('p', { class: 'cal2-week-note' }, `🔥 ${full} ${plural(full, 'день закрыт', 'дня закрыто', 'дней закрыто')} полностью`), rings);
+}
 
-  // итог недели
-  const counts = Array.from({ length: 7 }, (_, i) => {
-    const list = byDay(addDays(from, i));
-    return { all: list.length, done: list.filter(o => o.status === 'done').length };
-  });
-  const all = counts.reduce((s, c) => s + c.all, 0), doneAll = counts.reduce((s, c) => s + c.done, 0);
-  if (all) {
-    const max = Math.max(1, ...counts.map(c => c.all));
-    statsHost.append(h('section', { class: 'cal2-stats' },
-      h('div', { class: 'cal2-stats-head' }, h('span', { class: 'bold' }, 'Итог недели'), h('span', { class: 'cal2-count' }, `${doneAll} из ${all}`)),
-      h('div', { class: 'cal2-bars', 'aria-hidden': 'true' }, counts.map((c, i) => h('div', null,
-        h('span', { class: 'track' }, h('i', { class: c.all && c.done === c.all ? 'full' : '', style: { height: `${Math.max(c.all ? 8 : 4, Math.round((c.done / max) * 64))}px` } })),
-        h('span', { class: 'wd' }, WD[i]))))));
-  }
+/** Строка плана в неделе: галочка (сегодня и раньше) и название. */
+function weekRow(o, today, onChange) {
+  const done = o.status === 'done';
+  const row = h('div', { class: `cal2-check-row ${done ? 'done' : ''}` });
+  const box = h('button', { type: 'button', class: 'cal2-box', 'aria-pressed': String(done), disabled: o.date > today || (done && Boolean(o.quest_key)),
+    'aria-label': done ? `Снять отметку: ${o.title}` : `Выполнено: ${o.title}` }, done ? '✓' : '');
+  box.addEventListener('click', busy(box, async () => {
+    try {
+      if (done) { haptic.tap(); await api.uncompletePlan(o.id, o.date); refreshState().catch(() => {}); onChange(); }
+      else { row.classList.add('done'); box.textContent = '✓'; await completePlan(o, onChange); }
+    } catch (e) { toastError(e); }
+  }));
+  const info = h('button', { type: 'button', class: 'cal2-check-title' }, o.title);
+  info.addEventListener('click', () => { haptic.tap(); openPlanSheet(o, { onChange }); });
+  row.append(box, info, h('span', { class: 'cal2-check-time' }, o.time || ''));
+  return row;
 }
 
 /** Лента дня: планы по времени и свободные окна между ними. */
@@ -501,7 +642,7 @@ function drawTimeline(host, date, plans, today, onChange, habitItems = []) {
   const line = h('div', { class: 'cal2-line' });
   if (untimed.length || anyHabits.length) {
     line.append(h('div', { class: 'cal2-slot' }, h('span', { class: 'cal2-hour' }, 'весь день'),
-      h('div', { class: 'cal2-slot-body' }, untimed.map(o => planCard(o, today, onChange)), anyHabits.map(x => habitChip(x, onChange)))));
+      h('div', { class: 'cal2-slot-body' }, untimed.map(o => swipeable(o, today, onChange)), anyHabits.map(x => habitChip(x, onChange)))));
   }
   // свободные окна от FREE_FROM до FREE_TO (только сегодня и дальше)
   let cursor = FREE_FROM * 60;
@@ -521,13 +662,122 @@ function drawTimeline(host, date, plans, today, onChange, habitItems = []) {
     const start = toMin(it.time);
     if (date >= today && start - cursor >= FREE_MIN_HOURS * 60) line.append(freeSlot(cursor, start));
     line.append(h('div', { class: 'cal2-slot' }, h('span', { class: 'cal2-hour' }, it.time),
-      h('div', { class: 'cal2-slot-body' }, it.plan ? planCard(it.plan, today, onChange) : habitChip(it.habit, onChange))));
+      h('div', { class: 'cal2-slot-body' }, it.plan ? swipeable(it.plan, today, onChange) : habitChip(it.habit, onChange))));
     cursor = Math.max(cursor, start + (it.plan ? (it.plan.duration || 60) : 15));
   }
   if (date >= today && FREE_TO * 60 - cursor >= FREE_MIN_HOURS * 60) line.append(freeSlot(cursor, FREE_TO * 60));
   if (!line.childElementCount) line.append(h('p', { class: 'cal2-empty' }, date < today ? 'В этот день планов не было' : 'Пока пусто'));
   host.append(h('section', { class: 'cal2-card cal2-timeline' }, line));
+  if (plans.length) host.append(h('p', { class: 'cal2-gesture-hint' }, '👉 вправо — сделано · 👈 влево — на завтра · зажми — другое время · ручка снизу — длительность'));
+  if (date <= today) {
+    const moodHost = h('div');
+    host.append(moodHost);
+    api.dayMoods(date, date).then(r => moodHost.append(moodPicker(date, r.moods[date]))).catch(() => {});
+  }
   if (date >= today) host.append(quickInput(date, onChange), inboxBlock(date, onChange));
+}
+
+/** План в ленте дня с жестами: свайп вправо — сделано, влево — на завтра;
+ *  долгое нажатие — перетащить на другое время; ручка снизу — длительность.
+ *  Время и длительность меняются только у разовых планов (у повторов — в карточке). */
+function swipeable(o, today, onChange) {
+  const card = planCard(o, today, onChange);
+  const canDone = o.date <= today && o.status !== 'done';
+  const canTime = Boolean(o.time) && (o.repeat_rule || 'none') === 'none' && o.status !== 'done';
+  const wrap = h('div', { class: 'cal2-swipe' },
+    h('div', { class: 'cal2-swipe-bg done', 'aria-hidden': 'true' }, canDone ? '✓ Готово!' : ''),
+    h('div', { class: 'cal2-swipe-bg move', 'aria-hidden': 'true' }, 'На завтра →'), card);
+  const tip = h('span', { class: 'cal2-drag-tip', 'aria-hidden': 'true' });
+  card.append(tip);
+  let handle = null;
+  if (canTime) {
+    handle = h('span', { class: 'cal2-resize', role: 'slider', 'aria-label': `Длительность: ${o.title}` });
+    card.append(handle);
+  }
+  const STEP = 15, PX = 9; // 9 px движения = 15 минут
+  let sx = 0, sy = 0, mode = null, timer = null, dx = 0, dy = 0;
+  const reset = () => {
+    clearTimeout(timer);
+    mode = null;
+    card.style.transform = '';
+    card.classList.remove('dragging');
+    wrap.classList.remove('to-done', 'to-move');
+    tip.textContent = '';
+  };
+  const shift = () => Math.round(dy / PX) * STEP;
+  const start = (x, y, target) => {
+    sx = x; sy = y; dx = dy = 0; mode = null;
+    if (target.closest('.cal2-check, .cal2-step')) { mode = 'skip'; return; }
+    if (handle && target === handle) { mode = 'resize'; card.classList.add('dragging'); return; }
+    if (canTime) timer = setTimeout(() => { mode = 'drag'; haptic.tap('medium'); card.classList.add('dragging'); }, 450);
+  };
+  const move = (x, y, ev) => {
+    dx = x - sx; dy = y - sy;
+    if (mode === 'skip' || mode === 'scroll') return;
+    if (!mode) {
+      if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.3) { clearTimeout(timer); mode = 'swipe'; }
+      else if (Math.abs(dy) > 10) { clearTimeout(timer); mode = 'scroll'; return; }
+      else return;
+    }
+    if (ev && ev.cancelable) ev.preventDefault();
+    if (mode === 'swipe') {
+      card.style.transform = `translateX(${dx}px)`;
+      wrap.classList.toggle('to-done', dx > 0 && canDone);
+      wrap.classList.toggle('to-move', dx < 0);
+    } else if (mode === 'drag') {
+      card.style.transform = `translateY(${dy}px) rotate(-1.5deg) scale(1.02)`;
+      const t = Math.max(0, Math.min(23 * 60 + 45, toMin(o.time) + shift()));
+      tip.textContent = `→ ${hhmm(t)}`;
+    } else if (mode === 'resize') {
+      const dur = Math.max(STEP, Math.min(23 * 60 + 59 - toMin(o.time), (o.duration || 60) + shift()));
+      tip.textContent = `до ${endOf(o.time, dur)}`;
+    }
+  };
+  const end = async () => {
+    const m = mode, ddx = dx, mins = shift();
+    reset();
+    try {
+      if (m === 'swipe' && ddx > 90 && canDone) {
+        card.classList.add('done');
+        await completePlan(o, onChange);
+      } else if (m === 'swipe' && ddx < -90) {
+        haptic.success();
+        await api.movePlan(o.id, o.date, addDays(o.date, 1));
+        toast(`📅 «${o.title}» — на завтра`, 'good');
+        refreshState().catch(() => {});
+        onChange();
+      } else if (m === 'drag' && mins) {
+        const t = Math.max(0, Math.min(23 * 60 + 45, toMin(o.time) + mins));
+        await api.patchPlan(o.id, { time: hhmm(t) });
+        haptic.success();
+        toast(`🕒 Теперь в ${hhmm(t)}`, 'good');
+        onChange();
+      } else if (m === 'resize' && mins) {
+        const dur = Math.max(STEP, Math.min(23 * 60 + 59 - toMin(o.time), (o.duration || 60) + mins));
+        await api.patchPlan(o.id, { duration: dur });
+        haptic.success();
+        toast(`⏱ До ${endOf(o.time, dur)}`, 'good');
+        onChange();
+      }
+    } catch (e) { toastError(e); onChange(); }
+  };
+  wrap.addEventListener('touchstart', e => { if (e.touches.length === 1) start(e.touches[0].clientX, e.touches[0].clientY, e.target); }, { passive: true });
+  wrap.addEventListener('touchmove', e => { if (e.touches.length === 1) move(e.touches[0].clientX, e.touches[0].clientY, e); }, { passive: false });
+  wrap.addEventListener('touchend', () => { if (mode && mode !== 'skip' && mode !== 'scroll') end(); else reset(); });
+  wrap.addEventListener('touchcancel', reset);
+  // мышь (веб-версия)
+  wrap.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    start(e.clientX, e.clientY, e.target);
+    const mm = ev => move(ev.clientX, ev.clientY, ev);
+    const up = () => { document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', up);
+      if (mode && mode !== 'skip' && mode !== 'scroll') end(); else reset(); };
+    document.addEventListener('mousemove', mm);
+    document.addEventListener('mouseup', up);
+  });
+  // после свайпа/перетаскивания не открываем карточку
+  wrap.addEventListener('click', e => { if (Math.abs(dx) > 8 || Math.abs(dy) > 8) { e.stopPropagation(); e.preventDefault(); dx = dy = 0; } }, true);
+  return wrap;
 }
 const hhmm = min => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 /** «10:00» + 90 мин → «11:30» (не дальше 23:59). */

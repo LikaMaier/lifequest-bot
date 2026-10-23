@@ -810,6 +810,17 @@ async def move_plan(request):
     return web.json_response(plans.move_plan(request["user_id"], _int(request.match_info["id"]), data.get("date"), data.get("to")))
 
 
+async def day_mood(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(plans.set_mood(request["user_id"], str(data.get("day") or ""), data.get("mood")))
+
+
+async def day_moods(request):
+    return web.json_response({"moods": plans.moods(request["user_id"], request.query.get("from", ""),
+                                                    request.query.get("to", ""))})
+
+
 async def calendar_summary(request):
     return web.json_response(plans.month_summary(request["user_id"], request.query.get("month", "")))
 
@@ -1088,6 +1099,8 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_post("/api/plans/{id}/uncomplete", uncomplete_plan)
     app.router.add_post("/api/plans/{id}/move", move_plan)
     app.router.add_get("/api/calendar/summary", calendar_summary)
+    app.router.add_post("/api/day/mood", day_mood)
+    app.router.add_get("/api/day/moods", day_moods)
     app.router.add_get("/api/calendar/export.ics", export_ics)
     app.router.add_post("/api/calendar/export-link", export_link)
     app.router.add_get("/api/quests/search", search_quests)
