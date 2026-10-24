@@ -182,6 +182,19 @@ class PhotosServiceTest(PhotoDirMixin, TempDBTestCase):
         with Image.open(photos.file_path(1, ph["id"], "thumb")) as t:
             self.assertEqual(max(t.size), 320)
 
+    def test_free_album_limit_five_owner_exempt(self):
+        from unittest import mock
+        days = [(date.fromisoformat(self.today) - timedelta(days=i)).isoformat() for i in range(7)]
+        for d in days[:5]:
+            photos.save_upload(2, jpeg(200, 200), {"target": "day", "day": d})
+        with self.assertRaises(game.QuestError) as err:
+            photos.save_upload(2, jpeg(200, 200), {"target": "day", "day": days[5]})
+        self.assertEqual(err.exception.code, "photo_limit")
+        with mock.patch.dict(os.environ, {"ADMIN_ID": "2"}):  # владелице без Premium — без лимита
+            photos.save_upload(2, jpeg(200, 200), {"target": "day", "day": days[5]})
+            self.assertEqual(photos.stats(2)["limit"], photos.LIMIT_PREMIUM)
+        self.assertEqual(photos.stats(1)["limit"], 5)
+
     def test_rejects_bad_content_and_limits(self):
         for raw in (b"", b"GIF89a" + b"0" * 100, b"\xff\xd8\xff" + b"broken"):
             with self.assertRaises(game.QuestError):
