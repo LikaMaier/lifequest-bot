@@ -1,4 +1,10 @@
-"""Premium и покупки за звёзды Telegram (XTR).
+"""Premium и покупки: рубли через ЮKassa (Telegram Payments) и звёзды Telegram (XTR).
+
+Рубли: Premium на месяц — 199 ₽. Включается переменной YOOKASSA_PROVIDER_TOKEN
+(токен из @BotFather → Payments → ЮKassa). Если в магазине ЮKassa включена
+отправка чеков (54-ФЗ), задайте YOOKASSA_RECEIPT=1 — в счёт уйдут данные чека,
+а Telegram спросит у покупателя email для чека.
+Звёзды: остальные товары, включаются PAYMENTS_ENABLED=1.
 
 Оплата: мини-апп или бот создают счёт (invoice) → Telegram присылает
 pre_checkout_query — проверяем validate_checkout → после оплаты приходит
@@ -6,12 +12,18 @@ successful_payment — apply_payment начисляет покупку ровн�
 (charge_id уникален, повторная доставка ничего не удвоит).
 """
 
+import json
+import os
 from datetime import date, datetime, timedelta
 
 import game
 import storage
 
 CURRENCY = "XTR"
+YOOKASSA_TOKEN = os.getenv("YOOKASSA_PROVIDER_TOKEN", "").strip()
+YOOKASSA_RECEIPT = os.getenv("YOOKASSA_RECEIPT", "") == "1"
+YOOKASSA_VAT_CODE = int(os.getenv("YOOKASSA_VAT_CODE", "1") or 1)  # 1 — без НДС
+RUB_PRICES = {"premium_month": 19900}  # в копейках: 199 ₽
 
 # id → название, цена в звёздах, дни Premium (если это Premium)
 PRODUCTS = {
@@ -74,12 +86,63 @@ def trial_available(user: dict) -> bool:
     return not user.get("trial_used") and not game.is_premium(user) and trial_earned(user["user_id"])
 
 
-def price(user_id: int, product: str) -> int:
+def currencies(product: str) -> list:
+    """Чем сейчас можно оплатить товар: рубли (если подключена ЮKassa и у товара
+    есть цена в рублях) и/или звёзды (PAYMENTS_ENABLED=1). Рубли — первыми."""
+    out = []
+    if YOOKASSA_TOKEN and product in RUB_PRICES:
+        out.append("RUB")
+    if game.PAYMENTS_ENABLED and product in PRODUCTS:
+        out.append(CURRENCY)
+    return out
+
+
+def currency_of(product: str, currency: str = None) -> str:
+    """Валюта счёта: выбранная (если ею можно платить) или основная для товара."""
+    options = currencies(product)
+    if currency and currency.upper() in options:
+        return currency.upper()
+    if currency and options:
+        raise game.QuestError("Этим способом товар сейчас не купить")
+    return options[0] if options else CURRENCY
+
+
+def buyable(product: str, currency: str = None) -> bool:
+    """Можно ли сейчас купить товар (вообще или выбранной валютой)."""
+    options = currencies(product)
+    return bool(options) if currency is None else currency.upper() in options
+
+
+def payments_enabled() -> bool:
+    return any(buyable(p) for p in PRODUCTS)
+
+
+def format_amount(amount: int, currency: str) -> str:
+    return f"{amount // 100} ₽" if currency == "RUB" else f"{amount}⭐"
+
+
+def price_text(user_id: int, product: str, currency: str = None) -> str:
+    cur = currency_of(product, currency)
+    return format_amount(price(user_id, product, cur), cur)
+
+
+def price(user_id: int, product: str, currency: str = CURRENCY) -> int:
+    """Цена в единицах счёта: копейки для рублей, штуки для звёзд."""
     if product not in PRODUCTS:
         raise game.QuestError("Такого товара нет")
+    if currency == "RUB":
+        if product not in RUB_PRICES:
+            raise game.QuestError("Этот товар продаётся только за звёзды")
+        return RUB_PRICES[product]
     if product in FIRST_PURCHASE_PRICE and not paid_before(user_id):
         return FIRST_PURCHASE_PRICE[product]
     return PRODUCTS[product]["stars"]
+
+
+def pay_options(user_id: int, product: str) -> list:
+    """[{currency, amount, text}] — способы оплаты товара, основной первым."""
+    return [{"currency": c, "amount": price(user_id, product, c), "text": format_amount(price(user_id, product, c), c)}
+            for c in currencies(product)]
 
 
 def restore_offer(user: dict, today: date = None):
@@ -105,8 +168,10 @@ def premium_view(user: dict) -> dict:
         "trial_after_habit_days": TRIAL_AFTER_HABIT_DAYS,
         "prices": {p: price(uid, p) for p in PRODUCTS},
         "full_prices": {p: PRODUCTS[p]["stars"] for p in PRODUCTS},
+        "options": {p: pay_options(uid, p) for p in PRODUCTS},
+        "buyable": [p for p in PRODUCTS if buyable(p)],
         "restore": restore_offer(user) if game.PAYMENTS_ENABLED else 0,
-        "payments": game.PAYMENTS_ENABLED,
+        "payments": payments_enabled(),
     }
 
 
@@ -125,31 +190,47 @@ def check_purchase(user_id: int, product: str):
         raise game.QuestError("У тебя уже Premium навсегда 💛")
 
 
-def make_payload(user_id: int, product: str) -> str:
-    return f"{product}:{user_id}:{price(user_id, product)}"
+def make_payload(user_id: int, product: str, currency: str = CURRENCY) -> str:
+    return f"{product}:{user_id}:{price(user_id, product, currency)}:{currency}"
 
 
 def parse_payload(payload: str):
+    """→ (товар, user_id, сумма, валюта). Старые счета без валюты — звёздные."""
     try:
-        product, uid, stars = payload.split(":")
-        return product, int(uid), int(stars)
+        parts = payload.split(":")
+        if len(parts) == 3:
+            parts.append(CURRENCY)
+        product, uid, amount, currency = parts
+        return product, int(uid), int(amount), currency
     except (AttributeError, ValueError):
         raise game.QuestError("Счёт устарел — открой его заново")
 
 
-def invoice_params(user_id: int, product: str) -> dict:
-    """Параметры для bot.create_invoice_link / bot.send_invoice."""
-    if not game.PAYMENTS_ENABLED:
+def invoice_params(user_id: int, product: str, currency: str = None) -> dict:
+    """Параметры для bot.create_invoice_link / bot.send_invoice (extra — именованные
+    аргументы для рублёвого счёта: email и данные чека для ЮKassa)."""
+    if product in PRODUCTS and not buyable(product):
         raise game.QuestError("Оплата скоро появится — мы уже готовим 💛", code="payments_off")
     check_purchase(user_id, product)
+    cur = currency_of(product, currency)
     p = PRODUCTS[product]
-    return {"title": p["title"], "description": p["description"], "payload": make_payload(user_id, product),
-            "currency": CURRENCY, "stars": price(user_id, product)}
+    amount = price(user_id, product, cur)
+    out = {"title": p["title"], "description": p["description"], "payload": make_payload(user_id, product, cur),
+           "currency": cur, "amount": amount, "stars": amount, "provider_token": "", "extra": {}}
+    if out["currency"] == "RUB":
+        out["provider_token"] = YOOKASSA_TOKEN
+        if YOOKASSA_RECEIPT:
+            receipt = {"receipt": {"items": [{
+                "description": p["title"][:128], "quantity": "1.00",
+                "amount": {"value": f"{amount / 100:.2f}", "currency": "RUB"},
+                "vat_code": YOOKASSA_VAT_CODE, "payment_mode": "full_payment", "payment_subject": "service"}]}}
+            out["extra"] = {"need_email": True, "send_email_to_provider": True, "provider_data": json.dumps(receipt)}
+    return out
 
 
 def validate_checkout(user_id: int, payload: str, total: int, currency: str):
-    product, uid, stars = parse_payload(payload)
-    if uid != user_id or currency != CURRENCY or total != stars or product not in PRODUCTS:
+    product, uid, amount, cur = parse_payload(payload)
+    if uid != user_id or product not in PRODUCTS or currency != cur or total != amount:
         raise game.QuestError("Счёт устарел — открой его заново")
     check_purchase(user_id, product)
     return product
@@ -163,15 +244,16 @@ def _extend_premium(conn, user: dict, days: int) -> str:
     return until
 
 
-def apply_payment(user_id: int, payload: str, charge_id: str, total: int) -> dict:
-    """Начисляет покупку. Повторный вызов с тем же charge_id → {"duplicate": True}."""
-    product, _uid, _stars = parse_payload(payload)
+def apply_payment(user_id: int, payload: str, charge_id: str, total: int, currency: str = CURRENCY) -> dict:
+    """Начисляет покупку. Повторный вызов с тем же charge_id → {"duplicate": True}.
+    total — в единицах счёта (копейки для рублей, штуки для звёзд)."""
+    product = parse_payload(payload)[0]
     if product not in PRODUCTS:
         raise game.QuestError("Неизвестный товар")
     storage.ensure_user(user_id)
     conn = storage.connect()
-    cur = conn.execute("""INSERT OR IGNORE INTO payments (user_id, product, stars, charge_id, created_at)
-                          VALUES (?, ?, ?, ?, ?)""", (user_id, product, total, charge_id, storage.utc_now_str()))
+    cur = conn.execute("""INSERT OR IGNORE INTO payments (user_id, product, stars, charge_id, created_at, currency)
+                          VALUES (?, ?, ?, ?, ?, ?)""", (user_id, product, total, charge_id, storage.utc_now_str(), currency))
     if cur.rowcount != 1:
         conn.close()
         return {"product": product, "duplicate": True}
@@ -269,9 +351,16 @@ def stats() -> dict:
     conn = storage.connect()
     active = conn.execute("SELECT COUNT(*) FROM users WHERE COALESCE(is_premium, 0) = 1 OR premium_until > ?",
                           (storage.utc_now_str(),)).fetchone()[0]
-    stars, count = conn.execute("SELECT COALESCE(SUM(stars), 0), COUNT(*) FROM payments WHERE refunded = 0").fetchone()
-    month = conn.execute("SELECT COALESCE(SUM(stars), 0) FROM payments WHERE refunded = 0 AND created_at >= ?",
-                         (_fmt(_now() - timedelta(days=30)),)).fetchone()[0]
+    since = _fmt(_now() - timedelta(days=30))
+    count = conn.execute("SELECT COUNT(*) FROM payments WHERE refunded = 0").fetchone()[0]
+    sums = {}
+    for cur, period in (("XTR", None), ("XTR", since), ("RUB", None), ("RUB", since)):
+        sums[(cur, period)] = conn.execute(
+            "SELECT COALESCE(SUM(stars), 0) FROM payments WHERE refunded = 0 AND COALESCE(currency, 'XTR') = ?"
+            + (" AND created_at >= ?" if period else ""), (cur, period) if period else (cur,)).fetchone()[0]
+    stars, month = sums[("XTR", None)], sums[("XTR", since)]
+    rub, rub_month = sums[("RUB", None)] // 100, sums[("RUB", since)] // 100
     trials = conn.execute("SELECT COUNT(*) FROM users WHERE trial_used = 1").fetchone()[0]
     conn.close()
-    return {"active": active, "stars": stars, "payments": count, "stars_30d": month, "trials": trials}
+    return {"active": active, "stars": stars, "payments": count, "stars_30d": month, "trials": trials,
+            "rub": rub, "rub_30d": rub_month}

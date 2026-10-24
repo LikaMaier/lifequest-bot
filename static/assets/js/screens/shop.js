@@ -129,7 +129,7 @@ function draw(body, el, ctx) {
 
 function starsFreeze(ctx, full, el) {
   const p = ctx.state.premium || {};
-  if (!p.payments || full) return null;
+  if (!(p.buyable || []).includes('freeze') || full) return null;
   const b = h('button', { type: 'button', class: 'btn ghost small', style: { marginLeft: '8px' } }, `или ${p.prices.freeze}⭐`);
   b.addEventListener('click', async () => {
     b.disabled = true;

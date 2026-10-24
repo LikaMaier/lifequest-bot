@@ -826,8 +826,9 @@ async def admin_stats(message: Message):
         f"Средний стрик: {avg_streak:.1f} дней\n"
         f"Нажали «Хочу Premium»: {premium_interest}\n"
         f"Premium сейчас: {prem['active']} · пробных недель: {prem['trials']}\n"
-        f"Оплат: {prem['payments']} на {prem['stars']}⭐ (за 30 дней: {prem['stars_30d']}⭐)\n"
-        f"Оплата: {'включена' if game.PAYMENTS_ENABLED else 'выключена'}",
+        f"Оплат: {prem['payments']} — {prem['rub']} ₽ и {prem['stars']}⭐ "
+        f"(за 30 дней: {prem['rub_30d']} ₽ и {prem['stars_30d']}⭐)\n"
+        f"Оплата: ЮKassa {'✅' if billing.YOOKASSA_TOKEN else '—'} · звёзды {'✅' if game.PAYMENTS_ENABLED else '—'}",
         parse_mode="HTML"
     )
 
@@ -1018,7 +1019,7 @@ def premium_keyboard(user_id: int):
 async def cmd_premium(message: Message):
     ensure_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
     text = premium_text(message.from_user.id)
-    if not game.PAYMENTS_ENABLED and not game.is_premium(storage.get_user(message.from_user.id)):
+    if not billing.payments_enabled() and not game.is_premium(storage.get_user(message.from_user.id)):
         text += "\n\n<i>Оплата скоро появится.</i>"
     await message.answer(text, parse_mode="HTML", reply_markup=premium_keyboard(message.from_user.id))
 
@@ -1038,16 +1039,16 @@ async def premium_trial(callback: CallbackQuery):
 
 @dp.callback_query(F.data.startswith("pay_"))
 async def pay_product(callback: CallbackQuery):
-    product = callback.data[len("pay_"):]
+    product, _, currency = callback.data[len("pay_"):].partition(":")
     try:
-        p = billing.invoice_params(callback.from_user.id, product)
+        p = billing.invoice_params(callback.from_user.id, product, currency or None)
     except game.QuestError as e:
         await callback.answer(str(e), show_alert=True)
         return
     await callback.answer()
     await bot.send_invoice(callback.from_user.id, title=p["title"], description=p["description"],
-                           payload=p["payload"], provider_token="", currency=p["currency"],
-                           prices=[LabeledPrice(label=p["title"], amount=p["stars"])])
+                           payload=p["payload"], provider_token=p["provider_token"], currency=p["currency"],
+                           prices=[LabeledPrice(label=p["title"], amount=p["amount"])], **p["extra"])
 
 
 @dp.pre_checkout_query()
@@ -1073,7 +1074,7 @@ async def on_successful_payment(message: Message):
     sp = message.successful_payment
     try:
         res = billing.apply_payment(message.from_user.id, sp.invoice_payload,
-                                    sp.telegram_payment_charge_id, sp.total_amount)
+                                    sp.telegram_payment_charge_id, sp.total_amount, sp.currency)
     except Exception as e:
         await ops.alert("payment", e, f"user {message.from_user.id} charge {sp.telegram_payment_charge_id}")
         await message.answer("Оплата прошла, но что-то пошло не так при начислении — мы уже разбираемся. "
@@ -1091,7 +1092,7 @@ async def on_successful_payment(message: Message):
 @dp.message(Command("paysupport"))
 async def cmd_paysupport(message: Message):
     await message.answer("💬 Вопрос по оплате? Опиши, что случилось, одним сообщением после команды "
-                         "<code>/paysupport</code> — ответим и, если нужно, вернём звёзды.", parse_mode="HTML")
+                         "<code>/paysupport</code> — ответим и, если нужно, вернём деньги или звёзды.", parse_mode="HTML")
     text = (message.text or "").partition(" ")[2].strip()
     if text and ADMIN_ID:
         await ops.safe_send(ADMIN_ID, f"💬 paysupport от {message.from_user.id} (@{message.from_user.username}):\n"
@@ -1131,6 +1132,11 @@ async def admin_refund(message: Message):
         return
     try:
         row = billing.mark_refunded(parts[1])
+        if (row.get("currency") or billing.CURRENCY) == "RUB":
+            # рубли бот вернуть не может — только из личного кабинета ЮKassa
+            await message.answer(f"↩️ Покупка {row['product']} у {row['user_id']} отменена. "
+                                 f"Верни {row['stars'] // 100} ₽ в личном кабинете ЮKassa → Платежи.")
+            return
         await bot.refund_star_payment(user_id=row["user_id"], telegram_payment_charge_id=parts[1])
     except Exception as e:
         await message.answer(f"Не получилось: {html.escape(str(e))}")

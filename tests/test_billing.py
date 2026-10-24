@@ -2,6 +2,7 @@ from datetime import date, datetime, timedelta
 from unittest import mock
 
 from tests.helpers import TempDBTestCase
+import json
 import billing
 import game
 import storage
@@ -161,3 +162,65 @@ class PaymentsTest(TempDBTestCase):
         self.assertEqual([(u, k) for u, k, _ in found], [(1, "soon")])
         billing.mark_notice(1, "soon", soon)
         self.assertEqual(billing.users_for_premium_notice(), [])
+
+
+class RublePaymentsTest(TempDBTestCase):
+    """ЮKassa (рубли) для месяца Premium и звёзды — как альтернатива."""
+
+    def setUp(self):
+        super().setUp()
+        storage.ensure_user(1, "u", "U")
+        self.patches = [mock.patch.object(billing, "YOOKASSA_TOKEN", "test:token"),
+                        mock.patch.object(game, "PAYMENTS_ENABLED", True)]
+        for p in self.patches:
+            p.start()
+
+    def tearDown(self):
+        for p in self.patches:
+            p.stop()
+        super().tearDown()
+
+    def test_month_offers_rubles_first_and_stars_as_alternative(self):
+        view = billing.premium_view(storage.get_user(1))
+        self.assertEqual([o["text"] for o in view["options"]["premium_month"]], ["199 ₽", "75⭐"])
+        self.assertEqual([o["currency"] for o in view["options"]["freeze"]], ["XTR"])
+        self.assertTrue(view["payments"])
+
+    def test_rub_invoice_and_payment(self):
+        params = billing.invoice_params(1, "premium_month")
+        self.assertEqual((params["currency"], params["amount"], params["provider_token"]), ("RUB", 19900, "test:token"))
+        self.assertEqual(params["extra"], {})
+        self.assertEqual(billing.validate_checkout(1, params["payload"], 19900, "RUB"), "premium_month")
+        with self.assertRaises(game.QuestError):  # та же сумма, но другой валютой
+            billing.validate_checkout(1, params["payload"], 19900, "XTR")
+        billing.apply_payment(1, params["payload"], "rub1", 19900, "RUB")
+        self.assertTrue(game.is_premium(storage.get_user(1)))
+        st = billing.stats()
+        self.assertEqual((st["rub"], st["stars"]), (199, 0))
+        row = billing.mark_refunded("rub1")
+        self.assertEqual(row["currency"], "RUB")
+        self.assertFalse(game.is_premium(storage.get_user(1)))
+
+    def test_stars_alternative_invoice(self):
+        params = billing.invoice_params(1, "premium_month", "XTR")
+        self.assertEqual((params["currency"], params["amount"], params["provider_token"]), ("XTR", 75, ""))
+        self.assertEqual(billing.validate_checkout(1, params["payload"], 75, "XTR"), "premium_month")
+        with self.assertRaises(game.QuestError):  # рублями год не продаётся
+            billing.invoice_params(1, "premium_year", "RUB")
+
+    def test_receipt_data_when_enabled(self):
+        with mock.patch.object(billing, "YOOKASSA_RECEIPT", True):
+            extra = billing.invoice_params(1, "premium_month")["extra"]
+        self.assertTrue(extra["need_email"] and extra["send_email_to_provider"])
+        item = json.loads(extra["provider_data"])["receipt"]["items"][0]
+        self.assertEqual(item["amount"], {"value": "199.00", "currency": "RUB"})
+
+    def test_rubles_only_without_stars(self):
+        with mock.patch.object(game, "PAYMENTS_ENABLED", False):
+            self.assertEqual(billing.invoice_params(1, "premium_month")["currency"], "RUB")
+            with self.assertRaises(game.QuestError):
+                billing.invoice_params(1, "freeze")
+            self.assertEqual(billing.premium_view(storage.get_user(1))["buyable"], ["premium_month"])
+
+    def test_old_star_payload_still_accepted(self):
+        self.assertEqual(billing.validate_checkout(1, "freeze:1:25", 25, "XTR"), "freeze")
