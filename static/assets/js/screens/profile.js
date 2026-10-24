@@ -133,7 +133,7 @@ export function render(el, { state, go }) {
     h('div', { class: 'row' }, h('span', { style: { fontSize: '34px' }, 'aria-hidden': 'true' }, '👑'),
       h('div', { class: 'grow' }, h('div', { class: 'card-title', style: { margin: 0 } }, 'LifeQuest Premium'),
         h('div', { class: 'small bold' }, u.is_premium ? 'Premium активен — спасибо! 💛'
-          : (state.premium && state.premium.trial_available) ? '🎁 Неделя Premium в подарок ждёт тебя' : 'Безлимит, аксессуары, стиль «Космос»'))));
+          : (state.premium && state.premium.trial_available) ? '🎁 Неделя Premium в подарок ждёт тебя' : 'Случайные квесты, наборы, аксессуары и стили'))));
   prem.addEventListener('click', () => { haptic.tap(); go('premium'); });
   el.append(prem);
 
