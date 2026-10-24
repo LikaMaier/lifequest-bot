@@ -1173,7 +1173,6 @@ p { margin: 0; }
   display: block; padding: 6px 2px 9px; min-height: 22px; text-align: center; font-family: 'Caveat', 'Nunito', cursive; font-weight: 700;
   font-size: 19px; line-height: 1.05; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere;
 }
-.memo-snap-cap.date { color: #8A8365; font-size: 17px; }
 .memo-snap.big { padding: 12px 12px 0; margin-top: 26px; box-shadow: 0 16px 28px rgba(70, 50, 90, .2), 0 2px 3px rgba(40, 25, 10, .2); }
 .memo-snap.big .memo-snap-img { max-height: 440px; }
 .memo-snap.big .memo-snap-cap { font-size: 26px; padding: 10px 4px 14px; }

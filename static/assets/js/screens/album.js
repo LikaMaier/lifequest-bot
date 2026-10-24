@@ -253,14 +253,13 @@ function snap(p, { r = 1, big = false, sticker = null } = {}) {
   for (const ch of String(p.id)) n = (n * 31 + ch.charCodeAt(0)) | 0;
   n = Math.abs(n);
   const tilt = big ? -1.2 : ((n % 7) - 3) * 0.7;
-  const text = p.caption || fmtDay(p.day);
   return h('button', { type: 'button', class: `memo-snap ${big ? 'big' : ''} pc-${n % 4}`, style: { '--tilt': `${tilt}deg` },
     'aria-label': `${p.caption || p.label || 'Фото'}, ${fmtDay(p.day)}` },
     sticker ? h('span', { class: 'memo-snap-sticker' }, sticker) : null,
     big || n % 5 < 3 ? cornerSticker(big ? n | 1 : n) : null,
     h('span', { class: 'memo-snap-img', style: { aspectRatio: String(r) } },
       big ? h('img', { src: p.url, alt: '', decoding: 'async' }) : lazyThumb(p)),
-    h('span', { class: `memo-snap-cap ${p.caption ? '' : 'date'}` }, text));
+    h('span', { class: 'memo-snap-cap' }, p.caption || ''));  // без подписи — пустое поле
 }
 
 /** Пропорции фото (ширина / высота), чтобы показывать его без обрезки;

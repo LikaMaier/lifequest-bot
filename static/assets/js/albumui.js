@@ -28,7 +28,7 @@ export function photoGrid(list, { onChange } = {}) {
   return h('div', { class: 'alb-grid' }, list.map((p, i) => {
     const b = h('button', { type: 'button', class: `alb-pic pc-${i % 5}`, 'aria-label': `Открыть фото ${i + 1}${p.by ? `, ${p.by}` : ''}` },
       h('span', { class: 'alb-pic-img' }, lazyThumb(p)),
-      h('span', { class: 'alb-pic-cap' }, p.caption || (p.by ? `📷 ${p.by}` : fmtDay(p.day))));
+      h('span', { class: 'alb-pic-cap' }, p.caption || ''));  // без подписи — просто пустое поле полароида
     b.addEventListener('click', () => { haptic.tap(); openViewer(list, i, { onDelete: onChange, onChange }); });
     return b;
   }));
