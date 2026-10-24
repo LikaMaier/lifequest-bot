@@ -3,6 +3,7 @@ from unittest import mock
 
 from tests.helpers import TempDBTestCase
 import json
+import os
 import billing
 import game
 import storage
@@ -245,6 +246,7 @@ class PremiumChatTariffsTest(TempDBTestCase):
     """/premium в чате: тарифы с ценами и кнопки оплаты (нужно для анкеты ЮKassa)."""
 
     def test_tariffs_and_pay_buttons(self):
+        os.environ.setdefault("BOT_TOKEN", "123456:TEST")
         import lifequest_bot as lb
         storage.ensure_user(1, "u", "U")
         with mock.patch.object(game, "PAYMENTS_ENABLED", True), mock.patch.object(lb, "MINIAPP_URL", "https://x.app/"):
