@@ -88,19 +88,29 @@ class PacksTest(TempDBTestCase):
             self.assertNotIn(game.random_quest(1, "solo")["id"], pool_keys)
 
     def test_free_then_premium_lock(self):
-        free = packs.quest_id("weekend", 0)
-        paid = packs.quest_id("weekend", packs.FREE_PER_PACK)
+        free = packs.quest_id("dates", 0)
+        paid = packs.quest_id("dates", packs.FREE_PER_PACK)
         game.accept_quest(1, free)
         with self.assertRaises(game.QuestError) as err:
             game.accept_quest(1, paid)
         self.assertEqual(err.exception.code, "pack")
         storage.update_user(1, is_premium=1)
         game.accept_quest(1, paid)
-        self.assertNotIn("weekend", [p["id"] for p in game.packs_view(1)])  # скрыт у всех…
-        with mock.patch.dict(os.environ, {"ADMIN_ID": "1"}):  # …кроме владелицы
-            view = {p["id"]: p for p in game.packs_view(1)}
-        statuses = [q["status"] for q in view["weekend"]["quests"]]
+        view = {p["id"]: p for p in game.packs_view(1)}
+        statuses = [q["status"] for q in view["dates"]["quests"]]
         self.assertEqual(statuses.count("active"), 2)
+
+    def test_retired_hidden_and_order(self):
+        with mock.patch.object(game, "local_today", return_value=date(2026, 10, 24)):
+            ids = [p["id"] for p in game.packs_view(1)]
+            self.assertEqual(ids[:2], ["halloween", "autumn"])  # сезонные — первыми
+            self.assertNotIn("reset", ids)  # «Перезагрузка» — пока только у владелицы
+            with mock.patch.dict(os.environ, {"ADMIN_ID": "1"}):
+                owner = [p["id"] for p in game.packs_view(1)]
+        self.assertIn("reset", owner)
+        for pid in packs.RETIRED:  # убранные наборы не видит никто
+            self.assertNotIn(pid, ids)
+            self.assertNotIn(pid, owner)
 
     def test_seasonal_pack_and_item(self):
         with mock.patch.object(game, "local_today", return_value=date(2026, 12, 1)):
