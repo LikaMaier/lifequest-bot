@@ -1,5 +1,5 @@
 // Premium: окно-предложение (когда упёрлись в лимит или нажали на 🔒),
-// пробная неделя и покупка за звёзды (когда оплата включена на сервере).
+// пробная неделя и покупка: рубли через ЮKassa или звёзды (что включено на сервере).
 
 import { h } from './dom.js';
 import { tg, haptic, openTgLink } from './tg.js';
@@ -35,9 +35,10 @@ const REASONS = {
 
 const premiumInfo = () => (store.state && store.state.premium) || {};
 
-/** Покупка товара за звёзды: счёт открывается прямо в мини-аппе. */
-export async function buyStars(product) {
-  const res = await api.premiumInvoice(product);
+/** Покупка товара (currency: 'RUB' | 'XTR', по умолчанию — основная валюта товара):
+ * счёт открывается прямо в мини-аппе. */
+export async function buyStars(product, currency) {
+  const res = await api.premiumInvoice(product, currency);
   return new Promise(resolve => {
     const done = async status => {
       if (status === 'paid') {
@@ -85,13 +86,30 @@ export function premiumActions(onDone) {
   }
   if (p.payments && !p.forever) {
     const full = p.full_prices || {};
-    const month = p.prices.premium_month;
-    const b1 = h('button', { type: 'button', class: `btn block ${out.length ? 'ghost' : ''}` },
-      `30 дней — ${month}⭐`, month < full.premium_month ? h('span', { class: 'tag c-lime', style: { marginLeft: '8px' } }, '−50%') : null);
-    b1.addEventListener('click', busy(b1, async () => { try { if (await buyStars('premium_month') === 'paid') after(); } catch (e) { toastError(e); } }));
-    const b2 = h('button', { type: 'button', class: 'btn block ghost' }, `Год — ${p.prices.premium_year}⭐ · выгоднее на 45%`);
-    b2.addEventListener('click', busy(b2, async () => { try { if (await buyStars('premium_year') === 'paid') after(); } catch (e) { toastError(e); } }));
-    out.push(b1, b2);
+    const opts = p.options || {};
+    const buy = (b, product, currency) => b.addEventListener('click', busy(b, async () => {
+      try { if (await buyStars(product, currency) === 'paid') after(); } catch (e) { toastError(e); }
+    }));
+    const sale = o => (o.currency === 'XTR' && o.amount < full.premium_month
+      ? h('span', { class: 'tag c-lime', style: { marginLeft: '8px' } }, '−50%') : null);
+    // месяц: основной способ — большой кнопкой, второй (звёзды) — рядом поменьше
+    const [main, alt] = opts.premium_month || [];
+    if (main) {
+      const b1 = h('button', { type: 'button', class: `btn block ${out.length ? 'ghost' : ''}` }, `30 дней — ${main.text}`, sale(main));
+      buy(b1, 'premium_month', main.currency);
+      out.push(b1);
+    }
+    if (alt) {
+      const b2 = h('button', { type: 'button', class: 'btn block ghost' }, `или ${alt.text} звёздами`, sale(alt));
+      buy(b2, 'premium_month', alt.currency);
+      out.push(b2);
+    }
+    const [year] = opts.premium_year || [];
+    if (year) {
+      const b3 = h('button', { type: 'button', class: 'btn block ghost' }, `Год — ${year.text} · выгоднее на 45%`);
+      buy(b3, 'premium_year', year.currency);
+      out.push(b3);
+    }
   } else if (!p.active && !p.trial_available) {
     const b = h('button', { type: 'button', class: 'btn block' }, 'Хочу Premium');
     b.addEventListener('click', busy(b, wantPremium));

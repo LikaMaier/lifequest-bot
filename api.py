@@ -297,18 +297,19 @@ async def premium_interest(request):
 
 
 async def premium_invoice(request):
-    """Ссылка на счёт в звёздах — мини-апп открывает её через openInvoice."""
+    """Ссылка на счёт (рубли через ЮKassa или звёзды) — мини-апп открывает её через openInvoice."""
     _limit(request, "write")
     bot = request.app.get(BOT_KEY)
     if bot is None:
         return _error(503, "Оплата сейчас недоступна — попробуй чуть позже")
     data = await _body(request)
-    p = billing.invoice_params(request["user_id"], str(data.get("product") or ""))
+    p = billing.invoice_params(request["user_id"], str(data.get("product") or ""),
+                               str(data.get("currency") or "") or None)
     from aiogram.types import LabeledPrice
     link = await bot.create_invoice_link(title=p["title"], description=p["description"], payload=p["payload"],
-                                         provider_token="", currency=p["currency"],
-                                         prices=[LabeledPrice(label=p["title"], amount=p["stars"])])
-    return web.json_response({"link": link, "stars": p["stars"]})
+                                         provider_token=p["provider_token"], currency=p["currency"],
+                                         prices=[LabeledPrice(label=p["title"], amount=p["amount"])], **p["extra"])
+    return web.json_response({"link": link, "stars": p["stars"], "currency": p["currency"]})
 
 
 async def premium_trial(request):
