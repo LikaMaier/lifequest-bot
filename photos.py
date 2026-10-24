@@ -27,8 +27,7 @@ MAX_BYTES = 5 * 1024 * 1024
 MAX_SIDE = 1280
 THUMB_SIDE = 320
 PER_ITEM = 5
-LIMIT_FREE_STRICT = 30  # когда включена оплата
-LIMIT_FREE_SOFT = 200
+LIMIT_FREE = 5  # без Premium — 5 фото во всём альбоме (уже загруженные не удаляем)
 LIMIT_PREMIUM = 1000
 URL_TTL = 10 * 60
 TARGETS = ("quest", "plan", "day", "board", "album")  # album — общий альбом (albums.py)
@@ -82,9 +81,15 @@ def _paths(user_id: int, photo_id: str) -> tuple:
 
 
 def limit_for(user: dict) -> int:
-    if game.is_premium(user):
+    if game.is_premium(user) or _is_owner(user):
         return LIMIT_PREMIUM
-    return LIMIT_FREE_STRICT if game.PAYMENTS_ENABLED else LIMIT_FREE_SOFT
+    return LIMIT_FREE
+
+
+def _is_owner(user: dict) -> bool:
+    """Владелица (ADMIN_ID) без ограничения на фото — даже без Premium."""
+    owner = os.getenv("ADMIN_ID", "").strip()
+    return bool(owner.isdigit() and user and user.get("user_id") == int(owner))
 
 
 # ==================== ПРИВЯЗКА ====================
@@ -156,9 +161,11 @@ def save_upload(user_id: int, raw: bytes, data: dict) -> dict:
     conn = storage.connect()
     total = conn.execute("SELECT COUNT(*) FROM photos WHERE user_id = ?", (user_id,)).fetchone()[0]
     conn.close()
-    if total >= limit_for(user):
-        raise game.QuestError(f"В альбоме уже {total} фото — это максимум. Удали старые, чтобы добавить новые.",
-                              code="photo_limit")
+    limit = limit_for(user)
+    if total >= limit:
+        text = (f"Без Premium в альбоме помещается {LIMIT_FREE} фото. Удали старые или подключи Premium 💛"
+                if limit == LIMIT_FREE else f"В альбоме уже {total} фото — это максимум. Удали старые, чтобы добавить новые.")
+        raise game.QuestError(text, code="photo_limit")
     fields = _target(user_id, data)
 
     from PIL import Image, ImageOps

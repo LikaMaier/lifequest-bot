@@ -1,4 +1,5 @@
 import io
+from unittest import mock
 import os
 import shutil
 import tempfile
@@ -62,8 +63,9 @@ class AlbumsTest(TempDBTestCase):
         albums.invite(1, a["id"], 2)
         with self.assertRaises(game.QuestError):
             photos.save_upload(4, jpeg(), {"target": "album", "album_id": a["id"]})
-        for _ in range(6):  # лимит «5 на элемент» к альбому не относится
-            photos.save_upload(2, jpeg(), {"target": "album", "album_id": a["id"]})
+        with mock.patch.object(game, "PREMIUM_USER_IDS", {2}):  # без Premium — всего 5 фото
+            for _ in range(6):  # лимит «5 на элемент» к альбому не относится
+                photos.save_upload(2, jpeg(), {"target": "album", "album_id": a["id"]})
         mine = photos.save_upload(1, jpeg(), {"target": "album", "album_id": a["id"]})["photo"]
         v = albums.view(1, a["id"])
         self.assertEqual(v["count"], 7)
