@@ -1137,7 +1137,7 @@ def packs_view(user_id: int) -> list:
     active = _active_keys(user_id)
     out = []
     for pid, emoji, name, about, mode, _season in packs.PACKS:
-        if (pid in packs.HIDDEN and not owner) or not packs.in_season(pid, today):
+        if pid in packs.RETIRED or (pid in packs.HIDDEN and not owner) or not packs.in_season(pid, today):
             continue
         quests = []
         for qid, q in CATALOG.items():
