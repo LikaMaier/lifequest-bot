@@ -50,3 +50,31 @@ def owner_free_view(owner_id: int, friend_name: str = "Алексей") -> str:
     else:
         lines.append(f"🤷 Друзей с именем «{friend_name}» несколько ({', '.join(map(str, found))}) — XP не трогала.")
     return "\n".join(lines)
+
+
+REVOKED_KEY = "premium_revoked_ids"
+
+
+def revoked_ids() -> set:
+    conn = storage.connect()
+    row = conn.execute("SELECT value FROM meta WHERE key = ?", (REVOKED_KEY,)).fetchone()
+    conn.close()
+    return {int(x) for x in (row[0] if row else "").split() if x.isdigit()}
+
+
+def apply_premium_revocations():
+    """Снятый навсегда Premium перекрывает переменную PREMIUM_USER_IDS — вызывать при старте."""
+    game.PREMIUM_USER_IDS.difference_update(revoked_ids())
+
+
+def revoke_premium_forever(user_id: int):
+    """Снять Premium совсем: «навсегда» (и из PREMIUM_USER_IDS), срок и пробную неделю.
+    Вернуть можно командой /grant user_id дней."""
+    storage.update_user(user_id, is_premium=0, premium_until=None, trial_used=1, premium_notice=None)
+    ids = revoked_ids() | {user_id}
+    conn = storage.connect()
+    conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)",
+                 (REVOKED_KEY, " ".join(map(str, sorted(ids)))))
+    conn.commit()
+    conn.close()
+    apply_premium_revocations()

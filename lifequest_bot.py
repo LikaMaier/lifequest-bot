@@ -1200,8 +1200,32 @@ async def run_owner_reset():
         await ops.alert("owner reset", e)
 
 
+OWNER_PREMIUM_OFF_KEY = "oneoff_owner_premium_off_2026_10_24"
+
+
+async def run_owner_premium_off():
+    """Разово: снять у владелицы Premium совсем (включая PREMIUM_USER_IDS и пробную неделю)."""
+    if not ADMIN_ID:
+        return
+    conn = storage.connect()
+    done = conn.execute("SELECT 1 FROM meta WHERE key = ?", (OWNER_PREMIUM_OFF_KEY,)).fetchone()
+    if not done:
+        conn.execute("INSERT INTO meta (key, value) VALUES (?, ?)", (OWNER_PREMIUM_OFF_KEY, storage.utc_now_str()))
+        conn.commit()
+    conn.close()
+    if done:
+        return
+    try:
+        admin_tools.revoke_premium_forever(ADMIN_ID)
+        await ops.safe_send(ADMIN_ID, "👑 Premium снят совсем — теперь приложение у тебя как у всех. "
+                                      "Вернуть: <code>/grant твой_id дней</code>", parse_mode="HTML")
+    except Exception as e:
+        await ops.alert("owner premium off", e)
+
+
 # ==================== MAIN ====================
 async def main():
+    admin_tools.apply_premium_revocations()  # снятый навсегда Premium сильнее PREMIUM_USER_IDS
     # HTTP API и статика мини-аппа — в этом же процессе (Railway: тип web, $PORT).
     api.MINIAPP_URL = MINIAPP_URL  # уведомления из API — с той же кнопкой «Открыть LifeQuest»
     await api.start_web(BOT_TOKEN, bot)
@@ -1248,6 +1272,7 @@ async def main():
           "OFF — задайте ADMIN_ID (ваш Telegram id), чтобы получать копии базы и ошибки"))
     await send_oneoff_note()
     await run_owner_reset()
+    await run_owner_premium_off()
     scheduler.start()
 
     await dp.start_polling(bot)

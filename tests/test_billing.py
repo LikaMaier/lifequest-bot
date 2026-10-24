@@ -224,3 +224,18 @@ class RublePaymentsTest(TempDBTestCase):
 
     def test_old_star_payload_still_accepted(self):
         self.assertEqual(billing.validate_checkout(1, "freeze:1:25", 25, "XTR"), "freeze")
+
+
+class RevokePremiumTest(TempDBTestCase):
+    def test_revoke_beats_env_and_trial(self):
+        import admin_tools
+        storage.ensure_user(5, "o", "O")
+        storage.update_user(5, is_premium=1)
+        with mock.patch.object(game, "PREMIUM_USER_IDS", {5, 6}):
+            admin_tools.revoke_premium_forever(5)
+            user = storage.get_user(5)
+            self.assertFalse(game.is_premium(user))
+            self.assertFalse(billing.trial_available(user))
+            self.assertEqual(game.PREMIUM_USER_IDS, {6})
+            billing.grant(5, 3)  # вернуть можно через /grant
+            self.assertTrue(game.is_premium(storage.get_user(5)))
