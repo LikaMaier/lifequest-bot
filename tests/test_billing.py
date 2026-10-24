@@ -239,3 +239,23 @@ class RevokePremiumTest(TempDBTestCase):
             self.assertEqual(game.PREMIUM_USER_IDS, {6})
             billing.grant(5, 3)  # вернуть можно через /grant
             self.assertTrue(game.is_premium(storage.get_user(5)))
+
+
+class PremiumChatTariffsTest(TempDBTestCase):
+    """/premium в чате: тарифы с ценами и кнопки оплаты (нужно для анкеты ЮKassa)."""
+
+    def test_tariffs_and_pay_buttons(self):
+        import lifequest_bot as lb
+        storage.ensure_user(1, "u", "U")
+        with mock.patch.object(game, "PAYMENTS_ENABLED", True), mock.patch.object(lb, "MINIAPP_URL", "https://x.app/"):
+            text = lb.premium_text(1)
+            buttons = [b for row in lb.premium_keyboard(1).inline_keyboard for b in row]
+        self.assertIn("199 ₽", text)
+        self.assertIn("75⭐", text)
+        self.assertEqual([b.callback_data for b in buttons[:3]],
+                         ["pay_premium_month:RUB", "pay_premium_month:XTR", "pay_premium_year:XTR"])
+        self.assertTrue(buttons[0].text.startswith("💳 Оплатить 199 ₽"))
+        self.assertIsNotNone(buttons[-1].web_app)
+        with mock.patch.object(game, "PAYMENTS_ENABLED", False):
+            self.assertEqual([b.callback_data for row in lb.premium_keyboard(1).inline_keyboard for b in row
+                              if b.callback_data], ["pay_premium_month:RUB"])
