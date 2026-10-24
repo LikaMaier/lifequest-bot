@@ -997,30 +997,52 @@ async def xp_freeze(callback: CallbackQuery):
 def premium_text(user_id: int) -> str:
     user = storage.get_user(user_id)
     view = billing.premium_view(user)
-    perks = ("🐼 Все маскоты сразу, без 7-дневных серий входа\n🎲 Безлимит «Другое»\n📸 Больше фото на доске воспоминаний\n"
-             "❄️ +1 бесплатная заморозка в неделю\n🎩 Эксклюзивные аксессуары и стиль «Космос»\n"
-             "🗂️ Тематические наборы квестов\n✨ 30 ИИ-квестов под настроение в день\n"
-             "🏆 Челлендж на 30 дней и итоги года")
+    perks = ("🎲 Случайные квесты: для себя, на двоих и для компании\n🗂️ Тематические наборы квестов целиком\n"
+             "📸 Больше фото на доске воспоминаний\n❄️ +1 бесплатная заморозка в неделю\n"
+             "🐼 Все маскоты сразу\n🎩 Эксклюзивные аксессуары и стиль «Космос»\n"
+             "🥇 Соревнования до 10 пунктов\n🏆 Челлендж на 30 дней и итоги года")
     if view["forever"]:
         head = "👑 <b>Premium навсегда.</b> Спасибо, что ты с нами!"
     elif view["active"]:
         head = f"👑 <b>Premium активен</b> до {view['until'][:10]} (UTC)."
     else:
         head = "👑 <b>LifeQuest Premium</b>"
-    return f"{head}\n\n{perks}"
+    text = f"{head}\n\n{perks}"
+    if not view["forever"]:
+        lines = [f"{'💳' if cur == 'RUB' else '⭐'} {name} — <b>{price_}</b>{note}"
+                 for _p, cur, name, price_, note in premium_tariffs(user_id)]
+        text += ("\n\n<b>Тарифы</b>\n" + "\n".join(lines) +
+                 "\n\nPremium продлевается только вручную — автосписаний нет. Вопросы по оплате: /paysupport")
+    return text
+
+
+def premium_tariffs(user_id: int) -> list:
+    """[(товар, валюта, название, цена, пометка)] — тарифы для сообщения и кнопок оплаты.
+    Рублёвый тариф показываем всегда, звёздные — когда включена оплата звёздами."""
+    out = [("premium_month", "RUB", "30 дней", f"{billing.RUB_PRICES['premium_month'] // 100} ₽", " · банковской картой")]
+    if game.PAYMENTS_ENABLED:
+        out.append(("premium_month", "XTR", "30 дней", f"{billing.price(user_id, 'premium_month')}⭐", " · звёздами Telegram"))
+        out.append(("premium_year", "XTR", "Год", f"{billing.price(user_id, 'premium_year')}⭐", " · выгоднее на 45%"))
+    return out
 
 
 def premium_keyboard(user_id: int):
-    """Пробный период и оплата — в приложении (раздел Premium), в чате только вход туда."""
-    return app_markup("premium")
+    """Тарифы Premium: кнопки оплаты (счёт приходит в чат) и вход в приложение."""
+    user = storage.get_user(user_id)
+    rows = []
+    if not (user and game.premium_forever(user)):
+        for product, currency, name, price_, _note in premium_tariffs(user_id):
+            icon = "💳" if currency == "RUB" else "⭐"
+            rows.append([InlineKeyboardButton(text=f"{icon} Оплатить {price_} · {name.lower()}",
+                                              callback_data=f"pay_{product}:{currency}")])
+    rows += app_row("premium")
+    return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
 
 
 @dp.message(Command("premium"))
 async def cmd_premium(message: Message):
     ensure_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
     text = premium_text(message.from_user.id)
-    if not billing.payments_enabled() and not game.is_premium(storage.get_user(message.from_user.id)):
-        text += "\n\n<i>Оплата скоро появится.</i>"
     await message.answer(text, parse_mode="HTML", reply_markup=premium_keyboard(message.from_user.id))
 
 
