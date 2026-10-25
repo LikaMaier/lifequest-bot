@@ -81,6 +81,12 @@ export function hideMainButton() {
   tg.MainButton.hide();
 }
 
+/** Обычная веб-ссылка (не t.me) — во встроенном браузере Telegram. */
+export function openWebLink(url) {
+  if (tg && tg.openLink) tg.openLink(url);
+  else window.open(url, '_blank', 'noopener');
+}
+
 export function openTgLink(url) {
   if (tg && tg.openTelegramLink) tg.openTelegramLink(url);
   else window.open(url, '_blank', 'noopener');

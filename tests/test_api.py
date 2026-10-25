@@ -29,6 +29,14 @@ class ApiTest(TempDBTestCase, AioHTTPTestCase):
     async def get_application(self):
         return api.create_app(TOKEN)
 
+    async def test_privacy_page_is_public(self):
+        resp = await self.client.get("/privacy")
+        self.assertEqual(resp.status, 200)
+        text = await resp.text()
+        self.assertIn("Политика конфиденциальности", text)
+        self.assertIn("Удалить все мои данные", text)
+        self.assertNotIn("{{", text)  # имя бота подставлено
+
     async def test_requires_init_data(self):
         for path in ("/api/state", "/api/stats", "/api/board"):
             resp = await self.client.get(path)

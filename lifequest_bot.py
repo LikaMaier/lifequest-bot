@@ -1137,6 +1137,19 @@ async def on_successful_payment(message: Message):
     await message.answer(text, parse_mode="HTML", reply_markup=app_markup())
 
 
+@dp.message(Command("privacy"))
+async def cmd_privacy(message: Message):
+    """Политика конфиденциальности — ссылка на страницу /privacy нашего сервера."""
+    url = privacy_url()
+    text = (f"🔒 <b>Политика конфиденциальности LifeQuest</b>\n{url}" if url else
+            "🔒 Политика конфиденциальности скоро появится по ссылке. Вопросы о данных — /paysupport")
+    await message.answer(text, parse_mode="HTML", disable_web_page_preview=True)
+
+
+def privacy_url() -> str:
+    return MINIAPP_URL.split("?")[0].split("#")[0].rstrip("/") + "/privacy" if MINIAPP_URL else ""
+
+
 @dp.message(Command("paysupport"))
 async def cmd_paysupport(message: Message):
     await message.answer("💬 Вопрос по оплате? Опиши, что случилось, одним сообщением после команды "

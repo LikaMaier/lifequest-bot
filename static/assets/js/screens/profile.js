@@ -2,7 +2,7 @@
 // пояс, «Поделиться достижением» и вход в заготовку Premium.
 
 import { h, clear } from '../dom.js';
-import { haptic, openTgLink } from '../tg.js';
+import { haptic, openTgLink, openWebLink } from '../tg.js';
 import { api } from '../api.js';
 import { mascot, mascotSVG } from '../mascot.js';
 import { sectionTitle, progressBar, toast, toastError, busy, button, ICONS } from '../ui.js';
@@ -168,7 +168,9 @@ export function render(el, { state, go }) {
     return b;
   };
   el.append(sectionTitle('Приватность'), h('div', { class: 'stack-sm' }, album,
-    h('p', { class: 'tiny muted bold', style: { margin: '4px 2px' } }, 'Фото и записи видишь только ты. Фото хранятся на сервере LifeQuest без геометок.'),
+    h('p', { class: 'tiny muted bold', style: { margin: '4px 2px' } }, 'Фото и записи видишь только ты. Фото хранятся на сервере LifeQuest без геометок. ',
+      h('a', { href: 'privacy', onclick: e => { e.preventDefault(); haptic.tap(); openWebLink(new URL('privacy', location.href).href); } },
+        'Политика конфиденциальности')),
     confirmBtn('🗑 Удалить все мои фото', 'Точно? Нажми ещё раз — фото удалятся навсегда', async () => {
       const r = await api.deleteMyPhotos();
       haptic.success();
