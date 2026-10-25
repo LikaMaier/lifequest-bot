@@ -24,6 +24,7 @@ import albums
 import billing
 import spheres
 import chest
+import client_errors
 import login_bonus
 import challenges
 import contests
@@ -184,6 +185,22 @@ def _state(request) -> dict:
     data["challenge"] = challenges.summary(request["user_id"])
     data["contests"] = contests.summary(request["user_id"])
     return data
+
+
+async def client_error(request):
+    """Страница сообщает, что не смогла загрузиться (без авторизации — см. client_errors)."""
+    try:
+        raw = await request.content.read(8192)
+        data = json.loads(raw.decode("utf-8") or "{}")
+    except (ValueError, UnicodeDecodeError):
+        return web.json_response({"ok": False}, status=400)
+    if not isinstance(data, dict):
+        return web.json_response({"ok": False}, status=400)
+    ip = request.headers.get("X-Forwarded-For", request.remote or "").split(",")[0].strip()
+    text = client_errors.build_report(data, ip, request.headers.get("User-Agent", ""), request.app[BOT_TOKEN_KEY])
+    if text:
+        asyncio.get_running_loop().create_task(ops.notify_admin(text))
+    return web.json_response({"ok": True})
 
 
 async def get_state(request):
@@ -1017,6 +1034,7 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app[INIT_DATA_MAX_AGE_KEY] = init_data_max_age or int(os.getenv("INIT_DATA_MAX_AGE", 24 * 3600))
     app[LIMITER_KEY] = RateLimiter()
     photos.configure(bot_token)
+    app.router.add_post("/client-error", client_error)  # вне /api/: работает и без initData
     app.router.add_get("/api/state", get_state)
     app.router.add_post("/api/quest/random", quest_random)
     app.router.add_post("/api/quest/accept", quest_accept)

@@ -10,6 +10,32 @@
 <link rel="stylesheet" href="assets/css/app.css">
 <link rel="stylesheet" href="assets/css/themes.css">
 <script src="assets/js/vendor/telegram-web-app.js"></script>
+<script>
+// Если приложение не загрузилось — сообщаем админу (POST /client-error), один раз на вид сбоя.
+(function () {
+  var sent = {};
+  window.lqReport = function (kind, detail) {
+    if (sent[kind]) return;
+    sent[kind] = 1;
+    try {
+      var tg = window.Telegram && window.Telegram.WebApp;
+      var hp = new URLSearchParams(location.hash.slice(1));  // если скрипт Telegram не загрузился
+      fetch('client-error', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: kind, detail: String(detail || '').slice(0, 300),
+          initData: (tg && tg.initData) || hp.get('tgWebAppData') || '',
+          platform: (tg && tg.platform) || hp.get('tgWebAppPlatform') || '',
+          version: (tg && tg.version) || hp.get('tgWebAppVersion') || '' }) }).catch(function () {});
+    } catch (e) { /* не мешаем странице */ }
+  };
+  setTimeout(function () { if (!window.lqBooted) window.lqReport('slow'); }, 15000);
+  window.addEventListener('error', function (e) {
+    if (!window.lqBooted) window.lqReport('js_error', (e.message || '') + ' ' + String(e.filename || '').split('/').pop() + ':' + (e.lineno || ''));
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    if (!window.lqBooted) window.lqReport('js_error', String((e.reason && e.reason.message) || e.reason));
+  });
+})();
+</script>
 </head>
 <body>
   <div id="app"></div>

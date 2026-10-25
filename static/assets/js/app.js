@@ -123,7 +123,11 @@ function fullscreen(kind, expr, title, text, action) {
 async function boot() {
   initTelegram();
   initKeyboard();
+  const report = (kind, detail) => { window.lqBooted = true; if (window.lqReport) window.lqReport(kind, detail); };
   if (!isTelegram()) {
+    // в обычном браузере это нормально; сбой — только если открыли из Telegram
+    if (/tgWebApp/.test(location.hash) || /Telegram/i.test(navigator.userAgent)) report('no_telegram');
+    else window.lqBooted = true;
     fullscreen('cat-lav', 'surprised', 'Открой LifeQuest в Telegram',
       'Приложение работает внутри бота: нажми кнопку «Открыть LifeQuest» в чате с ботом.');
     return;
@@ -133,12 +137,14 @@ async function boot() {
   try {
     await refreshState();
   } catch (e) {
+    report('load_failed', `${e.status || ''} ${e.message || e}`.trim());
     const retry = h('button', { type: 'button', class: 'btn' }, 'Повторить');
     retry.addEventListener('click', () => { haptic.tap(); boot(); });
     fullscreen('cat-blue', 'sad', 'Не получилось загрузиться',
       e.status === 401 ? 'Сессия устарела — закрой и снова открой приложение из бота.' : (e.message || 'Сервер не отвечает.'), retry);
     return;
   }
+  window.lqBooted = true;
   clear(root);
   if (!tabbar) buildTabbar();
   tabbar.hidden = false;
