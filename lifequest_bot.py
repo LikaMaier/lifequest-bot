@@ -32,6 +32,7 @@ import compliments
 import admin_report
 import albums
 import contests
+import activity_report
 import admin_tools
 import duels
 import friends
@@ -842,12 +843,27 @@ async def admin_new_users(message: Message):
 
 
 async def send_new_users_digest():
-    """Каждый час: в 10:00 по времени владелицы — новенькие за вчера (если были)."""
+    """Каждый час: в 10:00 по времени владелицы — новенькие за вчера (если были)
+    и кто что делал вчера."""
     try:
         for part in admin_report.daily_digest(ADMIN_ID):
             await ops.safe_send(ADMIN_ID, part, parse_mode="HTML", disable_web_page_preview=True)
     except Exception as e:
         await ops.alert("new users digest", e)
+    try:
+        for part in activity_report.daily_digest(ADMIN_ID):
+            await ops.safe_send(ADMIN_ID, part, parse_mode="HTML", disable_web_page_preview=True)
+    except Exception as e:
+        await ops.alert("activity digest", e)
+
+
+@dp.message(Command("activity"), F.from_user.id == ADMIN_ID)
+async def admin_activity(message: Message):
+    """Кто что делал: /activity — сегодня, /activity 1 — вчера, /activity N — N дней назад."""
+    arg = (message.text or "").partition(" ")[2].strip().lower()
+    days_ago = 1 if arg == "вчера" else int(arg) if arg.isdigit() else 0
+    for part in activity_report.report(days_ago, ADMIN_ID):
+        await message.answer(part, parse_mode="HTML", disable_web_page_preview=True)
 
 
 @dp.message(Command("compliment"), F.from_user.id == ADMIN_ID)
