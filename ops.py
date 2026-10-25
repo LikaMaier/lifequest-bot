@@ -96,6 +96,17 @@ async def alert(where: str, exc: BaseException = None, details: str = ""):
         print(f"Failed to send alert: {e}")
 
 
+async def notify_admin(text: str):
+    """Готовое HTML-сообщение админу (без ADMIN_ID — только лог)."""
+    print(f"[ADMIN] {text}")
+    if not (_bot and _admin_id):
+        return
+    try:
+        await _bot.send_message(_admin_id, text[:4000], parse_mode="HTML")
+    except Exception as e:
+        print(f"Failed to notify admin: {e}")
+
+
 def make_backup(dest_dir: str = None) -> str:
     """Согласованная копия базы (sqlite backup API) → .db.gz. Возвращает путь."""
     dest_dir = dest_dir or tempfile.mkdtemp(prefix="lq-backup-")
