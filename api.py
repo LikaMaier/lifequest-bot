@@ -1008,6 +1008,17 @@ def _index_html() -> str:
     return html.replace('href="assets/', f'href="assets/v{v}/').replace('src="assets/', f'src="assets/v{v}/')
 
 
+async def privacy(request):
+    """Политика конфиденциальности — публичная страница (ссылка для @BotFather, ЮKassa и профиля)."""
+    with open(os.path.join(STATIC_DIR, "privacy.html"), encoding="utf-8") as f:
+        page = f.read()
+    username = request.app.get(BOT_USERNAME_KEY)
+    name = f"@{username}" if username else "LifeQuest в Telegram"
+    link = f'<a href="https://t.me/{username}">@{username}</a>' if username else name
+    return web.Response(text=page.replace("{{BOT_LINK}}", link).replace("{{BOT_NAME}}", name),
+                        content_type="text/html", charset="utf-8")
+
+
 async def index(request):
     return web.Response(text=_index_html(), content_type="text/html", charset="utf-8")
 
@@ -1135,6 +1146,7 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_post("/api/me/delete-all", delete_my_data)
     app.router.add_get("/health", health)
     app.router.add_get("/", index)
+    app.router.add_get("/privacy", privacy)
     assets = os.path.join(STATIC_DIR, "assets")
     if os.path.isdir(assets):
         # сначала адреса с версией (иначе их перехватит обычная статика)
