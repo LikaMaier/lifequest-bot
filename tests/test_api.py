@@ -35,6 +35,7 @@ class ApiTest(TempDBTestCase, AioHTTPTestCase):
         text = await resp.text()
         self.assertIn("Политика конфиденциальности", text)
         self.assertIn("Удалить все мои данные", text)
+        self.assertIn("ИНН 710711340144", text)
         self.assertNotIn("{{", text)  # имя бота подставлено
 
     async def test_requires_init_data(self):
