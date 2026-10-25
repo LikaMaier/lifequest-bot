@@ -464,17 +464,25 @@ def choose_quest(pool: list, done: set, active: set, recent: set, rng=random) ->
     raise QuestError("Заданий пока нет")
 
 
+def free_quest_available(user: dict, today: date = None) -> bool:
+    """Без Premium — один случайный квест в неделю, чтобы попробовать."""
+    if is_premium(user):
+        return False
+    return user.get("free_quest_week") != week_key(today or local_today(user))
+
+
 def random_quest(user_id: int, mode: str, sphere: str = None, rng=random) -> dict:
-    """Случайный квест («Для себя», «На двоих», «Для компании») — только с Premium.
-    Сферы не выбираются: задание просто случайное в своём формате."""
+    """Случайный квест («Для себя», «На двоих», «Для компании») — с Premium,
+    без него — один в неделю. Сферы не выбираются: задание просто случайное."""
     if mode not in MODES:
         raise QuestError("Неизвестный режим")
     sphere = None
     user = storage.get_user(user_id)
-    if not is_premium(user):
-        raise QuestError("Случайные квесты — в Premium 💛 Тематические наборы доступны всем",
-                         code="premium_quests")
     today = local_today(user)
+    free = free_quest_available(user, today)
+    if not is_premium(user) and not free:
+        raise QuestError("Бесплатный случайный квест на этой неделе уже был — с Premium их сколько угодно 💛",
+                         code="premium_quests")
     if rolls_today(user_id, today) >= roll_limit(user):
         raise QuestError("На сегодня попытки закончились — загляни завтра или возьми задание из избранного 💛",
                          code="roll_limit")
@@ -486,6 +494,8 @@ def random_quest(user_id: int, mode: str, sphere: str = None, rng=random) -> dic
     conn = storage.connect()
     conn.execute("INSERT INTO quest_offers (user_id, quest_key, mode, local_date, offered_at) VALUES (?, ?, ?, ?, ?)",
                  (user_id, q["id"], mode, today.isoformat(), storage.utc_now_str()))
+    if free:
+        conn.execute("UPDATE users SET free_quest_week = ? WHERE user_id = ?", (week_key(today), user_id))
     # таблица предложений растёт — храним только последние 300 на пользователя
     conn.execute("""DELETE FROM quest_offers WHERE user_id = ? AND id NOT IN (
                         SELECT id FROM quest_offers WHERE user_id = ? ORDER BY id DESC LIMIT 300)""",
@@ -493,7 +503,8 @@ def random_quest(user_id: int, mode: str, sphere: str = None, rng=random) -> dic
     conn.commit()
     conn.close()
     result = public_quest(q, tier)
-    result["rolls_left"] = max(0, roll_limit(user) - rolls_today(user_id, today))
+    result["rolls_left"] = max(0, roll_limit(user) - rolls_today(user_id, today)) if not free else 0
+    result["free_quest"] = free
     result["favorite"] = q["id"] in favorite_keys(user_id)
     return result
 
@@ -1022,6 +1033,7 @@ def get_state(user_id: int) -> dict:
         "favorites": favorites_view(user_id),
         "daily": daily,
         "rolls_left": max(0, roll_limit(user) - rolls_today(user_id, today)),
+        "free_quest": free_quest_available(user, today),
         "greeting": GREETINGS[today.toordinal() % len(GREETINGS)],
         "spheres": BINGO_SPHERES,
     }

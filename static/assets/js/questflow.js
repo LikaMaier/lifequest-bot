@@ -140,13 +140,16 @@ export function openRandom(mode) {
     }));
     const other = h('button', { type: 'button', class: 'btn ghost', 'aria-label': 'Другое задание' },
       h('span', { html: ICONS.reroll, style: { width: '20px', height: '20px', display: 'inline-flex' } }), 'Другое');
-    other.addEventListener('click', () => spin());
+    // бесплатный квест недели: «Другое» — уже с Premium
+    other.addEventListener('click', () => (q.free_quest ? (s.close(), openPaywall('premium_quests')) : spin()));
+    if (q.free_quest) refreshState().catch(() => {});
     s.setContent(h('div', null,
       questCard(q, { flip: true }),
       actionsRow(acceptBtn, favButton(q)),
       h('div', { class: 'row', style: { justifyContent: 'center' } }, other),
-      h('p', { class: 'center tiny muted bold', style: { marginTop: '6px' } },
-        `Осталось ${q.rolls_left} ${plural(q.rolls_left, 'попытка', 'попытки', 'попыток')} на сегодня`)));
+      h('p', { class: 'center tiny muted bold', style: { marginTop: '6px' } }, q.free_quest
+        ? '🎁 Бесплатный квест этой недели. С Premium — сколько угодно'
+        : `Осталось ${q.rolls_left} ${plural(q.rolls_left, 'попытка', 'попытки', 'попыток')} на сегодня`)));
   };
   spin();
   return s;
@@ -178,16 +181,17 @@ export function openQuest(q, { daily = false } = {}) {
   return s;
 }
 
-/** Блок из трёх больших кнопок режимов: случайный квест — только с Premium. */
+/** Блок из трёх больших кнопок режимов: случайный квест — с Premium, без него — один в неделю. */
 export function modeButtons() {
   const premium = Boolean(store.state && store.state.premium && store.state.premium.active);
+  const free = Boolean(store.state && store.state.free_quest);
   return h('div', { class: 'quest-modes' },
     ['solo', 'pair', 'company'].map(mode => {
       const info = MODE_INFO[mode];
       const b = h('button', { type: 'button', class: `mode-btn c-${info.color}`, 'aria-label': `Случайное задание: ${info.label}` },
-        h('span', { class: 'emoji', 'aria-hidden': 'true' }, info.emoji), info.label, h('span', { class: 'sub' }, premium ? info.sub : '🔒 Premium'));
+        h('span', { class: 'emoji', 'aria-hidden': 'true' }, info.emoji), info.label, h('span', { class: 'sub' }, premium ? info.sub : free ? '🎁 бесплатно' : '🔒 Premium'));
       b.addEventListener('click', () => {
-        if (!premium) { haptic.tap(); openPaywall('premium_quests'); return; }
+        if (!premium && !free) { haptic.tap(); openPaywall('premium_quests'); return; }
         openRandom(mode);
       });
       return b;

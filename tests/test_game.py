@@ -51,9 +51,13 @@ class RandomQuestDBTest(TempDBTestCase):
         self.assertNotIn(first, offered)
 
     def test_premium_only_no_sphere_filter_and_daily_limit(self):
+        self.assertTrue(game.get_state(1)["free_quest"])
+        first = game.random_quest(1, "solo")  # без Premium — один случайный квест в неделю
+        self.assertTrue(first["free_quest"])
+        self.assertFalse(game.get_state(1)["free_quest"])
         with self.assertRaises(game.QuestError) as err:
             game.random_quest(1, "solo")
-        self.assertEqual(err.exception.code, "premium_quests")  # без Premium — только наборы
+        self.assertEqual(err.exception.code, "premium_quests")
         storage.update_user(1, is_premium=1)
         spheres = {game.random_quest(1, "solo", "Энергия", rng=random.Random(k))["sphere"] for k in range(12)}
         self.assertGreater(len(spheres), 1)  # сфера больше не фильтрует — задания случайные

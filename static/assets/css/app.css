@@ -2054,3 +2054,20 @@ p { margin: 0; }
 .challenge-hero b { display: block; font-family: var(--font-display); font-weight: 800; font-size: 20px; line-height: 1.1; }
 .challenge-hero .grow > span { display: block; margin-top: 3px; font-weight: 800; font-size: 13px; line-height: 1.3; }
 .challenge-hero-go { position: relative; z-index: 1; flex: none; padding: 9px 14px; border-radius: 999px; background: var(--ink); color: #FFE27A; font-weight: 900; font-size: 13.5px; }
+
+/* Premium: таблица «Бесплатно / Premium» и кнопки с ценами */
+.prem-compare { margin-top: 16px; background: var(--white); border-radius: 20px; padding: 6px 12px; box-shadow: 0 3px 0 var(--line); text-align: left; }
+.prem-compare .pc-row { display: grid; grid-template-columns: 1.35fr 1fr 1.1fr; gap: 8px; align-items: center; padding: 8px 0; border-top: 1.5px dashed var(--line); font-size: 12.5px; font-weight: 700; }
+.prem-compare .pc-row:first-child { border-top: 0; }
+.prem-compare .pc-head { font-size: 11.5px; font-weight: 800; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .02em; }
+.prem-compare .pc-name { font-weight: 800; color: var(--ink); }
+.prem-compare .pc-free { color: var(--ink-soft); }
+.prem-compare .pc-prem { color: var(--ink); font-weight: 800; background: color-mix(in srgb, var(--yellow, #FFE066) 45%, transparent); border-radius: 10px; padding: 3px 7px; justify-self: start; }
+.prem-compare .pc-head .pc-prem { background: none; padding: 0; }
+.prem-social { margin-top: 12px; }
+.price-btn { flex-direction: column; gap: 2px; line-height: 1.15; padding-top: 10px; padding-bottom: 10px; }
+.price-btn .pb-main { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.price-btn .pb-old { opacity: .6; font-weight: 700; font-size: 12.5px; }
+.price-btn .pb-sub { font-family: var(--font-body, inherit); font-size: 11.5px; font-weight: 700; opacity: .75; }
+.price-btn .tag { font-family: var(--font-body, inherit); }
+.prem-stars { justify-content: center; flex-wrap: wrap; gap: 8px; align-items: center; }

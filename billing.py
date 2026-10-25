@@ -23,7 +23,7 @@ CURRENCY = "XTR"
 YOOKASSA_TOKEN = os.getenv("YOOKASSA_PROVIDER_TOKEN", "").strip()
 YOOKASSA_RECEIPT = os.getenv("YOOKASSA_RECEIPT", "") == "1"
 YOOKASSA_VAT_CODE = int(os.getenv("YOOKASSA_VAT_CODE", "1") or 1)  # 1 — без НДС
-RUB_PRICES = {"premium_month": 19900}  # в копейках: 199 ₽
+RUB_PRICES = {"premium_month": 19900, "premium_year": 149000}  # в копейках: 199 ₽ и 1490 ₽
 
 # id → название, цена в звёздах, дни Premium (если это Premium)
 PRODUCTS = {
@@ -31,14 +31,16 @@ PRODUCTS = {
                       "description": "Случайные квесты, все наборы квестов, больше фото, 2 заморозки в неделю, "
                                      "все маскоты, эксклюзивные аксессуары и стили."},
     "premium_year": {"title": "LifeQuest Premium · год", "stars": 990, "days": 365,
-                     "description": "Всё из Premium на 12 месяцев — выгоднее помесячной на 45%."},
+                     "description": "Всё из Premium на 12 месяцев — дешевле, чем платить помесячно."},
     "freeze": {"title": "Заморозка серии", "stars": 25,
                "description": "Спасёт серию за один пропущенный день. Срабатывает сама."},
     "streak_restore": {"title": "Вернуть серию", "stars": 49,
                        "description": "Серия продолжится с того же числа, как будто пропуска не было."},
 }
 PREMIUM_PRODUCTS = {"premium_month", "premium_year"}
-FIRST_PURCHASE_PRICE = {"premium_month": 75}  # −50% на первую покупку
+# −50% на первый месяц — одинаково для рублей и звёзд (кто ещё ни разу не платил)
+FIRST_PURCHASE_PRICE = {"premium_month": 75}
+RUB_FIRST_PURCHASE_PRICE = {"premium_month": 9900}
 TRIAL_DAYS = 7
 TRIAL_AFTER_QUESTS = 3  # пробная неделя открывается после 3 выполненных квестов…
 TRIAL_AFTER_HABIT_DAYS = 3  # …или после 3 дней с выполненными привычками — главное действие
@@ -133,16 +135,44 @@ def price(user_id: int, product: str, currency: str = CURRENCY) -> int:
     if currency == "RUB":
         if product not in RUB_PRICES:
             raise game.QuestError("Этот товар продаётся только за звёзды")
+        if product in RUB_FIRST_PURCHASE_PRICE and not paid_before(user_id):
+            return RUB_FIRST_PURCHASE_PRICE[product]
         return RUB_PRICES[product]
     if product in FIRST_PURCHASE_PRICE and not paid_before(user_id):
         return FIRST_PURCHASE_PRICE[product]
     return PRODUCTS[product]["stars"]
 
 
+def full_price(product: str, currency: str) -> int:
+    """Обычная цена без скидки на первую покупку."""
+    return RUB_PRICES[product] if currency == "RUB" else PRODUCTS[product]["stars"]
+
+
+def per_day_text(amount: int, currency: str, days: int) -> str:
+    """«≈ 4 ₽ в день» — только для рублей."""
+    if currency != "RUB" or not days:
+        return ""
+    per = amount / 100 / days
+    return f"≈ {per:.1f} ₽ в день".replace(".0 ", " ").replace(".", ",") if per < 10 else f"≈ {round(per)} ₽ в день"
+
+
 def pay_options(user_id: int, product: str) -> list:
-    """[{currency, amount, text}] — способы оплаты товара, основной первым."""
-    return [{"currency": c, "amount": price(user_id, product, c), "text": format_amount(price(user_id, product, c), c)}
-            for c in currencies(product)]
+    """[{currency, amount, text, full_text?, per_day?}] — способы оплаты товара, основной первым.
+    full_text — обычная цена, если сейчас действует скидка."""
+    out = []
+    for c in currencies(product):
+        amount = price(user_id, product, c)
+        o = {"currency": c, "amount": amount, "text": format_amount(amount, c)}
+        full = full_price(product, c)
+        if amount < full:
+            o["full_text"] = format_amount(full, c)
+        if product == "premium_year":  # сколько экономит год против 12 месяцев по обычной цене
+            o["save"] = round(100 * (1 - amount / (12 * full_price("premium_month", c))))
+        per_day = per_day_text(amount, c, PRODUCTS[product].get("days", 0))
+        if per_day:
+            o["per_day"] = per_day
+        out.append(o)
+    return out
 
 
 def restore_offer(user: dict, today: date = None):
@@ -152,6 +182,24 @@ def restore_offer(user: dict, today: date = None):
     if s["status"] == "lost" and s["lost_value"] >= RESTORE_MIN_STREAK and 1 <= s["missed"] <= RESTORE_MAX_MISSED:
         return s["lost_value"]
     return 0
+
+
+WINBACK_DAYS = 14  # через сколько дней после конца Premium зовём вернуться
+SOCIAL_PROOF_MIN = 10  # общее число показываем, когда в Premium хотя бы столько людей
+
+
+def social_proof(user_id: int) -> dict:
+    """Кто из друзей в Premium (до 3 имён) и сколько всего людей в Premium (если уже не мало)."""
+    now = storage.utc_now_str()
+    conn = storage.connect()
+    friends = [r[0] for r in conn.execute(
+        """SELECT u.first_name FROM friends f JOIN users u ON u.user_id = f.friend_id
+           WHERE f.user_id = ? AND (COALESCE(u.is_premium, 0) = 1 OR u.premium_until > ?)
+           ORDER BY u.premium_until DESC LIMIT 3""", (user_id, now)).fetchall() if r[0]]
+    total = conn.execute("SELECT COUNT(*) FROM users WHERE COALESCE(is_premium, 0) = 1 OR premium_until > ?",
+                         (now,)).fetchone()[0]
+    conn.close()
+    return {"friends": friends, "total": total if total >= SOCIAL_PROOF_MIN else None}
 
 
 def premium_view(user: dict) -> dict:
@@ -169,6 +217,8 @@ def premium_view(user: dict) -> dict:
         "prices": {p: price(uid, p) for p in PRODUCTS},
         "full_prices": {p: PRODUCTS[p]["stars"] for p in PRODUCTS},
         "options": {p: pay_options(uid, p) for p in PRODUCTS},
+        "first_discount": not paid_before(uid),
+        "social": social_proof(uid),
         "buyable": [p for p in PRODUCTS if buyable(p)],
         "restore": restore_offer(user) if game.PAYMENTS_ENABLED else 0,
         "payments": payments_enabled(),
@@ -324,7 +374,8 @@ def mark_refunded(charge_id: str):
 
 
 def users_for_premium_notice():
-    """[(user_id, kind)] — kind: 'soon' (осталось ≤2 дней) или 'ended' (закончился за сутки)."""
+    """[(user_id, kind, until)] — kind: 'soon' (осталось ≤3 дней), 'ended' (закончился за сутки)
+    или 'winback' (закончился 14 дней назад — зовём вернуться, один раз)."""
     now = _now()
     conn = storage.connect(rows=True)
     rows = conn.execute("""SELECT user_id, premium_until, premium_notice, trial_used FROM users
@@ -336,10 +387,14 @@ def users_for_premium_notice():
         until = game.premium_until(dict(r))
         if not until:
             continue
-        if now < until <= now + timedelta(days=2) and r["premium_notice"] != f"soon:{r['premium_until']}":
+        notice = r["premium_notice"]
+        if now < until <= now + timedelta(days=3) and notice != f"soon:{r['premium_until']}":
             out.append((r["user_id"], "soon", r["premium_until"]))
-        elif until <= now < until + timedelta(days=1) and r["premium_notice"] != f"ended:{r['premium_until']}":
+        elif until <= now < until + timedelta(days=1) and notice != f"ended:{r['premium_until']}":
             out.append((r["user_id"], "ended", r["premium_until"]))
+        elif (until + timedelta(days=WINBACK_DAYS) <= now < until + timedelta(days=WINBACK_DAYS + 1)
+              and notice != f"winback:{r['premium_until']}"):
+            out.append((r["user_id"], "winback", r["premium_until"]))
     return out
 
 

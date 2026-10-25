@@ -1,7 +1,7 @@
 // Premium: окно-предложение (когда упёрлись в лимит или нажали на 🔒),
 // пробная неделя и покупка: рубли через ЮKassa или звёзды (что включено на сервере).
 
-import { h } from './dom.js';
+import { h, plural } from './dom.js';
 import { tg, haptic, openTgLink } from './tg.js';
 import { api } from './api.js';
 import { mascot } from './mascot.js';
@@ -23,7 +23,7 @@ export const PERKS = [
 
 const REASONS = {
   roll_limit: ['🎲', 'Попытки на сегодня закончились', 'С Premium можно крутить задания без ограничений.'],
-  premium_quests: ['🎲', 'Случайные квесты — в Premium', 'Новое задание в любой момент: для себя, на двоих или для компании. Тематические наборы открыты всем.'],
+  premium_quests: ['🎲', 'Бесплатный квест недели уже был', 'С Premium — новое задание в любой момент: для себя, на двоих или для компании.'],
   photo_limit: ['📸', 'На доске закончилось место', 'С Premium воспоминаний помещается в разы больше.'],
   premium_item: ['🎩', 'Это вещь из Premium', 'Все Premium-аксессуары — сразу и бесплатно.'],
   premium_theme: ['🎨', 'Этот стиль — в Premium', '«Матрица», «Лес» и «Морской мир» — сразу, пока активен Premium.'],
@@ -76,6 +76,48 @@ async function wantPremium() {
   toast('💛 Записали! Оплата скоро появится — ты узнаешь первым.', 'good', 3200);
 }
 
+/** Главное обещание Premium — одной фразой. */
+export const PROMISE = ['Приключения каждый день',
+  'Привычки и планы — бесплатно навсегда. Premium добавляет случайные квесты, стиль и место для воспоминаний.'];
+
+/** Что есть бесплатно и что добавляет Premium. */
+export const COMPARE = [
+  ['🎲', 'Случайные квесты', '1 в неделю', 'сколько угодно'],
+  ['🗂️', 'Наборы квестов', 'первые 2 задания', 'целиком'],
+  ['📸', 'Фото в альбоме', '5', 'до 1000'],
+  ['❄️', 'Заморозки серии', '1 в неделю', '2 в неделю'],
+  ['🐼', 'Маскоты', 'за серию входов', 'все сразу'],
+  ['🎩', 'Аксессуары и стили', 'обычные', '+8 аксессуаров, 3 стиля'],
+  ['🥇', 'Соревнования', 'до 5 пунктов', 'до 10'],
+  ['🚀', 'Челлендж «30 дней»', '—', '✓'],
+  ['🏆', 'Итоги года', '—', '✓'],
+];
+
+export function compareTable() {
+  return h('div', { class: 'prem-compare', role: 'table', 'aria-label': 'Бесплатно и Premium' },
+    h('div', { class: 'pc-row pc-head', role: 'row' }, h('span', { role: 'columnheader' }, ''),
+      h('span', { role: 'columnheader' }, 'Бесплатно'), h('span', { role: 'columnheader', class: 'pc-prem' }, '👑 Premium')),
+    COMPARE.map(([e, name, free, prem]) => h('div', { class: 'pc-row', role: 'row' },
+      h('span', { class: 'pc-name', role: 'rowheader' }, h('span', { 'aria-hidden': 'true' }, e), ' ', name),
+      h('span', { class: 'pc-free', role: 'cell' }, free), h('span', { class: 'pc-prem', role: 'cell' }, prem))));
+}
+
+/** «Аня и Оля из твоих друзей — в Premium», «Уже 25 человек в Premium». */
+export function socialProof() {
+  const s = premiumInfo().social || {};
+  const names = s.friends || [];
+  let text = '';
+  if (names.length) text = `💛 ${names.join(', ')} из твоих друзей уже в Premium`;
+  else if (s.total) text = `💛 Уже ${s.total} ${plural(s.total, 'человек', 'человека', 'человек')} в Premium`;
+  return text ? h('p', { class: 'small bold center prem-social' }, text) : null;
+}
+
+const priceBtn = (label, o, cls, tag) => h('button', { type: 'button', class: `btn block price-btn ${cls}` },
+  h('span', { class: 'pb-main' }, `${label} — `, h('b', null, o.text),
+    o.full_text ? h('s', { class: 'pb-old' }, o.full_text) : null,
+    tag ? h('span', { class: 'tag c-lime' }, tag) : null),
+  o.per_day ? h('span', { class: 'pb-sub' }, o.per_day) : null);
+
 /** Кнопки действия: пробная неделя → покупка (если оплата включена) → «Хочу». */
 export function premiumActions(onDone) {
   const p = premiumInfo();
@@ -87,31 +129,37 @@ export function premiumActions(onDone) {
     out.push(b);
   }
   if (p.payments && !p.forever) {
-    const full = p.full_prices || {};
     const opts = p.options || {};
     const buy = (b, product, currency) => b.addEventListener('click', busy(b, async () => {
       try { if (await buyStars(product, currency) === 'paid') after(); } catch (e) { toastError(e); }
     }));
-    const sale = o => (o.currency === 'XTR' && o.amount < full.premium_month
-      ? h('span', { class: 'tag c-lime', style: { marginLeft: '8px' } }, '−50%') : null);
-    // месяц: основной способ — большой кнопкой, второй (звёзды) — рядом поменьше
-    const [main, alt] = opts.premium_month || [];
+    const month = opts.premium_month || [];
+    const year = opts.premium_year || [];
+    const main = month[0];
     if (main) {
-      const b1 = h('button', { type: 'button', class: `btn block ${out.length ? 'ghost' : ''}` }, `30 дней — ${main.text}`, sale(main));
-      buy(b1, 'premium_month', main.currency);
-      out.push(b1);
+      const b = priceBtn('30 дней', main, out.length ? 'ghost' : '', main.full_text ? '−50% первый месяц' : null);
+      buy(b, 'premium_month', main.currency);
+      out.push(b);
     }
-    if (alt) {
-      const b2 = h('button', { type: 'button', class: 'btn block ghost' }, `или ${alt.text} звёздами`, sale(alt));
-      buy(b2, 'premium_month', alt.currency);
-      out.push(b2);
+    const y = year.find(o => main && o.currency === main.currency) || year[0];
+    if (y) {
+      const b = priceBtn('Год', y, 'ghost', y.save ? `выгоднее на ${y.save}%` : null);
+      buy(b, 'premium_year', y.currency);
+      out.push(b);
     }
-    const [year] = opts.premium_year || [];
-    if (year) {
-      const b3 = h('button', { type: 'button', class: 'btn block ghost' }, `Год — ${year.text} · выгоднее на 45%`);
-      buy(b3, 'premium_year', year.currency);
-      out.push(b3);
+    // звёзды — запасной способ, одной строкой
+    const stars = [['premium_month', month], ['premium_year', year]]
+      .map(([product, list]) => [product, list.find(o => o.currency === 'XTR' && o !== main && o !== y)])
+      .filter(([, o]) => o);
+    if (stars.length) {
+      out.push(h('div', { class: 'row prem-stars' }, h('span', { class: 'tiny muted bold' }, 'или звёздами:'),
+        stars.map(([product, o]) => {
+          const b = h('button', { type: 'button', class: 'btn small ghost' }, `${product === 'premium_year' ? 'год' : 'месяц'} · ${o.text}`);
+          buy(b, product, 'XTR');
+          return b;
+        })));
     }
+    out.push(h('p', { class: 'tiny muted bold center' }, 'Без автосписаний: продлеваешь, только когда сам(а) захочешь.'));
   } else if (!p.active && !p.trial_available) {
     const b = h('button', { type: 'button', class: 'btn block' }, 'Хочу Premium');
     b.addEventListener('click', busy(b, wantPremium));
@@ -122,7 +170,7 @@ export function premiumActions(onDone) {
 
 /** Окно-предложение Premium в момент, когда он нужен. */
 export function openPaywall(reason) {
-  const [emoji, title, text] = REASONS[reason] || ['👑', 'LifeQuest Premium', 'Больше приключений, больше стиля, больше тебя.'];
+  const [emoji, title, text] = REASONS[reason] || ['👑', PROMISE[0], PROMISE[1]];
   haptic.tap('medium');
   let s;
   const body = h('div', { class: 'center' },
@@ -130,8 +178,8 @@ export function openPaywall(reason) {
     h('div', { style: { fontSize: '30px', marginTop: '4px' }, 'aria-hidden': 'true' }, emoji),
     h('h2', { style: { marginTop: '4px' } }, title),
     h('p', { class: 'muted bold', style: { marginTop: '6px' } }, text),
-    h('div', { class: 'stack-sm', style: { marginTop: '14px', textAlign: 'left' } },
-      PERKS.map(([e, t]) => h('div', { class: 'row small bold', style: { gap: '10px' } }, h('span', { 'aria-hidden': 'true' }, e), t))),
+    compareTable(),
+    socialProof(),
     premiumActions(() => s && s.close()));
   s = sheet(body, { label: title });
   return s;
