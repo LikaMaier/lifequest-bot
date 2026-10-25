@@ -1035,11 +1035,20 @@ def premium_text(user_id: int) -> str:
 
 def premium_tariffs(user_id: int) -> list:
     """[(товар, валюта, название, цена, пометка)] — тарифы для сообщения и кнопок оплаты.
-    Рублёвый тариф показываем всегда, звёздные — когда включена оплата звёздами."""
-    out = [("premium_month", "RUB", "30 дней", f"{billing.RUB_PRICES['premium_month'] // 100} ₽", " · банковской картой")]
-    if game.PAYMENTS_ENABLED:
-        out.append(("premium_month", "XTR", "30 дней", f"{billing.price(user_id, 'premium_month')}⭐", " · звёздами Telegram"))
-        out.append(("premium_year", "XTR", "Год", f"{billing.price(user_id, 'premium_year')}⭐", " · выгоднее на 45%"))
+    Рублёвые тарифы показываем всегда, звёздные — когда включена оплата звёздами."""
+    out = []
+    currencies = ["RUB"] + (["XTR"] if game.PAYMENTS_ENABLED else [])
+    for cur in currencies:
+        for product, name in (("premium_month", "30 дней"), ("premium_year", "Год")):
+            amount = billing.price(user_id, product, cur)
+            full = billing.full_price(product, cur)
+            note = []
+            if amount < full:
+                note.append(f"первый месяц, вместо <s>{billing.format_amount(full, cur)}</s>")
+            if product == "premium_year":
+                note.append(f"выгоднее на {round(100 * (1 - amount / (12 * billing.full_price('premium_month', cur))))}%")
+            note.append("банковской картой" if cur == "RUB" else "звёздами Telegram")
+            out.append((product, cur, name, billing.format_amount(amount, cur), " · " + " · ".join(note)))
     return out
 
 
@@ -1139,16 +1148,37 @@ async def cmd_paysupport(message: Message):
 
 
 PREMIUM_NOTICE = {
-    "soon": "⏳ <b>Premium закончится через 2 дня.</b> Случайные квесты, наборы, заморозки и стили пропадут — продлим?",
-    "ended": "🌙 <b>Premium закончился.</b> Всё сделанное остаётся с тобой. Вернуть Premium можно в любой момент.",
+    "soon": "⏳ <b>Premium скоро закончится — {until}.</b> Случайные квесты, наборы, заморозки и стили пропадут. "
+            "Продлить на месяц — {price}.",
+    "ended": "🌙 <b>Premium закончился.</b> Всё сделанное остаётся с тобой. {offer}",
+    "winback": "🎲 <b>Скучаем по приключениям!</b> Пока тебя не было, квесты ждали. {offer}",
 }
+
+
+def premium_notice_text(user_id: int, kind: str, until: str) -> str:
+    """Текст напоминания с ценой: кто ещё не платил — первый месяц со скидкой."""
+    try:
+        cur = billing.currency_of("premium_month")
+        amount = billing.price(user_id, "premium_month", cur)
+        price = billing.format_amount(amount, cur)
+        full = billing.full_price("premium_month", cur)
+    except Exception:
+        price, amount, full = "", 0, 0
+    if price and amount < full:
+        offer = f"Первый месяц — всего <b>{price}</b> вместо {billing.format_amount(full, cur)}."
+    elif price:
+        offer = f"Вернуть Premium на месяц — {price}."
+    else:
+        offer = "Вернуть Premium можно в любой момент."
+    return PREMIUM_NOTICE[kind].format(until=until[:10], price=price or "в разделе Premium", offer=offer)
 
 
 async def send_premium_notices():
     for user_id, kind, until in billing.users_for_premium_notice():
         try:
             billing.mark_notice(user_id, kind, until)
-            await ops.safe_send(user_id, PREMIUM_NOTICE[kind], parse_mode="HTML", reply_markup=premium_keyboard(user_id))
+            await ops.safe_send(user_id, premium_notice_text(user_id, kind, until), parse_mode="HTML",
+                                reply_markup=premium_keyboard(user_id))
         except Exception as e:
             await ops.alert("premium notice", e, f"user {user_id}")
 

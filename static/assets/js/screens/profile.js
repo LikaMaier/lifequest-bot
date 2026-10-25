@@ -8,7 +8,7 @@ import { mascot, mascotSVG } from '../mascot.js';
 import { sectionTitle, progressBar, toast, toastError, busy, button, ICONS } from '../ui.js';
 import { setState, store, refreshState } from '../store.js';
 import { buildShareCard } from '../share.js';
-import { PERKS, premiumActions, openPaywall, handlePremiumError } from '../premium.js';
+import { PROMISE, compareTable, socialProof, premiumActions, openPaywall, handlePremiumError } from '../premium.js';
 
 const COMMON_TZ = [
   'Europe/Kaliningrad', 'Europe/Moscow', 'Europe/Samara', 'Asia/Yekaterinburg', 'Asia/Omsk', 'Asia/Novosibirsk',
@@ -133,7 +133,7 @@ export function render(el, { state, go }) {
     h('div', { class: 'row' }, h('span', { style: { fontSize: '34px' }, 'aria-hidden': 'true' }, '👑'),
       h('div', { class: 'grow' }, h('div', { class: 'card-title', style: { margin: 0 } }, 'LifeQuest Premium'),
         h('div', { class: 'small bold' }, u.is_premium ? 'Premium активен — спасибо! 💛'
-          : (state.premium && state.premium.trial_available) ? '🎁 Неделя Premium в подарок ждёт тебя' : 'Случайные квесты, наборы, аксессуары и стили'))));
+          : (state.premium && state.premium.trial_available) ? '🎁 Неделя Premium в подарок ждёт тебя' : 'Приключения каждый день: квесты, наборы, стили'))));
   prem.addEventListener('click', () => { haptic.tap(); go('premium'); });
   el.append(prem);
 
@@ -189,17 +189,17 @@ export function renderPremium(el, { state }) {
   const p = state.premium || {};
   const status = p.forever ? 'Premium навсегда. Спасибо, что ты с нами! 💛'
     : p.active ? `Premium активен до ${fmtDate(p.until)}. Спасибо! 💛`
-    : 'Больше приключений, больше стиля, больше тебя.';
+    : PROMISE[1];
   el.append(h('section', { class: 'premium-hero' },
     mascot(state.user.mascot || 'star', 'love', { size: 110, cls: 'jump', acc: 'wizard' }),
-    h('h1', { style: { marginTop: '10px' } }, 'LifeQuest Premium'),
+    h('h1', { style: { marginTop: '10px' } }, p.active || p.forever ? 'LifeQuest Premium' : PROMISE[0]),
     h('p', { class: 'bold', style: { marginTop: '8px', color: 'var(--ink-soft)' } }, status)));
-  el.append(h('div', { class: 'stack-sm', style: { marginTop: '16px' } }, PERKS.map(([emoji, title, text]) =>
-    h('div', { class: 'quest-item c-yellow' }, h('div', { class: 'q-emoji', 'aria-hidden': 'true' }, emoji),
-      h('div', { class: 'grow' }, h('div', { class: 'q-title' }, title), h('div', { class: 'q-meta' }, text))))));
+  el.append(compareTable());
+  const proof = socialProof();
+  if (proof) el.append(proof);
   if (!p.active && !p.trial_available && !p.trial_used && p.trial_after) {
     el.append(h('p', { class: 'small bold muted center', style: { marginTop: '14px' } },
-      `🎁 После ${p.trial_after} выполненных квестов откроется неделя Premium в подарок.`));
+      `🎁 После ${p.trial_after_habit_days} дней с привычками или ${p.trial_after} квестов откроется неделя Premium в подарок.`));
   }
   if (!p.forever) el.append(premiumActions());
 }

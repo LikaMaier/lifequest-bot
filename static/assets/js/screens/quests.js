@@ -28,12 +28,13 @@ export function render(el, ctx) {
   });
   el.append(duel);
 
-  // Случайный квест — с Premium; наборы ниже — для всех
+  // Случайный квест — с Premium (без него — один в неделю); наборы ниже — для всех
   const premium = Boolean(state.premium && state.premium.active);
   el.append(modeButtons(),
     h('p', { class: 'center tiny muted bold', style: { marginTop: '4px' } }, premium
       ? `Сегодня ещё ${state.rolls_left} ${plural(state.rolls_left, 'попытка', 'попытки', 'попыток')} — заданий без повторов хватит надолго`
-      : 'Случайные квесты — в Premium. Наборы ниже открыты всем 💛'));
+      : state.free_quest ? '🎁 Один случайный квест в неделю — бесплатно. Выбирай формат!'
+        : 'Бесплатный квест этой недели уже был — новый в понедельник. С Premium — сколько угодно 💛'));
 
   // Тематические наборы
   const packsHost = h('div', { class: 'pack-row', role: 'list', 'aria-label': 'Наборы квестов' });

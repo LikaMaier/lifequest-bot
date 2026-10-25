@@ -183,21 +183,25 @@ class RublePaymentsTest(TempDBTestCase):
 
     def test_month_offers_rubles_first_and_stars_as_alternative(self):
         view = billing.premium_view(storage.get_user(1))
-        self.assertEqual([o["text"] for o in view["options"]["premium_month"]], ["199 ₽", "75⭐"])
+        self.assertEqual([o["text"] for o in view["options"]["premium_month"]], ["99 ₽", "75⭐"])  # −50% на первый месяц
+        self.assertEqual([o.get("full_text") for o in view["options"]["premium_month"]], ["199 ₽", "149⭐"])
+        self.assertEqual([o["text"] for o in view["options"]["premium_year"]], ["1490 ₽", "990⭐"])
+        self.assertEqual(view["options"]["premium_year"][0]["save"], 38)
         self.assertEqual([o["currency"] for o in view["options"]["freeze"]], ["XTR"])
         self.assertTrue(view["payments"])
 
     def test_rub_invoice_and_payment(self):
         params = billing.invoice_params(1, "premium_month")
-        self.assertEqual((params["currency"], params["amount"], params["provider_token"]), ("RUB", 19900, "test:token"))
+        self.assertEqual((params["currency"], params["amount"], params["provider_token"]), ("RUB", 9900, "test:token"))
         self.assertEqual(params["extra"], {})
-        self.assertEqual(billing.validate_checkout(1, params["payload"], 19900, "RUB"), "premium_month")
+        self.assertEqual(billing.validate_checkout(1, params["payload"], 9900, "RUB"), "premium_month")
         with self.assertRaises(game.QuestError):  # та же сумма, но другой валютой
-            billing.validate_checkout(1, params["payload"], 19900, "XTR")
-        billing.apply_payment(1, params["payload"], "rub1", 19900, "RUB")
+            billing.validate_checkout(1, params["payload"], 9900, "XTR")
+        billing.apply_payment(1, params["payload"], "rub1", 9900, "RUB")
         self.assertTrue(game.is_premium(storage.get_user(1)))
         st = billing.stats()
-        self.assertEqual((st["rub"], st["stars"]), (199, 0))
+        self.assertEqual((st["rub"], st["stars"]), (99, 0))
+        self.assertEqual(billing.price(1, "premium_month", "RUB"), 19900)  # дальше — обычная цена
         row = billing.mark_refunded("rub1")
         self.assertEqual(row["currency"], "RUB")
         self.assertFalse(game.is_premium(storage.get_user(1)))
@@ -206,22 +210,23 @@ class RublePaymentsTest(TempDBTestCase):
         params = billing.invoice_params(1, "premium_month", "XTR")
         self.assertEqual((params["currency"], params["amount"], params["provider_token"]), ("XTR", 75, ""))
         self.assertEqual(billing.validate_checkout(1, params["payload"], 75, "XTR"), "premium_month")
-        with self.assertRaises(game.QuestError):  # рублями год не продаётся
-            billing.invoice_params(1, "premium_year", "RUB")
+        self.assertEqual(billing.invoice_params(1, "premium_year", "RUB")["amount"], 149000)  # год — и рублями
+        with self.assertRaises(game.QuestError):  # заморозка — только за звёзды
+            billing.invoice_params(1, "freeze", "RUB")
 
     def test_receipt_data_when_enabled(self):
         with mock.patch.object(billing, "YOOKASSA_RECEIPT", True):
             extra = billing.invoice_params(1, "premium_month")["extra"]
         self.assertTrue(extra["need_email"] and extra["send_email_to_provider"])
         item = json.loads(extra["provider_data"])["receipt"]["items"][0]
-        self.assertEqual(item["amount"], {"value": "199.00", "currency": "RUB"})
+        self.assertEqual(item["amount"], {"value": "99.00", "currency": "RUB"})
 
     def test_rubles_only_without_stars(self):
         with mock.patch.object(game, "PAYMENTS_ENABLED", False):
             self.assertEqual(billing.invoice_params(1, "premium_month")["currency"], "RUB")
             with self.assertRaises(game.QuestError):
                 billing.invoice_params(1, "freeze")
-            self.assertEqual(billing.premium_view(storage.get_user(1))["buyable"], ["premium_month"])
+            self.assertEqual(billing.premium_view(storage.get_user(1))["buyable"], ["premium_month", "premium_year"])
 
     def test_old_star_payload_still_accepted(self):
         self.assertEqual(billing.validate_checkout(1, "freeze:1:25", 25, "XTR"), "freeze")
@@ -252,12 +257,34 @@ class PremiumChatTariffsTest(TempDBTestCase):
         with mock.patch.object(game, "PAYMENTS_ENABLED", True), mock.patch.object(lb, "MINIAPP_URL", "https://x.app/"):
             text = lb.premium_text(1)
             buttons = [b for row in lb.premium_keyboard(1).inline_keyboard for b in row]
-        self.assertIn("199 ₽", text)
+        self.assertIn("<b>99 ₽</b>", text)  # первый месяц со скидкой
+        self.assertIn("<s>199 ₽</s>", text)
+        self.assertIn("1490 ₽", text)
         self.assertIn("75⭐", text)
-        self.assertEqual([b.callback_data for b in buttons[:3]],
-                         ["pay_premium_month:RUB", "pay_premium_month:XTR", "pay_premium_year:XTR"])
-        self.assertTrue(buttons[0].text.startswith("💳 Оплатить 199 ₽"))
+        self.assertEqual([b.callback_data for b in buttons[:4]],
+                         ["pay_premium_month:RUB", "pay_premium_year:RUB", "pay_premium_month:XTR", "pay_premium_year:XTR"])
+        self.assertTrue(buttons[0].text.startswith("💳 Оплатить 99 ₽"))
         self.assertIsNotNone(buttons[-1].web_app)
         with mock.patch.object(game, "PAYMENTS_ENABLED", False):
             self.assertEqual([b.callback_data for row in lb.premium_keyboard(1).inline_keyboard for b in row
-                              if b.callback_data], ["pay_premium_month:RUB"])
+                              if b.callback_data], ["pay_premium_month:RUB", "pay_premium_year:RUB"])
+
+
+class PremiumNoticesTest(TempDBTestCase):
+    def test_soon_ended_winback_once_each(self):
+        from datetime import datetime as dt
+        storage.ensure_user(1, "u", "U")
+        until = dt.utcnow() - timedelta(days=billing.WINBACK_DAYS, hours=2)
+        storage.update_user(1, premium_until=until.strftime("%Y-%m-%d %H:%M:%S"))
+        found = billing.users_for_premium_notice()
+        self.assertEqual([k for _u, k, _ in found], ["winback"])
+        billing.mark_notice(1, "winback", found[0][2])
+        self.assertEqual(billing.users_for_premium_notice(), [])
+
+    def test_notice_text_offers_first_month_discount(self):
+        os.environ.setdefault("BOT_TOKEN", "123456:TEST")
+        import lifequest_bot as lb
+        storage.ensure_user(1, "u", "U")
+        with mock.patch.object(billing, "YOOKASSA_TOKEN", "t"):
+            text = lb.premium_notice_text(1, "ended", "2026-10-20 10:00:00")
+        self.assertIn("<b>99 ₽</b> вместо 199 ₽", text)

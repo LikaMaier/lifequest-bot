@@ -298,6 +298,7 @@ def init_db():
     # Premium и оплата звёздами Telegram
     _ensure_column(c, "users", "premium_until", "TEXT")
     _ensure_column(c, "users", "trial_used", "INTEGER DEFAULT 0")
+    _ensure_column(c, "users", "free_quest_week", "TEXT")  # неделя, когда взят бесплатный случайный квест
     _ensure_column(c, "users", "premium_notice", "TEXT")
     _ensure_column(c, "users", "freeze_week_count", "INTEGER DEFAULT 0")
     _ensure_column(c, "users", "streak_push_date", "TEXT")
