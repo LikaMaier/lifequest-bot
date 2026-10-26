@@ -82,7 +82,7 @@ export async function buySbp(product) {
           return;
         }
       } catch (e) { /* сеть — попробуем ещё */ }
-      if (++tries < 6) setTimeout(check, 2500);
+      if (++tries < 40) setTimeout(check, 3000);  // подтверждение в банке может занять пару минут
     };
     const onBack = () => { if (document.visibilityState === 'visible') { tries = 0; check(); } };
     document.addEventListener('visibilitychange', onBack);

@@ -17,6 +17,7 @@
 
 import os
 import uuid
+from datetime import datetime, timedelta
 
 import aiohttp
 
@@ -121,3 +122,35 @@ async def sync(payment_id: str, user_id: int = None):
     conn.close()
     res["user_id"] = row["user_id"]
     return res
+
+
+def pending_ids(user_id: int = None, hours: int = 48) -> list:
+    """Неначисленные платежи за последние `hours` часов (кроме отменённых)."""
+    _ensure_table()
+    since = (datetime.utcnow() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+    sql = "SELECT id FROM yk_payments WHERE applied = 0 AND status != 'canceled' AND created_at >= ?"
+    args = [since]
+    if user_id is not None:
+        sql += " AND user_id = ?"
+        args.append(user_id)
+    conn = storage.connect()
+    ids = [r[0] for r in conn.execute(sql, args).fetchall()]
+    conn.close()
+    return ids
+
+
+async def sync_pending(user_id: int = None) -> list:
+    """Перепроверяет неначисленные платежи (на случай, если уведомление ЮKassa
+    не дошло или не настроено). → новые начисления."""
+    if not enabled():
+        return []
+    out = []
+    for pid in pending_ids(user_id):
+        try:
+            res = await sync(pid)
+        except Exception as e:  # один сбойный платёж не мешает остальным
+            print(f"YooKassa sync {pid} failed: {e}")
+            continue
+        if res and not res.get("duplicate"):
+            out.append(res)
+    return out
