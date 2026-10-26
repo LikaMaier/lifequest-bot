@@ -288,3 +288,17 @@ class PremiumNoticesTest(TempDBTestCase):
         with mock.patch.object(billing, "YOOKASSA_TOKEN", "t"):
             text = lb.premium_notice_text(1, "ended", "2026-10-20 10:00:00")
         self.assertIn("<b>99 ₽</b> вместо 199 ₽", text)
+
+
+class SbpButtonsTest(TempDBTestCase):
+    def test_ruble_buttons_open_yookassa_page_when_api_enabled(self):
+        os.environ.setdefault("BOT_TOKEN", "123456:TEST")
+        import lifequest_bot as lb
+        import yookassa_api
+        storage.ensure_user(1, "u", "U")
+        with mock.patch.object(yookassa_api, "SHOP_ID", "1"), mock.patch.object(yookassa_api, "SECRET_KEY", "s"), \
+                mock.patch.object(game, "PAYMENTS_ENABLED", True):
+            data = [b.callback_data for row in lb.premium_keyboard(1).inline_keyboard for b in row if b.callback_data]
+            text = lb.premium_text(1)
+        self.assertEqual(data, ["sbp_premium_month", "sbp_premium_year", "pay_premium_month:XTR", "pay_premium_year:XTR"])
+        self.assertIn("СБП или картой", text)
