@@ -80,3 +80,17 @@ class YookassaApiTest(TempDBTestCase):
         with self.assertRaises(game.QuestError):
             run(yookassa_api.create(1, "freeze", "x"))
         self.assertIsNone(run(yookassa_api.sync("unknown")))
+
+
+class SyncPendingTest(YookassaApiTest):
+    def test_sync_pending_applies_paid_once(self):
+        a = run(yookassa_api.create(1, "premium_month", "x"))
+        storage.ensure_user(2, "v", "V")
+        b = run(yookassa_api.create(2, "premium_month", "x"))
+        self.assertEqual(run(yookassa_api.sync_pending()), [])  # никто ещё не заплатил
+        self.api.pay(a["id"])
+        done = run(yookassa_api.sync_pending())
+        self.assertEqual([r["user_id"] for r in done], [1])
+        self.assertEqual(run(yookassa_api.sync_pending()), [])  # второй раз — ничего
+        self.assertEqual(yookassa_api.pending_ids(), [b["id"]])
+        self.assertEqual(yookassa_api.pending_ids(1), [])

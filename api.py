@@ -210,6 +210,10 @@ async def client_error(request):
 
 
 async def get_state(request):
+    # оплата на странице ЮKassa могла пройти, пока человека не было — подтянем её
+    if yookassa_api.enabled() and yookassa_api.pending_ids(request["user_id"]):
+        for res in await yookassa_api.sync_pending(request["user_id"]):
+            await _notify_paid(res)
     return web.json_response(_state(request))
 
 

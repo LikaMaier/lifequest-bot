@@ -1208,6 +1208,16 @@ def premium_notice_text(user_id: int, kind: str, until: str) -> str:
     return PREMIUM_NOTICE[kind].format(until=until[:10], price=price or "в разделе Premium", offer=offer)
 
 
+async def sync_yookassa_payments():
+    """Каждые 2 минуты: оплаченные на странице ЮKassa, но ещё не начисленные платежи
+    (если HTTP-уведомление ЮKassa не дошло или не настроено)."""
+    try:
+        for res in await yookassa_api.sync_pending():
+            await api._notify_paid(res)
+    except Exception as e:
+        await ops.alert("yookassa sync", e)
+
+
 async def send_premium_notices():
     for user_id, kind, until in billing.users_for_premium_notice():
         try:
@@ -1368,6 +1378,7 @@ async def main():
     scheduler.add_job(send_habit_reminders, "interval", minutes=1)
     scheduler.add_job(send_streak_alarms, "cron", minute=1)
     scheduler.add_job(send_premium_notices, "cron", minute=7)
+    scheduler.add_job(sync_yookassa_payments, "interval", minutes=2)
     scheduler.add_job(cleanup_photos, "cron", hour=4, minute=17)
     scheduler.add_job(ops.send_backup, "cron", hour=3, minute=33, id="backup")  # ночная копия базы админу
     scheduler.add_listener(_on_job_error, EVENT_JOB_ERROR)
