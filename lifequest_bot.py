@@ -34,6 +34,7 @@ import albums
 import contests
 import activity_report
 import admin_tools
+import yookassa_api
 import duels
 import friends
 import game
@@ -1061,6 +1062,10 @@ def premium_keyboard(user_id: int):
             icon = "💳" if currency == "RUB" else "⭐"
             rows.append([InlineKeyboardButton(text=f"{icon} Оплатить {price_} · {name.lower()}",
                                               callback_data=f"pay_{product}:{currency}")])
+        if yookassa_api.enabled():  # СБП — через страницу ЮKassa
+            rows.append([InlineKeyboardButton(
+                text=f"⚡ СБП · {billing.format_amount(billing.price(user_id, product, 'RUB'), 'RUB')} · {label}",
+                callback_data=f"sbp_{product}") for product, label in (("premium_month", "месяц"), ("premium_year", "год"))])
     rows += app_row("premium")
     return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
 
@@ -1097,6 +1102,24 @@ async def pay_product(callback: CallbackQuery):
     await bot.send_invoice(callback.from_user.id, title=p["title"], description=p["description"],
                            payload=p["payload"], provider_token=p["provider_token"], currency=p["currency"],
                            prices=[LabeledPrice(label=p["title"], amount=p["amount"])], **p["extra"])
+
+
+@dp.callback_query(F.data.startswith("sbp_"))
+async def pay_sbp(callback: CallbackQuery):
+    """Оплата по СБП: создаём платёж в ЮKassa и даём ссылку на страницу оплаты.
+    Premium включится по уведомлению ЮKassa (/yookassa/webhook)."""
+    product = callback.data[len("sbp_"):]
+    try:
+        me = await bot.me()
+        res = await yookassa_api.create(callback.from_user.id, product, f"https://t.me/{me.username}")
+    except game.QuestError as e:
+        await callback.answer(str(e), show_alert=True)
+        return
+    await callback.answer()
+    await callback.message.answer(
+        f"⚡ Счёт на <b>{billing.format_amount(res['amount'], 'RUB')}</b> готов. Открой страницу оплаты и выбери СБП "
+        "(или карту). Premium включится сам, как только оплата пройдёт.", parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Перейти к оплате", url=res["url"])]]))
 
 
 @dp.pre_checkout_query()

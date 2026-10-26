@@ -29,6 +29,27 @@ class ApiTest(TempDBTestCase, AioHTTPTestCase):
     async def get_application(self):
         return api.create_app(TOKEN)
 
+    async def test_sbp_payment_via_webhook(self):
+        from unittest import mock
+        import yookassa_api
+        from tests.test_yookassa_api import FakeApi
+        fake = FakeApi()
+        with mock.patch.object(yookassa_api, "SHOP_ID", "1"), mock.patch.object(yookassa_api, "SECRET_KEY", "s"), \
+                mock.patch.object(yookassa_api, "_request", fake):
+            state = await (await self.client.get("/api/state", headers=headers(42))).json()
+            self.assertTrue(state["premium"]["sbp"])
+            self.assertEqual(state["premium"]["sbp_prices"]["premium_month"], "99 ₽")
+            res = await (await self.client.post("/api/premium/sbp", headers=headers(42), json={"product": "premium_month"})).json()
+            self.assertIn("yoomoney.ru", res["url"])
+            check = await (await self.client.post("/api/premium/sbp/check", headers=headers(42), json={"id": res["id"]})).json()
+            self.assertFalse(check["paid"])
+            fake.pay(res["id"])
+            hook = await self.client.post("/yookassa/webhook", json={"event": "payment.succeeded", "object": {"id": res["id"]}})
+            self.assertEqual(hook.status, 200)
+            self.assertTrue(game.is_premium(storage.get_user(42)))
+            again = await self.client.post("/yookassa/webhook", json={"event": "payment.succeeded", "object": {"id": res["id"]}})
+            self.assertEqual(again.status, 200)
+
     async def test_privacy_page_is_public(self):
         resp = await self.client.get("/privacy")
         self.assertEqual(resp.status, 200)

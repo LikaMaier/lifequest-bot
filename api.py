@@ -24,6 +24,7 @@ import albums
 import billing
 import spheres
 import chest
+import yookassa_api
 import client_errors
 import login_bonus
 import challenges
@@ -181,6 +182,11 @@ def _state(request) -> dict:
     user = storage.get_user(request["user_id"])
     data["user"]["morning_plans"] = bool(user.get("morning_plans", 1))
     data["premium"] = billing.premium_view(user)
+    data["premium"]["sbp"] = yookassa_api.enabled() and not game.premium_forever(user)
+    if data["premium"]["sbp"]:  # цены для СБП — в рублях, даже если платёжная форма Telegram не подключена
+        data["premium"]["sbp_prices"] = {p: billing.format_amount(billing.price(user["user_id"], p, "RUB"), "RUB")
+                                         for p in yookassa_api.PRODUCTS}
+    data["premium"]["payments"] = data["premium"]["payments"] or data["premium"]["sbp"]
     data["user_spheres"] = spheres.list_spheres(request["user_id"])
     data["challenge"] = challenges.summary(request["user_id"])
     data["contests"] = contests.summary(request["user_id"])
@@ -327,6 +333,60 @@ async def premium_invoice(request):
                                          provider_token=p["provider_token"], currency=p["currency"],
                                          prices=[LabeledPrice(label=p["title"], amount=p["amount"])], **p["extra"])
     return web.json_response({"link": link, "stars": p["stars"], "currency": p["currency"]})
+
+
+def _return_url(request) -> str:
+    """Куда ЮKassa вернёт после оплаты — в чат с ботом (или в приложение)."""
+    username = request.app.get(BOT_USERNAME_KEY)
+    return f"https://t.me/{username}" if username else (MINIAPP_URL or "https://t.me")
+
+
+PAID_SBP_TEXT = {
+    "premium_month": "👑 <b>Premium активен</b> до {until}. Спасибо, что поддерживаешь LifeQuest! 💛",
+    "premium_year": "👑 <b>Premium на год</b> — до {until}. Спасибо, что ты с нами 💛",
+}
+
+
+async def _notify_paid(res: dict):
+    if res and not res.get("duplicate") and res.get("product") in PAID_SBP_TEXT:
+        try:  # Premium уже начислен — сообщение лишь бонус
+            await ops.safe_send(res["user_id"], PAID_SBP_TEXT[res["product"]].format(until=(res.get("until") or "")[:10]),
+                                parse_mode="HTML")
+        except Exception as e:
+            print(f"Paid notice failed: {e}")
+
+
+async def premium_sbp(request):
+    """Оплата через страницу ЮKassa (там есть СБП) → {"id", "url"}; мини-апп открывает url."""
+    _limit(request, "write")
+    data = await _body(request)
+    res = await yookassa_api.create(request["user_id"], str(data.get("product") or ""), _return_url(request))
+    return web.json_response({"id": res["id"], "url": res["url"]})
+
+
+async def premium_sbp_check(request):
+    """Мини-апп вернулся со страницы оплаты: проверяем платёж сами, не дожидаясь уведомления."""
+    _limit(request, "write")
+    data = await _body(request)
+    res = await yookassa_api.sync(str(data.get("id") or ""), request["user_id"])
+    await _notify_paid(res)
+    return web.json_response({"paid": bool(res), "state": _state(request) if res else None})
+
+
+async def yookassa_webhook(request):
+    """HTTP-уведомление ЮKassa. Телу не верим — статус платежа проверяем запросом к API."""
+    try:
+        body = json.loads((await request.content.read(65536)).decode("utf-8") or "{}")
+        pid = str(((body or {}).get("object") or {}).get("id") or "")
+    except (ValueError, UnicodeDecodeError, AttributeError):
+        return web.json_response({"ok": False}, status=400)
+    if pid:
+        try:
+            await _notify_paid(await yookassa_api.sync(pid))
+        except Exception as e:  # ЮKassa повторит уведомление, а админ узнает об ошибке
+            await ops.alert("yookassa webhook", e, f"payment {pid}")
+            return web.json_response({"ok": False}, status=500)
+    return web.json_response({"ok": True})
 
 
 async def premium_trial(request):
@@ -1060,6 +1120,9 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_post("/api/share", post_share)
     app.router.add_post("/api/premium/interest", premium_interest)
     app.router.add_post("/api/premium/invoice", premium_invoice)
+    app.router.add_post("/api/premium/sbp", premium_sbp)
+    app.router.add_post("/api/premium/sbp/check", premium_sbp_check)
+    app.router.add_post("/yookassa/webhook", yookassa_webhook)  # вне /api/: без initData
     app.router.add_post("/api/premium/trial", premium_trial)
     app.router.add_get("/api/challenges", get_challenges)
     app.router.add_post("/api/challenges/start", challenge_start)

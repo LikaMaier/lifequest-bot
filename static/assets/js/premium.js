@@ -2,7 +2,7 @@
 // пробная неделя и покупка: рубли через ЮKassa или звёзды (что включено на сервере).
 
 import { h, plural } from './dom.js';
-import { tg, haptic, openTgLink } from './tg.js';
+import { tg, haptic, openTgLink, openWebLink } from './tg.js';
 import { api } from './api.js';
 import { mascot } from './mascot.js';
 import { sheet, toast, toastError, busy, confetti } from './ui.js';
@@ -59,6 +59,34 @@ export async function buyStars(product, currency) {
     };
     if (tg && tg.openInvoice) tg.openInvoice(res.link, done);
     else { openTgLink(res.link); resolve('opened'); }
+  });
+}
+
+/** Оплата по СБП (и картой) на странице ЮKassa: открываем её, а когда человек
+ * вернётся в приложение — сами проверяем платёж. */
+export async function buySbp(product) {
+  const res = await api.premiumSbp(product);
+  openWebLink(res.url);
+  return new Promise(resolve => {
+    let tries = 0;
+    const check = async () => {
+      try {
+        const r = await api.premiumSbpCheck(res.id);
+        if (r.paid) {
+          document.removeEventListener('visibilitychange', onBack);
+          if (r.state) setState(r.state);
+          haptic.success();
+          confetti(120);
+          toast('💛 Оплата прошла — спасибо!', 'good', 2600);
+          resolve('paid');
+          return;
+        }
+      } catch (e) { /* сеть — попробуем ещё */ }
+      if (++tries < 6) setTimeout(check, 2500);
+    };
+    const onBack = () => { if (document.visibilityState === 'visible') { tries = 0; check(); } };
+    document.addEventListener('visibilitychange', onBack);
+    setTimeout(check, 4000);  // встроенный браузер мог открыться поверх, не скрыв приложение
   });
 }
 
@@ -146,6 +174,21 @@ export function premiumActions(onDone) {
       const b = priceBtn('Год', y, 'ghost', y.save ? `выгоднее на ${y.save}%` : null);
       buy(b, 'premium_year', y.currency);
       out.push(b);
+    }
+    // СБП — через страницу ЮKassa
+    if (p.sbp) {
+      const prices = p.sbp_prices || {};
+      const rows = ['premium_month', 'premium_year'].filter(k => prices[k]).map(k => [k, { text: prices[k] }]);
+      if (rows.length) {
+        out.push(h('div', { class: 'row prem-stars' }, h('span', { class: 'tiny muted bold' }, '⚡ по СБП:'),
+          rows.map(([product, o]) => {
+            const b = h('button', { type: 'button', class: 'btn small ghost' }, `${product === 'premium_year' ? 'год' : 'месяц'} · ${o.text}`);
+            b.addEventListener('click', busy(b, async () => {
+              try { if (await buySbp(product) === 'paid') after(); } catch (e) { toastError(e); }
+            }));
+            return b;
+          })));
+      }
     }
     // звёзды — запасной способ, одной строкой
     const stars = [['premium_month', month], ['premium_year', year]]
