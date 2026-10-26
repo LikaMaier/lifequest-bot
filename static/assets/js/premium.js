@@ -158,8 +158,10 @@ export function premiumActions(onDone) {
   }
   if (p.payments && !p.forever) {
     const opts = p.options || {};
+    // рубли при подключённом API ЮKassa — на страницу ЮKassa (там есть СБП), иначе — форма Telegram
+    const pay = (product, currency) => (currency === 'RUB' && p.sbp ? buySbp(product) : buyStars(product, currency));
     const buy = (b, product, currency) => b.addEventListener('click', busy(b, async () => {
-      try { if (await buyStars(product, currency) === 'paid') after(); } catch (e) { toastError(e); }
+      try { if (await pay(product, currency) === 'paid') after(); } catch (e) { toastError(e); }
     }));
     const month = opts.premium_month || [];
     const year = opts.premium_year || [];
@@ -175,20 +177,8 @@ export function premiumActions(onDone) {
       buy(b, 'premium_year', y.currency);
       out.push(b);
     }
-    // СБП — через страницу ЮKassa
-    if (p.sbp) {
-      const prices = p.sbp_prices || {};
-      const rows = ['premium_month', 'premium_year'].filter(k => prices[k]).map(k => [k, { text: prices[k] }]);
-      if (rows.length) {
-        out.push(h('div', { class: 'row prem-stars' }, h('span', { class: 'tiny muted bold' }, '⚡ по СБП:'),
-          rows.map(([product, o]) => {
-            const b = h('button', { type: 'button', class: 'btn small ghost' }, `${product === 'premium_year' ? 'год' : 'месяц'} · ${o.text}`);
-            b.addEventListener('click', busy(b, async () => {
-              try { if (await buySbp(product) === 'paid') after(); } catch (e) { toastError(e); }
-            }));
-            return b;
-          })));
-      }
+    if (p.sbp && main && main.currency === 'RUB') {
+      out.push(h('p', { class: 'tiny muted bold center' }, '⚡ СБП, карта, SberPay или ЮMoney'));
     }
     // звёзды — запасной способ, одной строкой
     const stars = [['premium_month', month], ['premium_year', year]]

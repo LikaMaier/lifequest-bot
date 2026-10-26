@@ -1048,7 +1048,8 @@ def premium_tariffs(user_id: int) -> list:
                 note.append(f"первый месяц, вместо <s>{billing.format_amount(full, cur)}</s>")
             if product == "premium_year":
                 note.append(f"выгоднее на {round(100 * (1 - amount / (12 * billing.full_price('premium_month', cur))))}%")
-            note.append("банковской картой" if cur == "RUB" else "звёздами Telegram")
+            note.append(("СБП или картой" if yookassa_api.enabled() else "банковской картой") if cur == "RUB"
+                        else "звёздами Telegram")
             out.append((product, cur, name, billing.format_amount(amount, cur), " · " + " · ".join(note)))
     return out
 
@@ -1058,14 +1059,12 @@ def premium_keyboard(user_id: int):
     user = storage.get_user(user_id)
     rows = []
     if not (user and game.premium_forever(user)):
+        sbp = yookassa_api.enabled()
         for product, currency, name, price_, _note in premium_tariffs(user_id):
             icon = "💳" if currency == "RUB" else "⭐"
-            rows.append([InlineKeyboardButton(text=f"{icon} Оплатить {price_} · {name.lower()}",
-                                              callback_data=f"pay_{product}:{currency}")])
-        if yookassa_api.enabled():  # СБП — через страницу ЮKassa
-            rows.append([InlineKeyboardButton(
-                text=f"⚡ СБП · {billing.format_amount(billing.price(user_id, product, 'RUB'), 'RUB')} · {label}",
-                callback_data=f"sbp_{product}") for product, label in (("premium_month", "месяц"), ("premium_year", "год"))])
+            # рубли при подключённом API ЮKassa — страница ЮKassa (там есть СБП), иначе — форма Telegram
+            data = f"sbp_{product}" if currency == "RUB" and sbp else f"pay_{product}:{currency}"
+            rows.append([InlineKeyboardButton(text=f"{icon} Оплатить {price_} · {name.lower()}", callback_data=data)])
     rows += app_row("premium")
     return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
 
