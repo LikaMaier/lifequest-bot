@@ -90,6 +90,9 @@ async function applyLog(hb, opts, onUpdate) {
       const { offerTrial } = await import('./premium.js');
       await refreshState().catch(() => {});
       offerTrial('habits');
+    } else if (res.just_done && hb.kind !== 'quit') {
+      const { maybeInviteNudge } = await import('./invitenudge.js');
+      maybeInviteNudge(res.milestone ? 2600 : 1400);
     }
     return res;
   } catch (e) { toastError(e); return null; }

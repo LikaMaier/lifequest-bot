@@ -22,6 +22,7 @@ import activity
 import aiquest
 import albums
 import billing
+import sources
 import spheres
 import chest
 import yookassa_api
@@ -117,7 +118,10 @@ async def auth_middleware(request, handler):
         return _error(401, "Открой приложение из Telegram, чтобы продолжить")
     user = data["user"]
     user_id = user["id"]
+    is_new = not storage.get_user(user_id)
     storage.ensure_user(user_id, user.get("username"), user.get("first_name"))
+    if is_new and data.get("start_param"):
+        sources.record(user_id, data["start_param"], True)  # открыли приложение по ссылке с меткой
     # Часовой пояс подставляем автоматически при первом входе.
     tz = request.headers.get(TZ_HEADER, "")
     if tz and not storage.get_user(user_id).get("tz") and game.valid_tz(tz):
@@ -190,7 +194,23 @@ def _state(request) -> dict:
     data["user_spheres"] = spheres.list_spheres(request["user_id"])
     data["challenge"] = challenges.summary(request["user_id"])
     data["contests"] = contests.summary(request["user_id"])
+    data["invite_nudge"] = _invite_nudge_due(user)
     return data
+
+
+def _invite_nudge_due(user: dict) -> bool:
+    """Один раз предлагаем позвать подругу — тем, у кого ещё нет друзей."""
+    if user.get("invite_nudged"):
+        return False
+    conn = storage.connect()
+    has_friend = conn.execute("SELECT 1 FROM friends WHERE user_id = ? LIMIT 1", (user["user_id"],)).fetchone()
+    conn.close()
+    return not has_friend
+
+
+async def invite_nudge_seen(request):
+    storage.update_user(request["user_id"], invite_nudged=1)
+    return web.json_response({"ok": True})
 
 
 async def client_error(request):
@@ -1159,6 +1179,7 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_delete("/api/albums/{id:[0-9]+}", album_delete)
     app.router.add_delete("/api/albums/{id:[0-9]+}/photos/{pid:[0-9a-f]{32}}", album_photo_delete)
     app.router.add_get("/api/friends", get_friends)
+    app.router.add_post("/api/invite-nudge", invite_nudge_seen)
     app.router.add_post("/api/friends/remove", friend_remove)
     app.router.add_get("/api/ai/options", ai_options)
     app.router.add_post("/api/ai/quest", ai_quest)

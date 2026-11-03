@@ -361,6 +361,8 @@ def init_db():
     c.execute("CREATE INDEX IF NOT EXISTS idx_challenges_user ON user_challenges(user_id, status)")
     # Друзья и ИИ-квесты
     _ensure_column(c, "users", "referred_by", "INTEGER")
+    _ensure_column(c, "users", "source", "TEXT")  # метка src_… (sources.py)
+    _ensure_column(c, "users", "invite_nudged", "INTEGER DEFAULT 0")  # показали «позови подругу»
     c.execute("""CREATE TABLE IF NOT EXISTS friends (
         user_id INTEGER NOT NULL, friend_id INTEGER NOT NULL, created_at TEXT,
         PRIMARY KEY (user_id, friend_id))""")

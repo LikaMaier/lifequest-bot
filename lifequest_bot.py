@@ -43,6 +43,7 @@ import nudges
 import ops
 import photos
 import plans
+import sources
 import storage
 from quests_database import KEY_TO_TASK, ALL_TASKS_FLAT, COMPANY_QUESTS, PAIR_QUESTS
 from storage import (
@@ -134,7 +135,9 @@ async def cmd_start(message: Message):
     user_id = message.from_user.id
     is_new = not storage.get_user(user_id)
     ensure_user(user_id, message.from_user.username, message.from_user.first_name)
-    invite = friends.parse_start((message.text or "").partition(" ")[2])
+    payload = (message.text or "").partition(" ")[2]
+    sources.record(user_id, payload, is_new)  # ?start=src_tiktok — запоминаем, откуда пришли
+    invite = friends.parse_start(payload)
     if invite and invite[2] != user_id and storage.get_user(invite[2]):
         await handle_invite(message, invite, is_new)
         return
@@ -841,6 +844,32 @@ async def admin_new_users(message: Message):
     days = int(arg) if arg.isdigit() else 7
     for part in admin_report.report(days, ADMIN_ID):
         await message.answer(part, parse_mode="HTML", disable_web_page_preview=True)
+
+
+@dp.message(Command("src"), F.from_user.id == ADMIN_ID)
+async def admin_source_link(message: Message):
+    """Ссылки с метками: /src — подсказка и готовые ссылки, /src blogger_anya — ссылка под метку,
+    /src stats [дней] — откуда пришли люди."""
+    arg = (message.text or "").partition(" ")[2].strip()
+    me = await bot.get_me()
+    if arg.lower().startswith("stats"):
+        rest = arg[5:].strip()
+        days = int(rest) if rest.isdigit() else 30
+        await message.answer(admin_report.sources_report(days, ADMIN_ID), parse_mode="HTML")
+        return
+    if arg:
+        tag = sources.clean(arg)
+        if not tag:
+            await message.answer("Метка — латиница, цифры, _ и -. Например: /src blogger_anya")
+            return
+        await message.answer(f"🏷 Метка <b>{tag}</b>:\n<code>{sources.link(me.username, tag)}</code>\n\n"
+                             "Кто придёт по ней — попадёт в /new и /src stats.", parse_mode="HTML")
+        return
+    lines = ["🏷 <b>Ссылки с метками источников</b>", "Нажми на ссылку, чтобы скопировать:", ""]
+    for tag in ("tiktok", "shorts", "vk", "pinterest", "tgchannel", "friends_chat"):
+        lines.append(f"{tag}: <code>{sources.link(me.username, tag)}</code>")
+    lines += ["", "Своя метка: <code>/src blogger_anya</code>", "Статистика: <code>/src stats</code> (за 30 дней) или <code>/src stats 7</code>"]
+    await message.answer("\n".join(lines), parse_mode="HTML", disable_web_page_preview=True)
 
 
 async def send_new_users_digest():

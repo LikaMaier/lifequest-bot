@@ -2071,3 +2071,18 @@ p { margin: 0; }
 .price-btn .pb-sub { font-family: var(--font-body, inherit); font-size: 11.5px; font-weight: 700; opacity: .75; }
 .price-btn .tag { font-family: var(--font-body, inherit); }
 .prem-stars { justify-content: center; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* 💌 «Позови подругу» после первой галочки */
+.inv-nudge { text-align: center; }
+.inv-nudge-pet { position: relative; display: inline-block; padding: 10px 26px 4px; border-radius: 50%;
+  background: radial-gradient(circle, #FFE7F3 0%, #E9DDFF 55%, transparent 72%); }
+.inv-nudge-spark { position: absolute; font-size: 20px; animation: act-twinkle 2.6s ease-in-out infinite; }
+.inv-nudge-spark.s1 { top: 4px; right: 4px; }
+.inv-nudge-spark.s2 { bottom: 12px; left: 2px; animation-delay: -1.3s; }
+.inv-nudge h2 { margin: 8px 0 6px; }
+.inv-nudge-lead { margin: 0 4px 14px; font-weight: 700; color: var(--muted); line-height: 1.4; }
+.inv-nudge-gifts { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-bottom: 16px; }
+.inv-nudge-gifts span { padding: 6px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 800;
+  background: color-mix(in srgb, var(--pink-deep, #E8508F) 12%, var(--white)); border: 2px solid color-mix(in srgb, var(--pink-deep, #E8508F) 35%, transparent); }
+.inv-nudge-go { background: linear-gradient(90deg, #8C6CF0, #F065A6); color: #fff; border-color: #2B2140; }
+@media (prefers-reduced-motion: reduce) { .inv-nudge-spark { animation: none; } }

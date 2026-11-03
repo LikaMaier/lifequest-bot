@@ -4,6 +4,7 @@ import { h } from './dom.js';
 import { haptic } from './tg.js';
 import { myMascot } from './mascot.js';
 import { toast, modal, confetti } from './ui.js';
+import { maybeInviteNudge } from './invitenudge.js';
 
 function closeBtn(text, m) {
   const b = h('button', { type: 'button', class: 'btn block', style: { marginTop: '18px' } }, text);
@@ -49,4 +50,5 @@ export async function celebrate(result, { xpText } = {}) {
   if (result.used_freeze) toast('❄️ Заморозка спасла твою серию!', '', 3000);
   if (result.level_up) await showLevelUp(result.level_up);
   for (const a of result.new_achievements || []) await showAchievement(a);
+  if (result.xp && !result.trial_offer) maybeInviteNudge();
 }
