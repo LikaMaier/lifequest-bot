@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import game
+import sources
 import storage
 
 MAX_CARDS = 40          # карточек в одной сводке; остальные — одной строкой
@@ -188,6 +189,7 @@ def render(data: dict, title: str) -> list:
     if inviters:
         top = sorted(inviters.items(), key=lambda x: -x[1])[:5]
         head += ["", "<b>Кто больше всех привёл</b>"] + [f"{html.escape(k)} — {v}" for k, v in top]
+    head += ["", "<b>Откуда пришли</b>"] + _source_lines(people)
 
     cards = []
     for p in people[:MAX_CARDS]:
@@ -197,7 +199,8 @@ def render(data: dict, title: str) -> list:
         lv = game.level_info(u.get("xp") or 0)
         uname = f" @{html.escape(u['username'])}" if u.get("username") else ""
         lines = [f"{p['status'][0]} <b>{html.escape(_name(u))}</b>{uname} · <code>{u['user_id']}</code>",
-                 f"   пришёл(а): {joined:%d.%m %H:%M}" + (f" · по приглашению: {html.escape(p['inviter'])}" if p["inviter"] else " · сам"),
+                 f"   пришёл(а): {joined:%d.%m %H:%M}" + (f" · по приглашению: {html.escape(p['inviter'])}" if p["inviter"] else " · сам")
+                 + (f" · метка: {html.escape(u['source'])}" if u.get("source") else ""),
                  f"   {p['status'][1]} · был(а) в приложении: {_ago(seen.astimezone(ZoneInfo('UTC')) if seen else None, now)}"]
         did = []
         if a["quests_taken"]:
@@ -234,6 +237,38 @@ def render(data: dict, title: str) -> list:
             cur += "\n\n" + c
     out.append(cur)
     return out
+
+
+def _source_lines(people: list) -> list:
+    """По каждому источнику: сколько пришло, сколько втянулось, сколько платит."""
+    rows = {}
+    for p in people:
+        r = rows.setdefault(sources.of(p["user"]), {"n": 0, "active": 0, "paid": 0})
+        r["n"] += 1
+        r["active"] += p["status"][0] in ("🔥", "🟢")
+        r["paid"] += bool(p["act"]["payments"])
+    out = []
+    for src, r in sorted(rows.items(), key=lambda x: (-x[1]["paid"], -x[1]["active"], -x[1]["n"])):
+        pct = round(100 * r["active"] / r["n"]) if r["n"] else 0
+        line = f"{html.escape(sources.label(src))} — {r['n']} · начали: {r['active']} ({pct}%)"
+        if r["paid"]:
+            line += f" · 💳 {r['paid']}"
+        out.append(line)
+    return out
+
+
+def sources_report(days: int, admin_id: int, now: datetime = None) -> str:
+    """/src stats — только разбивка по источникам за `days` дней."""
+    days = max(1, min(int(days or 30), 365))
+    data = collect(days, admin_id, now)
+    people = data["people"]
+    head = [f"🏷 <b>Откуда пришли за {days} {_plural(days, 'день', 'дня', 'дней')}</b>",
+            f"Новых: <b>{len(people)}</b>", ""]
+    if not people:
+        return "\n".join(head + ["Новых пользователей нет."])
+    return "\n".join(head + _source_lines(people) +
+                     ["", "«Начали» — отметили хоть что-то: привычку, дело, квест.",
+                      "Свои ссылки с метками: /src"])
 
 
 def report(days: int, admin_id: int, now: datetime = None) -> list:

@@ -40,11 +40,11 @@ export function inviteLink(state, questId = null) {
   return `https://t.me/${state.bot_username}?start=${payload}`;
 }
 
-export function shareInvite(state, quest = null) {
+export function shareInvite(state, quest = null, customText = null) {
   const link = inviteLink(state, quest && quest.id);
-  const text = quest
+  const text = customText || (quest
     ? `Зову тебя на квест в LifeQuest: «${quest.title}». Кто первый?`
-    : 'Я играю в LifeQuest — бот подкидывает странные и классные задания. Давай со мной? По ссылке нам обоим по заморозке серии 🧊';
+    : 'Я играю в LifeQuest — бот подкидывает странные и классные задания. Давай со мной? По ссылке нам обоим по заморозке серии 🧊');
   haptic.tap();
   openTgLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`);
 }

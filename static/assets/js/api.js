@@ -66,6 +66,7 @@ export const api = {
   challengeQuit: () => request('POST', 'api/challenges/quit'),
   packs: () => request('GET', 'api/packs'),
   friends: () => request('GET', 'api/friends'),
+  inviteNudgeSeen: () => request('POST', 'api/invite-nudge', {}),
   createSphere: data => request('POST', 'api/spheres', data),
   updateSphere: (key, data) => request('PATCH', `api/spheres/${encodeURIComponent(key)}`, data),
   deleteSphere: key => request('DELETE', `api/spheres/${encodeURIComponent(key)}`),
