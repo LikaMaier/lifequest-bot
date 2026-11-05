@@ -41,6 +41,7 @@ import game
 import habits
 import nudges
 import ops
+import outbox
 import photos
 import plans
 import sources
@@ -492,6 +493,14 @@ async def send_owner_note():
     conn.execute("INSERT OR IGNORE INTO meta (key, value) VALUES (?, ?)", (key, storage.utc_now_str()))
     conn.commit()
     conn.close()
+
+
+async def send_outbox():
+    """Новые ролики от Claude (релизы GitHub outbox-…) → владелице в личку."""
+    try:
+        await outbox.check(bot, ADMIN_ID)
+    except Exception as e:
+        await ops.alert("outbox", e)
 
 
 async def send_owner_compliment():
@@ -1396,6 +1405,7 @@ async def main():
 
 
     scheduler.add_job(send_owner_note, "date")  # разово сразу после старта, если задан OWNER_NOTE
+    scheduler.add_job(send_outbox, "interval", minutes=2)  # ролики от Claude → владелице
     scheduler.add_job(send_daily_reminders, "cron", minute=0)
     scheduler.add_job(send_new_users_digest, "cron", minute=2)
     scheduler.add_job(send_owner_compliment, "cron", minute=0, second=30)
