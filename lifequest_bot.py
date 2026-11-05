@@ -496,7 +496,7 @@ async def send_owner_note():
 
 
 async def send_outbox():
-    """Новые ролики от Claude (релизы GitHub outbox-…) → владелице в личку."""
+    """Новые ролики от Claude (ветка outbox в GitHub) → владелице в личку."""
     try:
         await outbox.check(bot, ADMIN_ID)
     except Exception as e:
