@@ -264,7 +264,7 @@ async function drawDay(host, date, today, onChange, ctx, el) {
   open.addEventListener('click', () => { haptic.tap(); openDaySheet(date, { onChange }); });
   host.append(h('div', { class: 'cal2-sec-head' },
     h('h2', null, date === today ? `Сегодня, ${parseDate(date).getDate()} ${MONTHS_GEN[parseDate(date).getMonth()]}` : longDay(date)),
-    plans.length ? h('span', { class: 'cal2-count' }, `${done} из ${plans.length}`) : null, open));
+    plans.length ? countOrCheck(done, plans.length, '') : null, open));
   if (plans.length) {
     host.append(h('div', { class: 'cal2-mini-list' }, byTime(plans).map(o => miniPlan(o, { onChange }))));
   } else {
@@ -529,7 +529,7 @@ async function drawWeek(body, el, ctx) {
       const color = pct === 100 ? 'lime' : pct ? 'yellow' : 'lav';
       const b = h('button', { type: 'button', class: `cal2-ring-day ${date === sel ? 'on' : ''} ${date === today ? 'today' : ''}`,
         'aria-pressed': String(date === sel), 'aria-label': `${WD_FULL[i]}, ${parseDate(date).getDate()}: сделано ${doneN} из ${list.length}${moods[date] ? `, настроение ${MOOD_EMOJI[moods[date]]}` : ''}` },
-        h('span', { class: `cal2-ring c-${color}`, style: { '--p': pct } }, h('i', null, moods[date] ? MOOD_EMOJI[moods[date]] : list.length ? `${doneN}/${list.length}` : '')),
+        h('span', { class: `cal2-ring c-${color}`, style: { '--p': pct } }, pct === 100 && !moods[date] ? h('span', { class: 'cal2-bigcheck', 'aria-hidden': 'true' }) : h('i', null, moods[date] ? MOOD_EMOJI[moods[date]] : list.length ? `${doneN}/${list.length}` : '')),
         h('small', null, WD[i]), h('b', null, String(parseDate(date).getDate())));
       b.addEventListener('click', () => { haptic.select(); view.day = date; drawRings(); drawSel(); });
       rings.append(b);
@@ -543,7 +543,7 @@ async function drawWeek(body, el, ctx) {
     toDay.addEventListener('click', () => { haptic.tap(); view.mode = 'day'; render(el, ctx); });
     clear(dayHost).append(h('section', { class: 'cal2-card cal2-weekday' },
       h('div', { class: 'cal2-sec-head' }, h('h2', null, date === today ? 'Сегодня' : `${WD_FULL[wdIndex(date)]}, ${parseDate(date).getDate()}`),
-        list.length ? h('span', { class: 'cal2-count lime' }, `${doneN} из ${list.length}`) : null),
+        list.length ? countOrCheck(doneN, list.length, 'lime') : null),
       list.length ? h('div', { class: 'cal2-checklist' }, list.map(o => weekRow(o, today, onChange)))
         : h('p', { class: 'cal2-empty' }, date < today ? 'В этот день планов не было' : 'Пока свободно — самое время что-нибудь придумать'),
       date <= today ? moodPicker(date, moods[date], m => { moods[date] = m; drawRings(); }) : null,
@@ -609,7 +609,7 @@ function drawTimeline(host, date, plans, today, onChange, habitItems = []) {
   open.addEventListener('click', () => { haptic.tap(); openDaySheet(date, { onChange }); });
   host.append(h('div', { class: 'cal2-sec-head' },
     h('h2', null, date === today ? `Сегодня, ${parseDate(date).getDate()} ${MONTHS_GEN[parseDate(date).getMonth()]}` : longDay(date)),
-    plans.length ? h('span', { class: 'cal2-count lime' }, `${done} из ${plans.length}`) : null, open));
+    plans.length ? countOrCheck(done, plans.length, 'lime') : null, open));
   const untimed = plans.filter(o => !o.time);
   const anyHabits = habitItems.filter(x => !x.time);
   // планы и привычки со временем — одной лентой
@@ -872,4 +872,10 @@ function goalsCard(ctx) {
     ico('right'));
   card.addEventListener('click', () => { haptic.tap(); ctx.go('board'); });
   return card;
+}
+
+// «4 из 4» не пишем: когда всё сделано — большая яркая галочка
+function countOrCheck(done, total, tone) {
+  if (total && done >= total) return h('span', { class: 'cal2-bigcheck head', role: 'img', 'aria-label': 'Всё сделано' });
+  return h('span', { class: `cal2-count ${tone}` }, `${done} из ${total}`);
 }
