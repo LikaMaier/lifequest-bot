@@ -375,6 +375,8 @@ def month_summary(user_id: int, month: str) -> dict:
     day_mood = dict(conn.execute("SELECT day, mood FROM day_moods WHERE user_id = ? AND day BETWEEN ? AND ?",
                                  (user_id, first.isoformat(), last.isoformat())).fetchall())
     conn.close()
+    import habits  # здесь, чтобы не было циклического импорта
+    habit_days = habits.day_progress(user_id, first, last)
     days = {}
     for o in items:
         dd = days.setdefault(o["date"], {"modes": [], "planned": 0, "done": 0, "overdue": 0, "emojis": [], "special": None})
@@ -402,7 +404,8 @@ def month_summary(user_id: int, month: str) -> dict:
         result.append({**dd, "date": iso, "photo": bool(n_photos), "photos": n_photos,
                        "photo_thumb": photos.sign(user_id, photo_id, "thumb") if photo_id else None,
                        "quests_done": quest_days.get(iso, 0), "notes": note_days.get(iso, 0),
-                       "mood": day_mood.get(iso), "complete": total > 0 and dd["planned"] == 0})
+                       "mood": day_mood.get(iso), "complete": total > 0 and dd["planned"] == 0,
+                       "habits": dict(zip(("done", "total"), habit_days.get(iso, (0, 0))))})
         d += timedelta(days=1)
     return {"month": month, "days": result, "today": _today(user_id).isoformat()}
 

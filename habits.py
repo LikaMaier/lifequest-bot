@@ -454,6 +454,36 @@ def _logs_by_habit(user_id: int, since: date) -> dict:
     return by_habit
 
 
+def day_progress(user_id: int, start: date, end: date) -> dict:
+    """Сколько привычек на «сделать» выполнено в каждый день периода: {день: (сделано, всего)}.
+    Всего — привычки по расписанию на этот день (пропуск, пауза и выходной по расписанию
+    не считаются). «N раз в неделю» и архивные идут в счёт только в дни, когда сделаны.
+    Будущие дни и дни до создания привычки — пустые."""
+    today = _today(user_id)
+    end = min(end, today)
+    if end < start:
+        return {}
+    conn = storage.connect(rows=True)
+    rows = [dict(r) for r in conn.execute(
+        "SELECT * FROM habits WHERE user_id = ? AND COALESCE(kind, 'build') = 'build'", (user_id,)).fetchall()]
+    conn.close()
+    logs = _logs_by_habit(user_id, start)
+    paused = paused_days(user_id, start, end)
+    out = {}
+    for hb in rows:
+        hl = logs.get(hb["id"], {})
+        flexible = hb.get("archived") or (hb.get("schedule") or "daily") == "weekly"
+        first = max(start, _first_day(hb, hl))
+        d = first
+        while d <= end:
+            st = _day_state(hb, d, hl, paused)
+            if st == "done" or (st == "miss" and not flexible):
+                done, total = out.get(d.isoformat(), (0, 0))
+                out[d.isoformat()] = (done + (st == "done"), total + 1)
+            d += timedelta(days=1)
+    return out
+
+
 def _views(user_id: int, rows: list) -> list:
     today = _today(user_id)
     since = today - timedelta(days=HISTORY_DAYS)
