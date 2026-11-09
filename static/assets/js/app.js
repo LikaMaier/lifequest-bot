@@ -10,17 +10,15 @@ import { initKeyboard } from './keyboard.js';
 
 // Экраны подгружаются лениво — модуль экрана грузится при первом открытии.
 const SCREENS = {
-  home: { title: 'Сегодня', icon: ICONS.today, load: () => import('./screens/home.js') },
-  pet: { title: 'Домик', icon: ICONS.pet, load: () => import('./screens/pet.js') },
+  home: { title: 'Главная', icon: ICONS.home, load: () => import('./screens/home.js') },
   quests: { title: 'Квесты', icon: ICONS.quests, load: () => import('./screens/quests.js') },
-  friends: { title: 'Друзья', icon: ICONS.friends, load: () => import('./screens/friends.js') },
-  me: { title: 'Я', icon: ICONS.me, load: () => import('./screens/me.js') },
-  habits: { title: 'Привычки', sub: true, load: () => import('./screens/habits.js') },
-  calendar: { title: 'Календарь', sub: true, load: () => import('./screens/calendar.js') },
-  progress: { title: 'Прогресс', sub: true, load: () => import('./screens/progress.js') },
+  habits: { title: 'Привычки', icon: ICONS.habits, load: () => import('./screens/habits.js') },
   board: { title: 'Цели месяца', sub: true, load: () => import('./screens/board.js') },
+  progress: { title: 'Прогресс', icon: ICONS.progress, load: () => import('./screens/progress.js') },
+  calendar: { title: 'Календарь', icon: ICONS.calendar, load: () => import('./screens/calendar.js') },
   awards: { title: 'Награды', sub: true, load: () => import('./screens/awards.js') },
   shop: { title: 'Магазин', sub: true, load: () => import('./screens/shop.js') },
+  friends: { title: 'Друзья', sub: true, load: () => import('./screens/friends.js') },
   contest: { title: 'Соревнование', sub: true, load: () => import('./screens/contest.js') },
   notes: { title: 'Заметки', sub: true, load: () => import('./screens/notes.js') },
   album: { title: 'Альбом', sub: true, load: () => import('./screens/album.js') },
@@ -28,8 +26,7 @@ const SCREENS = {
   profile: { title: 'Профиль', sub: true, load: () => import('./screens/profile.js') },
   premium: { title: 'Premium', sub: true, load: () => import('./screens/profile.js'), entry: 'renderPremium' },
 };
-// Вариант А: каждая вкладка — одна фишка. Привычки, календарь и прогресс — вложенные экраны.
-const TABS = ['home', 'pet', 'quests', 'friends', 'me'];
+const TABS = ['home', 'habits', 'calendar', 'quests', 'progress'];
 
 const root = document.getElementById('app');
 const mounted = {}; // name -> { el, module, dirty }

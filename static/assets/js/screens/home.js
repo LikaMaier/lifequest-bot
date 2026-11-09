@@ -1,20 +1,19 @@
-// ① Сегодня: только то, что нужно сделать сегодня. Маскот — компактной полоской
-// (весь Домик — на своей вкладке), «твой ход» в дуэлях — одной строкой,
-// неделя календаря лентой, привычки, план дня и квест дня; «+» добавляет что угодно.
+// ① Главная: привычки и план дня в центре. Маскот радуется привычкам,
+// серия рядом; квест дня — бонус внизу; «+» добавляет что угодно.
 
 import { h, clear, plural } from '../dom.js';
 import { haptic } from '../tg.js';
 import { moodFor } from '../mascot.js';
-import { busy, toastError } from '../ui.js';
+import { progressBar, busy, toastError } from '../ui.js';
 import { buyStars } from '../premium.js';
 import { openQuest } from '../questflow.js';
 import { habitRing, openTemplatePicker } from '../habitui.js';
 import { planRow } from '../planui.js';
 import { openPlus, plusFab } from '../plus.js';
 import { chestRow } from '../chest.js';
-import { openContest } from '../contestui.js';
-import { petStrip } from '../petroom.js';
-import { api } from '../api.js';
+import { duelRow, duelSpotlight, duelPendingCard } from '../duelui.js';
+import { contestSpotlight } from '../contestui.js';
+import { petRoom } from '../petroom.js';
 
 const DATE_FMT = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -29,8 +28,8 @@ export function render(el, ctx) {
   const rerender = () => render(el, ctx);
 
   // Шапка: дата и профиль
-  const avatar = h('button', { type: 'button', class: 'avatar-btn', 'aria-label': 'Я: профиль и прогресс' }, (name[0] || '★').toUpperCase());
-  avatar.addEventListener('click', () => { haptic.tap(); go('me'); });
+  const avatar = h('button', { type: 'button', class: 'avatar-btn', 'aria-label': 'Профиль и настройки' }, (name[0] || '★').toUpperCase());
+  avatar.addEventListener('click', () => { haptic.tap(); go('profile'); });
   el.append(h('header', { class: 'topbar' },
     h('div', { class: 'grow' }, h('div', { class: 'brand' }, 'LIFEQUEST'),
       h('div', { class: 'small muted bold' }, capitalize(DATE_FMT.format(new Date())))), avatar));
@@ -48,19 +47,35 @@ export function render(el, ctx) {
   el.append(h('section', { class: 'home2-hello' },
     h('div', { class: 'grow' }, h('h1', null, name ? `Привет, ${name}!` : 'Привет!')), streakBox));
   let habitsCard = null;
-  el.append(petStrip(state, { line: petLine, onOpen: () => go('pet') }));
+  el.append(petRoom(state, { line: petLine, onFeed: () => habitsCard && habitsCard.scrollIntoView({ behavior: 'smooth', block: 'center' }) }));
   const banner = streakBanner(state, go);
   if (banner) el.append(banner);
+  if (state.gift_theme === 'halloween') el.append(halloweenGift(go));
 
-  // «Твой ход» — дуэли и соревнования одной строкой; сами карточки — во вкладке «Друзья»
-  const turns = turnLines(state, go);
-  if (turns.length) el.append(h('div', { class: 'turn-list' }, turns));
-
-  // Неделя календаря лентой: заливка дня — доля сделанных привычек
-  el.append(weekStrip(state, go));
+  // Дуэли с друзьями — ярко и сразу под приветствием: кто ведёт и что сделать сегодня
+  const du = state.duels;
+  if (du && du.incoming.length) {
+    const inv = du.incoming[0];
+    const b = h('button', { type: 'button', class: 'dsp-invite' }, h('span', { class: 'dsp-invite-emoji', 'aria-hidden': 'true' }, '⚔️'),
+      h('span', { class: 'grow' }, h('b', null, `${inv.rival ? inv.rival.name : 'Друг'} бросает тебе вызов!`),
+        h('span', null, `${inv.emoji} ${inv.title} · ${inv.days} ${plural(inv.days, 'день', 'дня', 'дней')} — ответь`)),
+      h('span', { class: 'dsp-invite-go', 'aria-hidden': 'true' }, '›'));
+    b.addEventListener('click', () => { haptic.tap(); go('friends'); });
+    el.append(b);
+  }
+  if (du && du.active.length) {
+    // впереди — та, где сейчас «твой ход»
+    const sorted = [...du.active].sort((a, b) => (!b.me.today_done) - (!a.me.today_done));
+    el.append(duelSpotlight(sorted[0], { go, state }));
+    for (const d of sorted.slice(1, 3)) el.append(duelRow(d, { go }));
+  }
+  // Соревнования — так же ярко, как дуэли: лидеры, твоё место, отметка на сегодня
+  for (const c of (state.contests || []).slice(0, 3)) el.append(contestSpotlight(c, { go }));
+  // Свои отправленные вызовы — сразу после создания, пока друг не ответил
+  if (du && du.outgoing.length) for (const d of du.outgoing.slice(0, 2)) el.append(duelPendingCard(d, { go, state }));
 
   // Привычки сегодня — кольцами
-  habitsCard = h('section', { class: 'home2-card', style: { marginTop: '14px' } });
+  habitsCard = h('section', { class: 'home2-card' });
   const habitsLink = h('button', { type: 'button', class: 'home2-link' }, hs.items && hs.items.length ? 'Все' : 'Добавить');
   habitsLink.addEventListener('click', () => { haptic.tap(); go('habits'); });
   habitsCard.append(h('div', { class: 'home2-head' }, h('h2', null, 'Привычки сегодня'),
@@ -126,6 +141,15 @@ export function render(el, ctx) {
     el.append(more);
   }
 
+  // Уровень одной строкой
+  const lv = state.level;
+  const level = h('button', { type: 'button', class: 'home2-level', 'aria-label': `Уровень ${lv.level}, ${lv.xp} из ${lv.next} XP` },
+    h('span', { class: 'home2-level-n' }, String(lv.level)),
+    h('span', { class: 'grow' }, h('span', { class: 'bold', style: { display: 'block' } }, lv.name), progressBar(lv.progress, 'yellow')),
+    h('span', { class: 'home2-count' }, `${lv.xp}/${lv.next} XP`));
+  level.addEventListener('click', () => { haptic.tap(); go('progress'); });
+  el.append(level);
+
   el.append(h('div', { style: { height: '72px' }, 'aria-hidden': 'true' }), plusFab({ go, onChange: rerender }));
 }
 
@@ -173,67 +197,4 @@ function streakBanner(state, go) {
       h('p', { class: 'small bold', style: { margin: '4px 0 10px' } }, 'Если сегодня ничего не сделать, серия сгорит в полночь.'), b);
   }
   return null;
-}
-
-/** Строки «твой ход»: входящий вызов, дуэль без отметки сегодня, соревнование с неотмеченными пунктами. */
-function turnLines(state, go) {
-  const out = [];
-  const line = (emoji, text, sub, onClick, hot = false) => {
-    const b = h('button', { type: 'button', class: `turn-line ${hot ? 'hot' : ''}` }, h('span', { class: 'turn-emoji', 'aria-hidden': 'true' }, emoji),
-      h('span', { class: 'grow' }, h('b', null, text), sub ? h('span', null, sub) : null), h('span', { class: 'turn-go', 'aria-hidden': 'true' }, '›'));
-    b.addEventListener('click', () => { haptic.tap(); onClick(); });
-    return b;
-  };
-  const du = state.duels || { incoming: [], active: [] };
-  for (const d of du.incoming.slice(0, 1)) {
-    out.push(line('⚔️', `${d.rival ? d.rival.name : 'Друг'} бросает тебе вызов!`, `${d.emoji} ${d.title} — ответь`, () => go('friends'), true));
-  }
-  for (const d of du.active.filter(x => !x.me.today_done).slice(0, 2)) {
-    out.push(line(d.emoji || '⚔️', `Твой ход: ${d.title}`, `дуэль с ${d.rival ? d.rival.name : 'другом'} · отметь привычку`, () => go('friends'), true));
-  }
-  for (const c of (state.contests || []).filter(x => x.status === 'active' && !x.not_started && x.done_today < x.items).slice(0, 2)) {
-    out.push(line(c.emoji || '🏆', `Соревнование: ${c.title}`, `сегодня отмечено ${c.done_today} из ${c.items}${c.place ? ` · ты ${c.place}-е место` : ''}`, () => openContest(go, c.id)));
-  }
-  return out;
-}
-
-const WD = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-const weekCache = new Map(); // 'YYYY-MM' -> дни с привычками
-
-/** Неделя пн–вс: день заливается по доле сделанных привычек, тап — полный календарь. */
-function weekStrip(state, go) {
-  const today = state.today.date;
-  const [y, m, d] = today.split('-').map(Number);
-  const t = new Date(Date.UTC(y, m - 1, d));
-  const monday = new Date(t); monday.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7));
-  const days = Array.from({ length: 7 }, (_, i) => { const x = new Date(monday); x.setUTCDate(monday.getUTCDate() + i); return x.toISOString().slice(0, 10); });
-  const cells = days.map((iso, i) => {
-    const b = h('button', { type: 'button', class: `wk-day ${iso === today ? 'today' : ''} ${iso > today ? 'future' : ''}`, 'aria-label': `${WD[i]}, ${Number(iso.slice(8))}` },
-      h('span', { class: 'wk-wd' }, WD[i]), h('b', null, String(Number(iso.slice(8)))));
-    b.addEventListener('click', () => { haptic.select(); go('calendar'); });
-    return b;
-  });
-  const open = h('button', { type: 'button', class: 'home2-link' }, `${MONTHS[m - 1]} ›`);
-  open.addEventListener('click', () => { haptic.tap(); go('calendar'); });
-  const box = h('section', { class: 'wk-card' }, h('div', { class: 'home2-head' }, h('h2', null, 'Неделя'), open), h('div', { class: 'wk-row' }, cells));
-  const paint = map => days.forEach((iso, i) => {
-    const hb = map.get(iso);
-    if (!hb || !hb.total) return;
-    const frac = Math.min(1, hb.done / hb.total);
-    cells[i].style.setProperty('--hb', String(frac));
-    cells[i].classList.add('hb');
-    if (frac >= 1 && !cells[i].classList.contains('full')) { cells[i].classList.add('full'); cells[i].append(h('span', { class: 'cal2-bigcheck wk-check', 'aria-hidden': 'true' }, h('i'))); }
-    cells[i].setAttribute('aria-label', `${cells[i].getAttribute('aria-label')}: привычки ${hb.done} из ${hb.total}`);
-  });
-  const months = [...new Set(days.map(x => x.slice(0, 7)))];
-  const known = new Map();
-  for (const mk of months) for (const [k, v] of (weekCache.get(mk) || [])) known.set(k, v);
-  paint(known);
-  Promise.all(months.map(mk => api.calendarSummary(mk).then(r => {
-    const mm = new Map(r.days.map(x => [x.date, x.habits || { done: 0, total: 0 }]));
-    weekCache.set(mk, mm);
-    return mm;
-  }))).then(list => { const all = new Map(); list.forEach(mm => mm.forEach((v, k) => all.set(k, v))); paint(all); }).catch(() => {});
-  return box;
 }

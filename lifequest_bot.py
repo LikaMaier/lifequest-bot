@@ -696,7 +696,7 @@ def build_weekly_message(user_id: int):
         medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(place, "🏅")
         lines.append(f"{medal} Лига друзей: {place} место из {len(league['friends']) + 1} — {mine} "
                      f"{plural_ru(mine, 'очко', 'очка', 'очков')}")
-    lines.append("\n🌟 <i>Загляни в «Я» → «Прогресс» — там итоги заискрились</i>")
+    lines.append("\n🌟 <i>Загляни в «Прогресс» — там итоги заискрились</i>")
     markup = InlineKeyboardMarkup(inline_keyboard=app_row("progress")) if MINIAPP_URL else None
     return "\n".join(lines), markup
 

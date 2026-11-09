@@ -358,7 +358,7 @@ export async function openDuelCreator(ctx, { friend = null, friends = null, onDo
       haptic.success();
       s.close();
       refreshState().catch(() => {}); // вызов сразу появится на Главной со статусом «ждёт ответа»
-      if (form.friend) toast('Вызов отправлен! Он во вкладке «Друзья» — пришлём сообщение, когда друг ответит ⚔️', 'good', 3200);
+      if (form.friend) toast('Вызов отправлен! Он уже на Главной — пришлём сообщение, когда друг ответит ⚔️', 'good', 3200);
       else shareDuel(state, res.duel);
       onDone && onDone();
     } catch (e) { toastError(e); }
