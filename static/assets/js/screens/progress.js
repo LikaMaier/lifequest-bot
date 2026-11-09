@@ -121,7 +121,7 @@ function draw(body, s, ctx) {
   // Лента истории
   body.append(sectionTitle('История'));
   if (!s.history.length) {
-    body.append(h('div', { class: 'card' }, emptyState('Здесь будет лента твоих приключений. Первое — на Главной!', { kind: 'cat-lime', expr: 'wink' })));
+    body.append(h('div', { class: 'card' }, emptyState('Здесь будет лента твоих приключений. Первое — во вкладке «Сегодня»!', { kind: 'cat-lime', expr: 'wink' })));
   } else {
     const feed = h('ol', { class: 'feed' });
     let lastDate = null;
