@@ -2248,3 +2248,20 @@ p { margin: 0; }
 @media (prefers-reduced-motion: reduce) { .pr-led { animation: none; } }
 .pr-device .pr-bubble, .pr-device .pr-bubble.top, .pr-device .pr-say { top: 33%; max-width: 82%; font-size: 11px; padding: 6px 10px; }
 .pr-device .pr-btn small { display: none; } .pr-device .pr-tool-ico { font-size: 28px; } .pr-device .pr-btns { padding: 0 14px; gap: 12px; }
+
+/* ---------- Яркие карточки дуэлей и соревнований: свои токены, чтобы в тёмных стилях
+   кнопка и текст не сливались (--ink внутри карточки — свой) ---------- */
+.dsp { --ink: var(--dsp-ink, #2A1408); color: var(--ink); box-shadow: var(--dsp-shadow, 0 5px 0 var(--ink)); }
+.dsp.turn { animation-name: dsp-pulse2; }
+@keyframes dsp-pulse2 { 0%, 100% { box-shadow: var(--dsp-shadow, 0 5px 0 var(--ink)); } 50% { box-shadow: var(--dsp-shadow, 0 5px 0 var(--ink)), 0 0 0 6px var(--dsp-pulse, rgba(255, 92, 147, .28)); } }
+.dsp .dsp-btn { background: var(--dsp-btn-bg, var(--ink)); border-color: var(--dsp-btn-bg, var(--ink)); color: var(--dsp-btn-ink, #FFF6D6); }
+.dsp .dsp-btn.ghost { background: var(--dsp-ghost-bg, rgba(255,255,255,.85)); border-color: var(--ink); color: var(--ink); }
+.dsp .dsp-badge, .dsp.contest.lobby .dsp-badge.wait { background: var(--dsp-badge-bg, var(--ink)); color: var(--dsp-badge-ink, #FFE27A); }
+.dsp .dsp-side, .dsp .cts-pet, .dsp .cts-row { background: var(--dsp-side, rgba(255,255,255,.45)); }
+.dsp .dsp-side.lead, .dsp .cts-row.me { background: var(--dsp-side-lead, rgba(255,255,255,.75)); }
+.dsp .dsp-mid { color: var(--dsp-mid, #fff); }
+.dsp .dsp-today.ok, .dsp .cts-ok { color: var(--dsp-ok, #1F5A0A); }
+.dsp .duel-x { background: var(--dsp-ghost-bg, rgba(255,255,255,.6)); color: var(--ink); }
+.dsp.contest .dsp-title { text-shadow: var(--dsp-title-shadow, 0 2px 0 rgba(255,255,255,.45)); }
+.dsp .cts-step { color: #2A1408; }
+.dsp.contest, .dsp.team, .dsp.pending { color: var(--ink); }
