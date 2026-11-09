@@ -2247,3 +2247,4 @@ p { margin: 0; }
 .pr-device .pr-tip { margin-top: 8px; background: var(--pr-tip-bg); color: var(--pr-tip-ink); border-radius: 14px; }
 @media (prefers-reduced-motion: reduce) { .pr-led { animation: none; } }
 .pr-device .pr-bubble, .pr-device .pr-bubble.top, .pr-device .pr-say { top: 33%; max-width: 82%; font-size: 11px; padding: 6px 10px; }
+.pr-device .pr-btn small { display: none; } .pr-device .pr-tool-ico { font-size: 28px; } .pr-device .pr-btns { padding: 0 14px; gap: 12px; }
