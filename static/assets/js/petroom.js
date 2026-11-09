@@ -442,3 +442,28 @@ export function petRoom(state, { line, onFeed } = {}) {
     h('div', { class: 'pr-tip' }, dead ? 'Отметь привычку — паутина исчезнет, и маскот простит 💜'
       : 'Галочка = порция еды 🍽 · серия и квест дня — настроение 💗'));
 }
+
+/** Компактная полоска маскота для «Сегодня»: настроение, еда в миске, тап — во вкладку «Домик». */
+export function petStrip(state, { line, onOpen } = {}) {
+  const u = state.user;
+  const hs = state.habits || {};
+  const { away } = petStats(state);
+  const dead = away >= WEB_DAYS, dusty = !dead && away >= DUSTY_DAYS;
+  const { pending } = dead || dusty ? { pending: 0 } : feedInfo(state);
+  const hour = state.today ? state.today.hour : new Date().getHours();
+  const allDone = hs.total && hs.done === hs.total;
+  const expr = dead ? 'sad' : dusty || hour >= 23 || hour < 6 ? 'sleepy' : pending ? 'surprised' : allDone ? 'love' : 'happy';
+  const mName = ((state.unlocks && state.unlocks.mascots) || []).find(m => m.id === u.mascot)?.name || 'Маскот';
+  const word = n => (n % 10 === 1 && n % 100 !== 11 ? 'порция' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'порции' : 'порций');
+  const status = dead ? `${mName} обиделся — всё в паутине 😾` : dusty ? `${mName} спит и скучает 💤`
+    : pending ? `${mName} ждёт еду: в миске ${pending} ${word(pending)}` : line || `${mName} доволен 💜`;
+  const pet = mascot(u.mascot, expr, { size: 64, acc: u.accessory, cls: 'ps-pet' });
+  pet.querySelectorAll('text').forEach(n => n.remove());
+  const action = h('span', { class: `ps-action ${pending ? 'go' : ''}` }, dead ? '🎁' : dusty ? '⏰' : pending ? `🍽 ${pending}` : '🏠');
+  const b = h('button', { type: 'button', class: `pet-strip ${dead ? 'bad' : dusty ? 'warn' : ''}`, 'aria-label': `Домик: ${status}` },
+    h('span', { class: 'ps-screen' }, pet),
+    h('span', { class: 'grow' }, h('b', null, `🏠 Домик · ${mName}`), h('span', null, status)),
+    action);
+  b.addEventListener('click', () => { haptic.tap(); onOpen && onOpen(); });
+  return b;
+}
