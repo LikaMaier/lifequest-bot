@@ -61,90 +61,111 @@ export function petStats(state) {
 }
 
 function scene({ night, dusty, dead }) {
-  const day = !night;
-  const wall = dead ? '#B8AFA3' : night ? '#5A4E86' : '#FCE8D2', wallDot = dead ? '#A69C90' : night ? '#6B5E9A' : '#F6D2B8';
-  const floor = dead ? '#8E847A' : night ? '#5B4466' : '#D9A877', plank = dead ? '#7A7066' : night ? '#4A3655' : '#C48F5E';
-  const sofa = dead ? '#9C8A6A' : '#F2B544', sofaD = dead ? '#7E6E52' : '#D6922B';
-  const cush1 = dead ? '#9A8C8C' : '#F065A6', cush2 = dead ? '#8A9696' : '#3FBFAE';
-  const wilt = dead || dusty;
-  let sky;
-  if (dead) {
-    sky = `<rect x="40" y="52" width="104" height="138" fill="#7A7486"/><g fill="#5E586A"><ellipse cx="70" cy="76" rx="30" ry="12"/><ellipse cx="116" cy="88" rx="26" ry="10"/></g>
-    <g stroke="#B8C2D6" stroke-width="1.6" opacity=".8">${[...Array(14)].map((_, i) => `<path d="M${44 + i * 8} ${60 + (i % 3) * 14} l-5 16"/>`).join('')}</g>`;
-  } else if (night) {
-    sky = `<rect x="40" y="52" width="104" height="138" fill="url(#pr-sk1)"/><circle cx="114" cy="80" r="13" fill="#FFF6DC"/><circle cx="119" cy="76" r="11" fill="#1F1848"/>
-    <g fill="#FFF6DC">${[[54, 70], [70, 100], [90, 66], [130, 112], [60, 128], [100, 140], [136, 62]].map(([x, y], i) => `<circle class="pr-star" style="animation-delay:${i * .37}s" cx="${x}" cy="${y}" r="1.8"/>`).join('')}</g>
-    <path d="M40 170 L54 170 L54 150 L66 150 L66 162 L82 162 L82 142 L96 142 L96 166 L112 166 L112 154 L126 154 L126 170 L144 170 L144 190 L40 190 Z" fill="#120C2A"/>
-    <g fill="#FFE27A">${[[58, 156], [86, 148], [86, 158], [116, 160], [100, 172]].map(([x, y]) => `<rect x="${x}" y="${y}" width="4" height="5"/>`).join('')}</g>`;
-  } else {
-    sky = `<rect x="40" y="52" width="104" height="138" fill="url(#pr-sk0)"/><circle cx="118" cy="82" r="24" fill="#FFE27A" opacity=".35"/><circle cx="118" cy="82" r="16" fill="#FFE27A"/>
-    <g fill="#fff" class="pr-clouds"><ellipse cx="66" cy="92" rx="18" ry="8"/><ellipse cx="78" cy="88" rx="12" ry="9"/><ellipse cx="104" cy="118" rx="14" ry="6"/></g>
-    <path d="M40 168 Q70 146 98 162 Q120 150 144 160 L144 190 L40 190 Z" fill="#8CC63F"/><path d="M40 178 Q80 166 144 176 L144 190 L40 190 Z" fill="#6FAE34"/>`;
+  const W = 400;
+  const wall = night ? '#C9B6E4' : '#F9D5E1', wall2 = night ? '#BBA6DA' : '#F4C6D6';
+  const floorA = night ? '#7FA0D6' : '#93CDEB', floorB = night ? '#7192CB' : '#83C0E2', grout = night ? '#9AB4E0' : '#B4DEF2';
+  // плитка в перспективе: горизонт y=196, пол до 300
+  let tiles = '';
+  for (let i = 0; i < 6; i++) {
+    const y0 = 196 + [0, 14, 31, 52, 77, 106][i], y1 = 196 + [14, 31, 52, 77, 106, 140][i];
+    for (let j = -6; j <= 6; j++) {
+      const x = (y, k) => 200 + k * 34 * (0.62 + (y - 196) / 104 * 0.9);
+      const c = (i + j) % 2 ? floorA : floorB;
+      tiles += `<path d="M${x(y0, j)} ${y0} L${x(y0, j + 1)} ${y0} L${x(y1, j + 1)} ${y1} L${x(y1, j)} ${y1} Z" fill="${c}" stroke="${grout}" stroke-width="1.4"/>`;
+    }
   }
-  const rays = day && !dead && !dusty ? '<path d="M144 60 L250 300 L330 300 L150 50 Z" fill="#FFF3C4" opacity=".35"/><path d="M40 190 L120 330 L200 330 L144 190 Z" fill="#FFF3C4" opacity=".28"/>' : '';
-  const lampGlow = night && !dead ? '<circle cx="318" cy="150" r="150" fill="url(#pr-lg)"/>' : '';
-  const books = [['#8C6CF0', 30], ['#F065A6', 38], ['#3FBFAE', 32], ['#FFC93C', 36], ['#5B7FD1', 30]];
-  let bx = 226;
-  const bk = books.map(([c, ht]) => { const r = `<rect x="${bx}" y="${112 - ht}" width="12" height="${ht}" rx="2" fill="${dead ? '#9A9090' : c}" stroke="${K}" stroke-width="2.5"/>`; bx += 13; return r; }).join('');
-  const web = (x, y, sx, sy) => {
-    let p = '';
-    for (let i = 1; i <= 4; i++) { const k = i * 26; p += `<path d="M${x + sx * k} ${y} Q${x + sx * k * .72} ${y + sy * k * .72} ${x} ${y + sy * k}" fill="none" stroke="#fff" stroke-width="2"/>`; }
-    for (let a = 0; a <= 4; a++) { const g = a / 4 * Math.PI / 2; p += `<path d="M${x} ${y} L${x + sx * Math.cos(g) * 118} ${y + sy * Math.sin(g) * 118}" stroke="#fff" stroke-width="2"/>`; }
-    return p;
-  };
-  const webs = dead ? web(0, 18, 1, 1) + web(360, 18, -1, 1) + web(360, 438, -1, -1)
-    + `<path d="M300 18 L300 150" stroke="#fff" stroke-width="1.4"/><g class="pr-spider" transform="translate(300 160)"><ellipse rx="7" ry="9" fill="${K}"/><g stroke="${K}" stroke-width="2"><path d="M-6 -3 l-9 -6 M-6 2 l-10 0 M-6 6 l-8 7 M6 -3 l9 -6 M6 2 l10 0 M6 6 l8 7"/></g><circle cx="-2.5" cy="-3" r="1.6" fill="#fff"/><circle cx="2.5" cy="-3" r="1.6" fill="#fff"/></g>`
-    : '';
-  const dust = wilt ? `<g fill="rgba(90,80,90,.35)"><ellipse cx="90" cy="420" rx="34" ry="8"/><ellipse cx="270" cy="430" rx="40" ry="8"/><ellipse cx="190" cy="396" rx="18" ry="5"/></g>` : '';
-  const curtain = dead ? '#9A8E9A' : night ? '#8C6CF0' : '#F7A9C8', curtainD = dead ? '#867A86' : night ? '#7556D6' : '#EE8DB3';
-  const leaf = wilt ? '#8A8A6A' : '#5A9A3A';
-  return `<svg class="pr-scene" viewBox="0 18 360 420" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs>
-   <linearGradient id="pr-sk0" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8FD3FF"/><stop offset="1" stop-color="#FFE3C4"/></linearGradient>
-   <linearGradient id="pr-sk1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1A1440"/><stop offset="1" stop-color="#4A3A8C"/></linearGradient>
-   <radialGradient id="pr-lg"><stop offset="0" stop-color="#FFE7A0" stop-opacity=".85"/><stop offset="1" stop-color="#FFE7A0" stop-opacity="0"/></radialGradient>
-   <pattern id="pr-wp" width="22" height="22" patternUnits="userSpaceOnUse"><rect width="22" height="22" fill="${wall}"/><path d="M11 3 L15 11 L11 19 L7 11 Z" fill="${wallDot}"/></pattern>
-   <pattern id="pr-fl" width="60" height="26" patternUnits="userSpaceOnUse"><rect width="60" height="26" fill="${floor}"/><path d="M0 25 H60 M30 0 V25" stroke="${plank}" stroke-width="2.5"/></pattern>
-   <pattern id="pr-rug" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="${dead ? '#A9A0A6' : '#C9B8FF'}"/><rect width="8" height="16" fill="${dead ? '#B4ACB0' : '#E3D8FF'}"/></pattern></defs>
-   <rect y="0" width="360" height="318" fill="url(#pr-wp)"/>${lampGlow}
-   <rect y="306" width="360" height="14" fill="${dead ? '#9E968C' : '#FFFFFF'}" stroke="${K}" stroke-width="3"/>
-   <rect y="318" width="360" height="160" fill="url(#pr-fl)"/>
-   ${rays}
-   <rect x="26" y="40" width="132" height="162" rx="16" fill="#fff" stroke="${K}" stroke-width="4"/>
-   ${sky}
-   <path d="M92 52 V190 M40 120 H144" stroke="#fff" stroke-width="6"/><rect x="40" y="52" width="104" height="138" fill="none" stroke="${K}" stroke-width="3"/>
-   <rect x="18" y="198" width="148" height="14" rx="5" fill="#fff" stroke="${K}" stroke-width="3.5"/>
-   <g class="pr-plant" transform="translate(118 168)"><path d="M-12 0 L12 0 L9 26 L-9 26 Z" fill="${wilt ? '#9A8A7A' : '#E07A4A'}" stroke="${K}" stroke-width="3"/>
-    <path d="${wilt ? 'M0 2 V-14 Q-2 -22 -10 -18 M0 -8 Q8 -12 12 -4' : 'M0 2 V-26 M0 -12 Q-10 -14 -10 -24 M0 -18 Q10 -20 10 -30'}" stroke="${leaf}" stroke-width="7" fill="none" stroke-linecap="round"/>
-    ${wilt ? '' : '<circle cx="0" cy="-30" r="6" fill="#FF8FC2" stroke="#2B2140" stroke-width="2.5"/>'}</g>
-   <rect x="8" y="26" width="170" height="8" rx="4" fill="#C98B52" stroke="${K}" stroke-width="3"/><circle cx="8" cy="30" r="7" fill="#FFC93C" stroke="${K}" stroke-width="3"/><circle cx="178" cy="30" r="7" fill="#FFC93C" stroke="${K}" stroke-width="3"/>
-   <path d="M14 34 Q34 34 40 34 Q46 100 30 150 Q40 200 34 236 L14 236 Q8 140 14 34 Z" fill="${curtain}" stroke="${K}" stroke-width="3.5"/>
-   <path d="M172 34 Q150 34 144 34 Q138 100 154 150 Q144 200 150 236 L172 236 Q178 140 172 34 Z" fill="${curtain}" stroke="${K}" stroke-width="3.5"/>
-   <path d="M22 60 Q26 120 22 200 M164 60 Q160 120 164 200" stroke="${curtainD}" stroke-width="3" fill="none"/>
-   <rect x="20" y="146" width="22" height="9" rx="4" fill="#FFC93C" stroke="${K}" stroke-width="2.5"/><rect x="144" y="146" width="22" height="9" rx="4" fill="#FFC93C" stroke="${K}" stroke-width="2.5"/>
-   <rect x="218" y="112" width="120" height="10" rx="4" fill="#C98B52" stroke="${K}" stroke-width="3"/>${bk}
-   <g transform="translate(306 84)"><path d="M-10 -14 H10 V-4 Q10 8 0 10 Q-10 8 -10 -4 Z" fill="${dead ? '#A99E7E' : '#FFC93C'}" stroke="${K}" stroke-width="2.5"/><rect x="-6" y="10" width="12" height="6" fill="#C98B52" stroke="${K}" stroke-width="2.5"/><rect x="-10" y="16" width="20" height="8" rx="2" fill="#8A5A34" stroke="${K}" stroke-width="2.5"/></g>
-   <path d="M330 122 q6 20 -4 40 q10 16 0 34" stroke="${leaf}" stroke-width="4" fill="none"/>${wilt ? '' : `<g fill="#7CC95A" stroke="${K}" stroke-width="2"><ellipse cx="324" cy="140" rx="6" ry="4"/><ellipse cx="334" cy="160" rx="6" ry="4"/><ellipse cx="326" cy="182" rx="6" ry="4"/></g>`}
-   <g transform="translate(196 140) rotate(${dead ? -9 : 0})"><rect width="72" height="54" rx="6" fill="#fff" stroke="${K}" stroke-width="3.5"/><rect x="7" y="7" width="58" height="40" fill="${dead ? '#9AA0A6' : '#BFE3F5'}"/><path d="M7 47 L26 24 L38 36 L48 26 L65 47 Z" fill="${dead ? '#7E847A' : '#7CC95A'}"/><circle cx="52" cy="16" r="5" fill="${dead ? '#C9C2B0' : '#FFC93C'}"/></g>
-   <path d="M318 160 V306" stroke="${K}" stroke-width="5"/><ellipse cx="318" cy="308" rx="20" ry="6" fill="#8A5A34" stroke="${K}" stroke-width="3"/>
-   <path d="M296 160 L340 160 L332 126 L304 126 Z" fill="${night && !dead ? '#FFE27A' : dead ? '#A89E8A' : '#FFF1C9'}" stroke="${K}" stroke-width="3.5" ${dead ? 'transform="rotate(14 318 160)"' : ''}/>
-   <ellipse cx="180" cy="400" rx="150" ry="30" fill="url(#pr-rug)" stroke="${K}" stroke-width="4"/>
-   <rect x="60" y="246" width="240" height="70" rx="26" fill="${sofa}" stroke="${K}" stroke-width="4.5"/>
-   <path d="M78 262 Q180 250 282 262" stroke="${sofaD}" stroke-width="4" fill="none" opacity=".6"/>
-   <rect x="52" y="300" width="256" height="44" rx="18" fill="${sofa}" stroke="${K}" stroke-width="4.5"/>
-   <path d="M180 302 V340" stroke="${sofaD}" stroke-width="3.5"/>
-   <rect x="34" y="276" width="42" height="80" rx="20" fill="${sofaD}" stroke="${K}" stroke-width="4.5"/><rect x="284" y="276" width="42" height="80" rx="20" fill="${sofaD}" stroke="${K}" stroke-width="4.5"/>
-   <rect x="72" y="270" width="46" height="38" rx="14" fill="${cush1}" stroke="${K}" stroke-width="3.5" transform="rotate(-10 95 289)"/>
-   <rect x="242" y="270" width="46" height="38" rx="14" fill="${cush2}" stroke="${K}" stroke-width="3.5" transform="rotate(10 265 289)"/>
-   <rect x="66" y="344" width="10" height="16" rx="3" fill="#8A5A34" stroke="${K}" stroke-width="3"/><rect x="284" y="344" width="10" height="16" rx="3" fill="#8A5A34" stroke="${K}" stroke-width="3"/>
-   ${night && !dead ? `<rect y="0" width="360" height="478" fill="#1A1440" opacity=".18"/>` : ''}
-   ${dead ? '<rect y="0" width="360" height="478" fill="#6E6A7A" opacity=".18"/>' : dusty ? '<rect y="0" width="360" height="478" fill="#8A8290" opacity=".14"/>' : ''}
+  const sky = night
+    ? `<rect x="40" y="46" width="76" height="92" rx="6" fill="#2C2766"/><circle cx="96" cy="70" r="10" fill="#FFF3C8"/><circle cx="100" cy="66" r="9" fill="#2C2766"/>
+       <g fill="#FFF3C8">${[[54, 62], [66, 92], [84, 56], [104, 110], [58, 120]].map(([x, y], i) => `<circle class="pr-star" style="animation-delay:${i * .4}s" cx="${x}" cy="${y}" r="1.6"/>`).join('')}</g>`
+    : `<rect x="40" y="46" width="76" height="92" rx="6" fill="#BFE6FA"/><circle cx="96" cy="68" r="11" fill="#FFE68A"/>
+       <g fill="#fff" class="pr-clouds" opacity=".95"><ellipse cx="62" cy="80" rx="14" ry="6"/><ellipse cx="72" cy="76" rx="9" ry="7"/></g>
+       <path d="M40 122 Q60 108 80 118 Q98 108 116 116 L116 138 L40 138 Z" fill="#9FD88A"/>`;
+  const leafy = dusty || dead;
+  // книги на стеллаже
+  const books = ['#F28AA8', '#FFB7C5', '#E6607F', '#FFD3DC', '#F59AB0', '#FBC4D2'];
+  let bk = '', bx = 304;
+  books.forEach((c, i) => { const hh = 24 + (i % 3) * 5; bk += `<rect x="${bx}" y="${112 - hh}" width="9" height="${hh}" rx="1.5" fill="${dead ? '#C9BFC3' : c}"/>`; bx += 10; });
+  let bk2 = ''; bx = 306;
+  books.slice().reverse().forEach((c, i) => { const hh = 22 + (i % 2) * 6; bk2 += `<rect x="${bx}" y="${158 - hh}" width="9" height="${hh}" rx="1.5" fill="${dead ? '#C9BFC3' : c}"/>`; bx += 10; });
+  const webs = dead ? (() => {
+    const web = (x, y, sx, sy) => {
+      let p = '';
+      for (let i = 1; i <= 4; i++) { const k = i * 22; p += `<path d="M${x + sx * k} ${y} Q${x + sx * k * .72} ${y + sy * k * .72} ${x} ${y + sy * k}" fill="none" stroke="#fff" stroke-width="1.6" opacity=".9"/>`; }
+      for (let a = 0; a <= 4; a++) { const g = a / 4 * Math.PI / 2; p += `<path d="M${x} ${y} L${x + sx * Math.cos(g) * 100} ${y + sy * Math.sin(g) * 100}" stroke="#fff" stroke-width="1.6" opacity=".9"/>`; }
+      return p;
+    };
+    return web(0, 0, 1, 1) + web(W, 0, -1, 1) + web(W, 300, -1, -1)
+      + `<path d="M250 0 V108" stroke="#fff" stroke-width="1.2"/><g class="pr-spider" transform="translate(250 116)"><ellipse rx="6" ry="8" fill="#5A4A6A"/><g stroke="#5A4A6A" stroke-width="1.8"><path d="M-5 -3 l-8 -5 M-5 2 l-9 0 M-5 5 l-7 6 M5 -3 l8 -5 M5 2 l9 0 M5 5 l7 6"/></g><circle cx="-2" cy="-3" r="1.5" fill="#fff"/><circle cx="2" cy="-3" r="1.5" fill="#fff"/></g>`;
+  })() : '';
+  const dust = leafy ? `<g fill="#9E95A8" opacity=".55"><ellipse cx="70" cy="262" rx="20" ry="6"/><ellipse cx="330" cy="276" rx="24" ry="6"/><ellipse cx="250" cy="236" rx="12" ry="4"/></g>
+    <g fill="#B8AFC2" opacity=".8"><circle cx="64" cy="258" r="5"/><circle cx="72" cy="256" r="4"/><circle cx="324" cy="272" r="5"/><circle cx="334" cy="270" r="4"/></g>` : '';
+  return `<svg class="pr-scene" viewBox="16 14 368 276" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs>
+   <pattern id="pr-wp" width="18" height="300" patternUnits="userSpaceOnUse"><rect width="18" height="300" fill="${wall}"/><rect width="7" height="300" fill="${wall2}" opacity=".55"/></pattern>
+   <radialGradient id="pr-lg"><stop offset="0" stop-color="#FFE9A8" stop-opacity=".9"/><stop offset="1" stop-color="#FFE9A8" stop-opacity="0"/></radialGradient>
+   <radialGradient id="pr-rugG" cx=".5" cy=".45" r=".6"><stop offset="0" stop-color="#FFC2D6"/><stop offset="1" stop-color="#F59DBB"/></radialGradient>
+   <linearGradient id="pr-sofaG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9CCBF2"/><stop offset="1" stop-color="#78AEE0"/></linearGradient>
+   <filter id="pr-soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3"/></filter></defs>
+   <rect width="${W}" height="200" fill="url(#pr-wp)"/>
+   ${night && !dead ? '<circle cx="62" cy="118" r="90" fill="url(#pr-lg)"/>' : ''}
+   <rect y="188" width="${W}" height="10" fill="#FFFFFF" opacity=".9"/><rect y="196" width="${W}" height="3" fill="#E9B9CA"/>
+   ${tiles}
+   <!-- окно со шторами -->
+   <rect x="34" y="40" width="88" height="104" rx="10" fill="#FFFFFF"/>${sky}
+   <path d="M78 46 V138 M40 92 H116" stroke="#FFFFFF" stroke-width="4"/>
+   <path d="M26 34 H130" stroke="#E7A7BC" stroke-width="5" stroke-linecap="round"/>
+   <path d="M30 36 Q44 36 46 36 Q50 80 38 108 Q46 140 42 156 L28 156 Q24 96 30 36 Z" fill="${dead ? '#D8CDD3' : '#FFFFFF'}" opacity=".95"/>
+   <path d="M126 36 Q112 36 110 36 Q106 80 118 108 Q110 140 114 156 L128 156 Q132 96 126 36 Z" fill="${dead ? '#D8CDD3' : '#FFFFFF'}" opacity=".95"/>
+   <path d="M34 60 Q38 100 34 150 M122 60 Q118 100 122 150" stroke="#F3CCD9" stroke-width="2" fill="none"/>
+   <!-- картина-веер над диваном -->
+   <g transform="translate(200 60)" opacity="${dead ? .6 : 1}"><path d="M-34 10 A36 36 0 0 1 34 10 L0 26 Z" fill="${dead ? '#D7C9CF' : '#FFC9D8'}"/>
+    ${[-28, -14, 0, 14, 28].map(a => `<path d="M0 26 L${Math.sin(a * Math.PI / 180) * 36} ${26 - Math.cos(a * Math.PI / 180) * 36}" stroke="${dead ? '#C2B4BA' : '#F28AA8'}" stroke-width="1.6"/>`).join('')}
+    <circle cx="-14" cy="0" r="3" fill="#F28AA8"/><circle cx="10" cy="-4" r="2.5" fill="#F28AA8"/><circle cx="20" cy="6" r="2" fill="#F28AA8"/></g>
+   <!-- стеллаж с книгами справа -->
+   <ellipse cx="335" cy="200" rx="44" ry="6" fill="#000" opacity=".08" filter="url(#pr-soft)"/>
+   <rect x="296" y="72" width="78" height="126" rx="4" fill="#FFFFFF"/><rect x="300" y="112" width="70" height="4" fill="#F1E6EA"/><rect x="300" y="158" width="70" height="4" fill="#F1E6EA"/>
+   ${bk}${bk2}
+   <g transform="translate(344 180)"><rect x="-10" y="-10" width="20" height="14" rx="3" fill="${dead ? '#D0C6C9' : '#FFD3DC'}"/><circle cx="0" cy="-16" r="7" fill="${dead ? '#BDB3B6' : '#F28AA8'}"/></g>
+   <!-- тумба с лампой слева от дивана -->
+   <ellipse cx="102" cy="204" rx="30" ry="5" fill="#000" opacity=".08" filter="url(#pr-soft)"/>
+   <rect x="76" y="152" width="52" height="50" rx="4" fill="#FFFFFF"/><rect x="82" y="160" width="40" height="34" rx="3" fill="#FBEFF3"/>
+   <path d="M84 166 q10 6 0 12 M96 164 q10 8 0 16 M108 166 q10 6 0 12" stroke="#F0D9E1" stroke-width="2" fill="none"/><circle cx="116" cy="177" r="2" fill="#E7C27A"/>
+   <path d="M96 152 Q90 138 102 132 Q114 138 108 152 Z" fill="#D8B48A"/>
+   <path d="M86 132 L118 132 L112 108 L92 108 Z" fill="${night && !dead ? '#FFE9A8' : dead ? '#D9CDD2' : '#FFB7CC'}"/>
+   ${night && !dead ? '<circle cx="102" cy="124" r="40" fill="url(#pr-lg)"/>' : ''}
+   <!-- диван -->
+   <ellipse cx="208" cy="206" rx="92" ry="9" fill="#000" opacity=".10" filter="url(#pr-soft)"/>
+   <g ${dead ? 'opacity=".75"' : ''}>
+    <rect x="132" y="128" width="152" height="54" rx="22" fill="url(#pr-sofaG)"/>
+    <path d="M140 140 q12 -6 24 0 t24 0 t24 0 t24 0 t24 0 t12 0 M140 156 q12 -6 24 0 t24 0 t24 0 t24 0 t24 0 t12 0" stroke="#6C9FD4" stroke-width="3" fill="none" opacity=".55"/>
+    <rect x="124" y="166" width="168" height="30" rx="12" fill="#8CC0EE"/>
+    <path d="M132 178 q12 -5 24 0 t24 0 t24 0 t24 0 t24 0 t24 0 t12 0" stroke="#6C9FD4" stroke-width="3" fill="none" opacity=".5"/>
+    <rect x="114" y="150" width="26" height="48" rx="12" fill="#7FB4E6"/><rect x="276" y="150" width="26" height="48" rx="12" fill="#7FB4E6"/>
+    <rect x="132" y="196" width="8" height="8" rx="2" fill="#8B6A55"/><rect x="276" y="196" width="8" height="8" rx="2" fill="#8B6A55"/>
+    <rect x="150" y="146" width="30" height="24" rx="9" fill="#FFC1D3" transform="rotate(-8 165 158)"/>
+   </g>
+   <!-- бонсай на круглом столике -->
+   <ellipse cx="360" cy="246" rx="34" ry="6" fill="#000" opacity=".10" filter="url(#pr-soft)"/>
+   <ellipse cx="358" cy="226" rx="32" ry="8" fill="#ECE7EE"/><rect x="354" y="228" width="8" height="16" fill="#D9D2DD"/><ellipse cx="358" cy="244" rx="16" ry="4" fill="#D9D2DD"/>
+   <path d="M346 222 L370 222 L366 206 L350 206 Z" fill="#3B3650"/>
+   <path d="M358 206 Q354 192 360 182 Q350 176 346 168 M360 182 Q368 176 372 170" stroke="#4A3B3E" stroke-width="4" fill="none" stroke-linecap="round"/>
+   ${leafy ? '<g fill="#B9A9AE"><circle cx="346" cy="166" r="9"/><circle cx="372" cy="168" r="8"/></g>'
+    : `<g fill="#F58BB0"><circle cx="344" cy="164" r="12"/><circle cx="356" cy="156" r="13"/><circle cx="370" cy="164" r="12"/><circle cx="360" cy="170" r="10"/></g>
+       <g fill="#FFB9D0"><circle cx="350" cy="158" r="5"/><circle cx="366" cy="160" r="4"/></g><g fill="#7FB8E8"><ellipse cx="340" cy="172" rx="4" ry="2" transform="rotate(-30 340 172)"/><ellipse cx="376" cy="170" rx="4" ry="2" transform="rotate(30 376 170)"/></g>`}
+   <!-- пушистый ковёр -->
+   <path d="M108 262 ${Array.from({ length: 18 }, (_, i) => { const a = Math.PI * (1 - i / 17); return `Q${200 + Math.cos(a + .09) * 104} ${250 - Math.sin(a + .09) * 34 - 4} ${200 + Math.cos(a) * 100} ${250 - Math.sin(a) * 32}`; }).join(' ')}
+     ${Array.from({ length: 18 }, (_, i) => { const a = -Math.PI * (i / 17); return `Q${200 + Math.cos(a - .09) * 104} ${250 - Math.sin(a - .09) * 26 + 4} ${200 + Math.cos(a) * 100} ${250 - Math.sin(a) * 24}`; }).join(' ')} Z"
+     fill="${dead ? '#D6C3CB' : 'url(#pr-rugG)'}"/>
+   <ellipse cx="200" cy="250" rx="70" ry="16" fill="#FFFFFF" opacity=".18"/>
+   <!-- лежанка -->
+   <ellipse cx="320" cy="282" rx="38" ry="11" fill="#E8BE6A"/><ellipse cx="320" cy="279" rx="30" ry="7" fill="#F6D38A"/>
+   ${night && !dead ? `<rect width="${W}" height="300" fill="#2A2160" opacity=".16"/>` : ''}
+   ${dead ? `<rect width="${W}" height="300" fill="#8D8596" opacity=".28"/>` : dusty ? `<rect width="${W}" height="300" fill="#A79FAF" opacity=".18"/>` : ''}
    ${dust}${webs}
   </svg>`;
 }
 
-function meter(icon, label, v, good) {
-  const color = v > 50 ? good : v > 20 ? '#FFC93C' : '#FF6B6B';
-  return h('div', { class: 'pr-meter' }, h('span', { class: 'pr-meter-l' }, `${icon} ${label}`),
+function meter(icon, label, v, color) {
+  return h('div', { class: 'pr-meter', title: `${label}: ${v}%` }, h('span', { class: 'pr-meter-ico', 'aria-hidden': 'true' }, icon),
     h('span', { class: 'pr-bar', role: 'progressbar', 'aria-label': label, 'aria-valuenow': String(v), 'aria-valuemin': '0', 'aria-valuemax': '100' },
       h('i', { style: { width: `${v}%`, background: color } })), h('b', null, `${v}%`));
 }
@@ -299,12 +320,28 @@ async function playPet(room, pet, u, expr) {
   }
 }
 
+/** Прибраться: метла проходит по полу, блёстки. */
+async function playSweep(room) {
+  if (busyAnim) return;
+  busyAnim = true;
+  const broom = h('span', { class: 'pr-broom', 'aria-hidden': 'true' }, '🧹');
+  room.append(broom);
+  try {
+    haptic.tap();
+    await anim(broom, [{ transform: 'translate(0, 0) rotate(-20deg)', opacity: 0 }, { transform: 'translate(40px, 0) rotate(10deg)', opacity: 1, offset: .15 },
+      { transform: 'translate(110px, 6px) rotate(-20deg)', offset: .4 }, { transform: 'translate(180px, 0) rotate(10deg)', offset: .65 },
+      { transform: 'translate(250px, 6px) rotate(-20deg)', opacity: 1, offset: .9 }, { transform: 'translate(270px, 0) rotate(0)', opacity: 0 }], { duration: 1400, easing: 'ease-in-out' });
+    floatUp(room, '✨', 6);
+    haptic.success();
+    sayFor(room, 'Блестит! Чистота 100% ✨', 1400);
+  } finally { broom.remove(); busyAnim = false; }
+}
+
 function setMeter(meter, to, from) {
   if (!meter) return;
   const bar = meter.querySelector('.pr-bar i'), num = meter.querySelector('b');
   if (from !== undefined) { bar.style.transition = 'none'; bar.style.width = `${from}%`; void bar.offsetWidth; bar.style.transition = ''; }
   bar.style.width = `${to}%`;
-  bar.style.background = to > 50 ? '#8CC63F' : to > 20 ? '#FFC93C' : '#FF6B6B';
   if (num) num.textContent = `${to}%`;
   meter.classList.remove('pr-gain'); void meter.offsetWidth; meter.classList.add('pr-gain');
 }
@@ -347,15 +384,18 @@ export function petRoom(state, { line, onFeed } = {}) {
     tapMascot(pet, u.mascot, expr, u.accessory);
   });
 
-  const foodMeter = meter('🍽', 'Сытость', food, '#8CC63F');
-  const pat = h('button', { type: 'button', class: 'pr-btn' }, dead ? '🎁 Помириться' : dusty ? '⏰ Разбудить' : '🤚 Погладить');
+  const foodMeter = meter('🍖', 'Сытость', food, '#F0606E');
+  const clean = dead ? 6 : dusty ? 38 : 100;
+  const tool = (icon, label, cls = '') => h('button', { type: 'button', class: `pr-btn ${cls}`, 'aria-label': label }, h('span', { class: 'pr-tool-ico', 'aria-hidden': 'true' }, icon), h('small', null, label));
+  const pat = tool(dead ? '🎁' : dusty ? '⏰' : '🤚', dead ? 'Помириться' : dusty ? 'Разбудить' : 'Погладить');
   pat.addEventListener('click', () => {
     if (dead || dusty) { haptic.tap(); toast(dead ? 'Отметь привычку — паутина исчезнет 🧹' : 'Одна галочка — и я проснусь 🌅'); onFeed && onFeed(); return; }
     playPet(room, pet, u, expr);
   });
   let { pending } = dead || dusty ? { pending: 0 } : feedInfo(state);
   const badge = h('span', { class: 'pr-badge' }, String(pending));
-  const feed = h('button', { type: 'button', class: `pr-btn main ${pending ? 'has-food' : ''}` }, '🍽 Покормить', pending ? badge : null);
+  const feed = tool('🍽', 'Покормить', `main ${pending ? 'has-food' : ''}`);
+  if (pending) feed.append(badge);
   feed.addEventListener('click', async () => {
     haptic.tap();
     if (busyAnim) return;
@@ -379,12 +419,21 @@ export function petRoom(state, { line, onFeed } = {}) {
   if (pending && say === line) room.querySelector('.pr-bubble')?.classList.add('top');
   if (pending && say === line) room.querySelector('.pr-bubble')?.replaceChildren(pending > 1 ? `В миске ${pending} ${pending % 10 >= 2 && pending % 10 <= 4 && (pending % 100 < 12 || pending % 100 > 14) ? 'порции' : 'порций'} еды! Покорми меня 🍽` : 'Галочка есть — в миске еда! Покорми меня 🍽');
 
+  const sweep = tool('🧹', 'Прибраться');
+  sweep.addEventListener('click', () => {
+    if (dead || dusty) { haptic.tap(); toast('Пыль и паутину сметёт только галочка — отметь привычку 🧹'); onFeed && onFeed(); return; }
+    playSweep(room);
+  });
+  const toHabits = tool('📋', 'Привычки');
+  toHabits.addEventListener('click', () => { haptic.tap(); onFeed && onFeed(); });
+  const streak = (state.streak && state.streak.current) || 0;
+  room.prepend(h('div', { class: 'pr-hud' },
+    h('div', { class: 'pr-meters' }, foodMeter, meter('💗', 'Настроение', fun, '#C35BD8'), meter('✨', 'Чистота', clean, '#58BE6A')),
+    h('div', { class: 'pr-coins' }, h('span', null, '🔥', h('b', null, String(streak))), state.level ? h('span', null, '⭐', h('b', null, String(state.level.level))) : null)));
   return h('section', { class: 'pr-card', 'aria-label': `Домик: ${mName}` },
-    h('div', { class: 'pr-top' }, h('h2', null, `🏠 Домик · ${mName}`),
-      state.level ? h('span', { class: 'pr-lv' }, `ур. ${state.level.level}`) : null),
-    h('div', { class: 'pr-meters' }, foodMeter, meter('🎉', 'Настроение', fun, '#F065A6')),
+    h('div', { class: 'pr-top' }, h('h2', null, `🏠 Домик · ${mName}`)),
     room,
-    h('div', { class: 'pr-btns' }, pat, feed),
+    h('div', { class: 'pr-btns' }, pat, feed, sweep, toHabits),
     h('div', { class: 'pr-tip' }, dead ? 'Отметь привычку — паутина исчезнет, и маскот простит 💜'
-      : 'Каждая привычка — корм 🍽 · серия и квест дня — настроение 🎉'));
+      : 'Галочка = порция еды 🍽 · серия и квест дня — настроение 💗'));
 }
