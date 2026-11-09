@@ -430,10 +430,15 @@ export function petRoom(state, { line, onFeed } = {}) {
   room.prepend(h('div', { class: 'pr-hud' },
     h('div', { class: 'pr-meters' }, foodMeter, meter('💗', 'Настроение', fun, '#C35BD8'), meter('✨', 'Чистота', clean, '#58BE6A')),
     h('div', { class: 'pr-coins' }, h('span', null, '🔥', h('b', null, String(streak))), state.level ? h('span', null, '⭐', h('b', null, String(state.level.level))) : null)));
-  return h('section', { class: 'pr-card', 'aria-label': `Домик: ${mName}` },
-    h('div', { class: 'pr-top' }, h('h2', null, `🏠 Домик · ${mName}`)),
-    room,
+  room.append(h('span', { class: 'pr-glare', 'aria-hidden': 'true' }));
+  return h('section', { class: 'pr-card pr-device', 'aria-label': `Домик: ${mName}` },
+    h('div', { class: 'pr-top' },
+      h('span', { class: `pr-led ${dead ? 'bad' : dusty ? 'warn' : ''}`, 'aria-hidden': 'true' }),
+      h('h2', null, `Домик · ${mName}`),
+      h('span', { class: 'pr-brand', 'aria-hidden': 'true' }, 'LQ·PET')),
+    h('div', { class: 'pr-bezel' }, room),
     h('div', { class: 'pr-btns' }, pat, feed, sweep, toHabits),
+    h('div', { class: 'pr-speaker', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'), h('i'), h('i')),
     h('div', { class: 'pr-tip' }, dead ? 'Отметь привычку — паутина исчезнет, и маскот простит 💜'
       : 'Галочка = порция еды 🍽 · серия и квест дня — настроение 💗'));
 }

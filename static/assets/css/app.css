@@ -2216,3 +2216,34 @@ p { margin: 0; }
 .pr-anger { left: 62%; top: 42%; }
 .pr-zz { left: 62%; top: 38%; }
 .pr-meter.pr-gain .pr-bar { animation: pr-gain-bar .8s ease-out; } @keyframes pr-gain-bar { 30% { box-shadow: 0 0 0 4px rgba(240,96,110,.35); } }
+
+/* ---------- Домик как игровая приставка: корпус, экран, кнопки — цвета из токенов стиля ---------- */
+:root {
+  --pr-shell-1: #CDB8FF; --pr-shell-2: #FFB8D9; --pr-shell-edge: #A88BEA; --pr-bezel: #2B2140; --pr-bezel-2: #3D2F5C;
+  --pr-btn: #FFFFFF; --pr-btn-ink: #5B3E8A; --pr-btn-shadow: #9C7FE0; --pr-main: linear-gradient(180deg, #FF8CC2, #F065A6); --pr-main-ink: #FFFFFF; --pr-main-shadow: #C2457F;
+  --pr-led: #7CFF8A; --pr-label: #4B2F7A; --pr-tip-bg: rgba(255,255,255,.55); --pr-tip-ink: #5E4F7A;
+}
+.pr-card.pr-device { position: relative; padding: 12px 12px 10px; border-radius: 34px 34px 44px 44px; background: linear-gradient(160deg, var(--pr-shell-1), var(--pr-shell-2)); border: 0;
+  box-shadow: inset 0 3px 0 rgba(255,255,255,.45), inset 0 -5px 0 rgba(0,0,0,.08), 0 6px 0 var(--pr-shell-edge), 0 14px 26px rgba(80, 40, 120, .22); color: var(--pr-label); }
+.pr-device .pr-top { display: flex; align-items: center; gap: 8px; padding: 0 8px 8px; }
+.pr-device .pr-top h2 { flex: 1; color: var(--pr-label); font-size: 14px; letter-spacing: .02em; }
+.pr-led { width: 10px; height: 10px; border-radius: 50%; background: var(--pr-led); box-shadow: 0 0 8px var(--pr-led); animation: pr-led 2.4s ease-in-out infinite; }
+.pr-led.warn { --pr-led: #FFC93C; } .pr-led.bad { --pr-led: #FF5A6A; animation-duration: .9s; }
+@keyframes pr-led { 50% { opacity: .45; } }
+.pr-brand { font-family: 'Unbounded', sans-serif; font-weight: 800; font-size: 10px; letter-spacing: .12em; color: var(--pr-label); opacity: .55; }
+.pr-bezel { padding: 9px; border-radius: 24px; background: linear-gradient(180deg, var(--pr-bezel-2), var(--pr-bezel)); box-shadow: inset 0 2px 6px rgba(0,0,0,.45), 0 2px 0 rgba(255,255,255,.35); }
+.pr-device .pr-room { border-radius: 16px; box-shadow: 0 0 0 2px rgba(0,0,0,.35); }
+.pr-glare { position: absolute; inset: 0; z-index: 5; pointer-events: none; border-radius: inherit; background: linear-gradient(125deg, rgba(255,255,255,.22) 0 14%, transparent 30%), repeating-linear-gradient(0deg, rgba(0,0,0,.025) 0 1px, transparent 1px 3px); }
+.pr-device .pr-btns { grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; padding: 0 4px; background: none; box-shadow: none; border-radius: 0; }
+.pr-device .pr-btn { aspect-ratio: 1; justify-content: center; border-radius: 50%; background: var(--pr-btn); color: var(--pr-btn-ink);
+  box-shadow: 0 4px 0 var(--pr-btn-shadow), inset 0 2px 0 rgba(255,255,255,.5); padding: 2px; }
+.pr-device .pr-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--pr-btn-shadow); }
+.pr-device .pr-btn.main { background: var(--pr-main); color: var(--pr-main-ink); box-shadow: 0 4px 0 var(--pr-main-shadow), inset 0 2px 0 rgba(255,255,255,.4); }
+.pr-device .pr-tool-ico { font-size: 22px; }
+.pr-device .pr-btn small { font-size: 9.5px; line-height: 1; }
+.pr-device .pr-badge { right: -2px; top: -4px; }
+.pr-speaker { display: flex; justify-content: center; gap: 6px; margin: 10px 0 2px; }
+.pr-speaker i { width: 18px; height: 4px; border-radius: 3px; background: var(--pr-label); opacity: .22; }
+.pr-device .pr-tip { margin-top: 8px; background: var(--pr-tip-bg); color: var(--pr-tip-ink); border-radius: 14px; }
+@media (prefers-reduced-motion: reduce) { .pr-led { animation: none; } }
+.pr-device .pr-bubble, .pr-device .pr-bubble.top, .pr-device .pr-say { top: 33%; max-width: 82%; font-size: 11px; padding: 6px 10px; }

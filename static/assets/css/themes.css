@@ -204,3 +204,31 @@
   --hbf-1: #9FF3F2; --hbf-2: #2BB5C9; --hbf-edge: #FFFFFFCC; --hbf-glow: 0 6px 16px rgba(29,76,89,.25);
   --hbc: #FF7A6B; --hbc-hi: #FFD1C8; --hbc-ink: #10303A; --hbc-shadow: rgba(16,48,58,.3); --hbc-glow: drop-shadow(0 0 0 transparent);
 }
+
+/* ---------- Домик-приставка: корпус и кнопки под каждый стиль ---------- */
+:root[data-theme="space"] {
+  --pr-shell-1: #3A2A8C; --pr-shell-2: #7A2E9E; --pr-shell-edge: #1E1450; --pr-bezel: #07051A; --pr-bezel-2: #17113F;
+  --pr-btn: #241A5C; --pr-btn-ink: #EEE9FF; --pr-btn-shadow: #0F0A33; --pr-main: linear-gradient(180deg, #8B5CFF, #FF5FD2); --pr-main-ink: #FFFFFF; --pr-main-shadow: #5B1E8A;
+  --pr-led: #5FFFD9; --pr-label: #EEE9FF; --pr-tip-bg: rgba(23,17,63,.7); --pr-tip-ink: #C9C0F2;
+}
+:root[data-theme="halloween"] {
+  --pr-shell-1: #4A2A66; --pr-shell-2: #8A3A12; --pr-shell-edge: #24112F; --pr-bezel: #0B0610; --pr-bezel-2: #22142D;
+  --pr-btn: #2E1A3C; --pr-btn-ink: #FFD7A8; --pr-btn-shadow: #140A1C; --pr-main: linear-gradient(180deg, #FFA24D, #E2560F); --pr-main-ink: #1A0D05; --pr-main-shadow: #7A2A00;
+  --pr-led: #9BFF4F; --pr-label: #FFD7A8; --pr-tip-bg: rgba(34,20,45,.75); --pr-tip-ink: #D6C2E4;
+}
+:root[data-theme="matrix"] {
+  --pr-shell-1: #0B2414; --pr-shell-2: #04120A; --pr-shell-edge: #0F3D1E; --pr-bezel: #000000; --pr-bezel-2: #031008;
+  --pr-btn: #062A12; --pr-btn-ink: #7DFFB0; --pr-btn-shadow: #021006; --pr-main: linear-gradient(180deg, #19E06A, #00A040); --pr-main-ink: #001A08; --pr-main-shadow: #00501F;
+  --pr-led: #39FF6A; --pr-label: #7DFFB0; --pr-tip-bg: rgba(5,20,10,.8); --pr-tip-ink: #7EE79A;
+}
+[data-theme="matrix"] .pr-card.pr-device { box-shadow: 0 0 0 1px #39FF6A66, 0 0 22px #00FF6633 !important; }
+:root[data-theme="forest"] {
+  --pr-shell-1: #C8D87A; --pr-shell-2: #8DA432; --pr-shell-edge: #5E7418; --pr-bezel: #351903; --pr-bezel-2: #5A3A12;
+  --pr-btn: #FFFCE8; --pr-btn-ink: #365004; --pr-btn-shadow: #6B7F22; --pr-main: linear-gradient(180deg, #FFD84D, #E2A60C); --pr-main-ink: #351903; --pr-main-shadow: #925E06;
+  --pr-led: #FFD84D; --pr-label: #2A3D03; --pr-tip-bg: rgba(255,252,232,.7); --pr-tip-ink: #5A3A12;
+}
+:root[data-theme="ocean"] {
+  --pr-shell-1: #A8E6F0; --pr-shell-2: #3BB6C9; --pr-shell-edge: #1D7F91; --pr-bezel: #10303A; --pr-bezel-2: #1D4C59;
+  --pr-btn: rgba(255,255,255,.75); --pr-btn-ink: #10303A; --pr-btn-shadow: #1D7F91; --pr-main: linear-gradient(180deg, #FF9A8B, #FF6B5A); --pr-main-ink: #FFFFFF; --pr-main-shadow: #B8402F;
+  --pr-led: #FFE27A; --pr-label: #0E3A45; --pr-tip-bg: rgba(255,255,255,.55); --pr-tip-ink: #10303A;
+}
