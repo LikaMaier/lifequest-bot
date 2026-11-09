@@ -2138,3 +2138,8 @@ p { margin: 0; }
 .cal2-legend i.hbl { width: 10px; height: 12px; border-radius: 3px; background: linear-gradient(180deg, transparent 45%, var(--lime) 45%); box-shadow: inset 0 0 0 1.5px var(--line); }
 .cal2-day.hb-full .cal2-ribbon { z-index: 2; }
 .cal2-day.hb-full:has(.cal2-ribbon)::after { top: 77%; width: 50%; }
+
+.cal2-bigcheck { display: inline-block; width: 30px; height: 30px; flex-shrink: 0; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath d='M7 21 L16 30 L34 9' fill='none' stroke='%232B2140' stroke-width='11' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M7 21 L16 30 L34 9' fill='none' stroke='%23F065A6' stroke-width='6.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M9 20 L16 27' fill='none' stroke='%23FFFFFF' stroke-width='2' stroke-linecap='round' opacity='.7'/%3E%3C/svg%3E") center / contain no-repeat; filter: drop-shadow(0 2px 0 rgba(43,33,64,.25)); transform: rotate(-6deg); animation: cal2-bigcheck-pop .5s cubic-bezier(.3,1.7,.5,1) both; }
+.cal2-ring .cal2-bigcheck { width: 29px; height: 29px; border-radius: 50%; background-color: var(--white); background-size: 78%; }
+@keyframes cal2-bigcheck-pop { from { transform: rotate(-6deg) scale(.2); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .cal2-bigcheck { animation: none; } }
