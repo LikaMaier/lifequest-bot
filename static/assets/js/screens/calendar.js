@@ -176,14 +176,18 @@ async function drawMonth(body, el, ctx) {
   const cells = new Map();
   for (const d of summary.days) {
     const n = d.planned + d.done;
+    const hb = d.habits || { done: 0, total: 0 };
+    const hbFrac = hb.total ? Math.min(1, hb.done / hb.total) : 0;
     const who = d.special ? d.special.replace(/^(🎂\s*)?(день рождения|др)\s*/i, '') : '';
     const ribbon = d.special ? `🎂 ${who ? who[0].toUpperCase() + who.slice(1) : 'праздник'}` : HOLIDAYS[d.date.slice(5)];
     const label = [dayTitle(d.date), n ? `${n} ${plural(n, 'план', 'плана', 'планов')}` : 'нет планов',
       d.done ? `выполнено ${d.done}` : null, d.quests_done ? 'был квест' : null, d.photo ? 'есть фото' : null,
-      d.mood ? `настроение ${MOOD_EMOJI[d.mood]}` : null, ribbon].filter(Boolean).join(', ');
+      d.mood ? `настроение ${MOOD_EMOJI[d.mood]}` : null, ribbon,
+      hb.total ? `привычки ${hb.done} из ${hb.total}` : null].filter(Boolean).join(', ');
     const isToday = d.date === today;
     const cls = ['cal2-day', isToday ? 'today' : '', wdIndex(d.date) > 4 ? 'weekend' : '', d.complete ? 'complete' : '',
-      d.date < today && !n ? 'quiet' : '', d.overdue ? 'overdue' : '', d.date === view.day ? 'on' : ''];
+      d.date < today && !n && !hb.done ? 'quiet' : '', d.overdue ? 'overdue' : '', d.date === view.day ? 'on' : '',
+      hb.total ? 'hb' : '', hbFrac >= 1 ? 'hb-full' : ''];
     let inner;
     if (d.photo_thumb) {
       cls.push('photo', parseDate(d.date).getDate() % 2 ? 'tilt-l' : 'tilt-r');
@@ -198,7 +202,8 @@ async function drawMonth(body, el, ctx) {
         shown.length && more > 0 ? h('span', { class: 'cal2-more', 'aria-hidden': 'true' }, `+${more}`) : null,
         d.quests_done ? ico('star', 'cal2-star') : null];
     }
-    const cell = h('button', { type: 'button', role: 'gridcell', 'aria-label': label, class: cls.filter(Boolean).join(' ') },
+    const cell = h('button', { type: 'button', role: 'gridcell', 'aria-label': label, class: cls.filter(Boolean).join(' '),
+      style: hb.total ? { '--hb': String(hbFrac) } : null },
       ...inner, ribbon ? h('span', { class: 'cal2-ribbon', 'aria-hidden': 'true' }, ribbon) : null,
       isToday ? h('span', { class: 'cal2-day-pet', 'aria-hidden': 'true' }, myMascot('love', { size: 30 })) : null);
     cell.addEventListener('click', () => {
@@ -223,7 +228,7 @@ async function drawMonth(body, el, ctx) {
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1);
   });
   const legend = h('div', { class: 'cal2-legend', 'aria-hidden': 'true' },
-    h('span', null, '🏃 дела'), h('span', null, h('i', { class: 'done' }), 'всё сделано'), h('span', null, ico('star'), 'квест'));
+    h('span', null, '🏃 дела'), h('span', null, h('i', { class: 'hbl' }), 'привычки'), h('span', null, h('i', { class: 'done' }), 'дела сделаны'), h('span', null, ico('star'), 'квест'));
   clear(gridHost).append(grid, legend);
   if (monthKey(today) === key) gridHost.append(mascotTip(summary, today, onChange));
   drawDay(dayHost, view.day, today, onChange, ctx, el);
