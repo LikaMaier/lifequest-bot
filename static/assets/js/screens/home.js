@@ -3,7 +3,7 @@
 
 import { h, clear, plural } from '../dom.js';
 import { haptic } from '../tg.js';
-import { mascot, moodFor, tapMascot } from '../mascot.js';
+import { moodFor } from '../mascot.js';
 import { progressBar, busy, toastError } from '../ui.js';
 import { buyStars } from '../premium.js';
 import { openQuest } from '../questflow.js';
@@ -13,6 +13,7 @@ import { openPlus, plusFab } from '../plus.js';
 import { chestRow } from '../chest.js';
 import { duelRow, duelSpotlight, duelPendingCard } from '../duelui.js';
 import { contestSpotlight } from '../contestui.js';
+import { petRoom } from '../petroom.js';
 
 const DATE_FMT = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -33,11 +34,8 @@ export function render(el, ctx) {
     h('div', { class: 'grow' }, h('div', { class: 'brand' }, 'LIFEQUEST'),
       h('div', { class: 'small muted bold' }, capitalize(DATE_FMT.format(new Date())))), avatar));
 
-  // Маскот — его настроение зависит от привычек; серия рядом
+  // Тамагочи «Домик» — маскот живёт привычками; серия рядом с приветствием
   const allDone = hs.total && hs.done === hs.total;
-  const expr = mood.expr === 'sleepy' || mood.expr === 'sad' ? mood.expr : allDone ? 'love' : hs.done ? 'happy' : mood.expr;
-  const pet = mascot(u.mascot, expr, { size: 72, label: 'Твой маскот', acc: u.accessory });
-  pet.addEventListener('click', () => { haptic.tap('soft'); tapMascot(pet, u.mascot, expr, u.accessory); });
   const petLine = !hs.total ? mood.line
     : allDone ? 'Все привычки на сегодня сделаны — я счастлив! 🎉'
     : hs.done ? `Уже ${hs.done} из ${hs.total} привычек — ещё чуть-чуть!`
@@ -46,8 +44,10 @@ export function render(el, ctx) {
   const streakBox = h('button', { type: 'button', class: 'home2-streak', 'aria-label': `Серия ${streak.current} ${plural(streak.current, 'день', 'дня', 'дней')}` },
     h('b', null, String(streak.current)), h('span', null, `${plural(streak.current, 'день', 'дня', 'дней')} ${streak.current ? '🔥' : '🌱'}`));
   streakBox.addEventListener('click', () => { haptic.tap(); go('progress'); });
-  el.append(h('section', { class: 'home2-hello' }, pet,
-    h('div', { class: 'grow' }, h('h1', null, name ? `Привет, ${name}!` : 'Привет!'), h('div', { class: 'home2-line' }, petLine)), streakBox));
+  el.append(h('section', { class: 'home2-hello' },
+    h('div', { class: 'grow' }, h('h1', null, name ? `Привет, ${name}!` : 'Привет!')), streakBox));
+  let habitsCard = null;
+  el.append(petRoom(state, { line: petLine, onFeed: () => habitsCard && habitsCard.scrollIntoView({ behavior: 'smooth', block: 'center' }) }));
   const banner = streakBanner(state, go);
   if (banner) el.append(banner);
   if (state.gift_theme === 'halloween') el.append(halloweenGift(go));
@@ -75,7 +75,7 @@ export function render(el, ctx) {
   if (du && du.outgoing.length) for (const d of du.outgoing.slice(0, 2)) el.append(duelPendingCard(d, { go, state }));
 
   // Привычки сегодня — кольцами
-  const habitsCard = h('section', { class: 'home2-card' });
+  habitsCard = h('section', { class: 'home2-card' });
   const habitsLink = h('button', { type: 'button', class: 'home2-link' }, hs.items && hs.items.length ? 'Все' : 'Добавить');
   habitsLink.addEventListener('click', () => { haptic.tap(); go('habits'); });
   habitsCard.append(h('div', { class: 'home2-head' }, h('h2', null, 'Привычки сегодня'),
