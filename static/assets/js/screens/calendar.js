@@ -205,6 +205,7 @@ async function drawMonth(body, el, ctx) {
     const cell = h('button', { type: 'button', role: 'gridcell', 'aria-label': label, class: cls.filter(Boolean).join(' '),
       style: hb.total ? { '--hb': String(hbFrac) } : null },
       ...inner, ribbon ? h('span', { class: 'cal2-ribbon', 'aria-hidden': 'true' }, ribbon) : null,
+      hbFrac >= 1 ? h('span', { class: 'cal2-bigcheck cell', 'aria-hidden': 'true' }, h('i')) : null,
       isToday ? h('span', { class: 'cal2-day-pet', 'aria-hidden': 'true' }, myMascot('love', { size: 30 })) : null);
     cell.addEventListener('click', () => {
       haptic.select();
@@ -529,7 +530,7 @@ async function drawWeek(body, el, ctx) {
       const color = pct === 100 ? 'lime' : pct ? 'yellow' : 'lav';
       const b = h('button', { type: 'button', class: `cal2-ring-day ${date === sel ? 'on' : ''} ${date === today ? 'today' : ''}`,
         'aria-pressed': String(date === sel), 'aria-label': `${WD_FULL[i]}, ${parseDate(date).getDate()}: сделано ${doneN} из ${list.length}${moods[date] ? `, настроение ${MOOD_EMOJI[moods[date]]}` : ''}` },
-        h('span', { class: `cal2-ring c-${color}`, style: { '--p': pct } }, pct === 100 && !moods[date] ? h('span', { class: 'cal2-bigcheck', 'aria-hidden': 'true' }) : h('i', null, moods[date] ? MOOD_EMOJI[moods[date]] : list.length ? `${doneN}/${list.length}` : '')),
+        h('span', { class: `cal2-ring c-${color}`, style: { '--p': pct } }, pct === 100 && !moods[date] ? h('i', null, h('span', { class: 'cal2-bigcheck', 'aria-hidden': 'true' }, h('i'))) : h('i', null, moods[date] ? MOOD_EMOJI[moods[date]] : list.length ? `${doneN}/${list.length}` : '')),
         h('small', null, WD[i]), h('b', null, String(parseDate(date).getDate())));
       b.addEventListener('click', () => { haptic.select(); view.day = date; drawRings(); drawSel(); });
       rings.append(b);
@@ -876,6 +877,6 @@ function goalsCard(ctx) {
 
 // «4 из 4» не пишем: когда всё сделано — большая яркая галочка
 function countOrCheck(done, total, tone) {
-  if (total && done >= total) return h('span', { class: 'cal2-bigcheck head', role: 'img', 'aria-label': 'Всё сделано' });
+  if (total && done >= total) return h('span', { class: 'cal2-bigcheck head', role: 'img', 'aria-label': 'Всё сделано' }, h('i'));
   return h('span', { class: `cal2-count ${tone}` }, `${done} из ${total}`);
 }

@@ -177,3 +177,30 @@
 [data-theme="space"] .btn:active:not(:disabled) { transform: scale(.97); }
 [data-theme="space"] .tabbar { background: #0B0820ee; border-color: #2C2463; box-shadow: 0 10px 28px #0006, 0 0 0 1px #FF5FD222; }
 .shop-item.premium { background: linear-gradient(160deg, color-mix(in srgb, var(--yellow) 60%, var(--white)), var(--white)); }
+
+/* ---------- Календарь: заливка дня привычками и большая галочка под каждый стиль ---------- */
+/* Космос — туманность от фиолетового к розовому, галочка-неон бирюзовая со свечением */
+:root[data-theme="space"] {
+  --hbf-1: #8B5CFF; --hbf-2: #FF5FD2; --hbf-edge: rgba(255,255,255,.55); --hbf-glow: 0 0 14px #FF5FD266;
+  --hbc: #5FFFD9; --hbc-hi: #E2FFF8; --hbc-ink: #0B0820; --hbc-shadow: #05031499; --hbc-glow: drop-shadow(0 0 6px #5FFFD9AA);
+}
+/* Хэллоуин — тыквенный оранжевый, галочка ядовито-зелёная, как зелье */
+:root[data-theme="halloween"] {
+  --hbf-1: #FFB043; --hbf-2: #D9480F; --hbf-edge: #FFE0A3; --hbf-glow: 0 0 14px #FF7A1A55;
+  --hbc: #9BFF4F; --hbc-hi: #E8FFC9; --hbc-ink: #160D1E; --hbc-shadow: #000a; --hbc-glow: drop-shadow(0 0 6px #9BFF4F99);
+}
+/* Матрица — тёмно-зелёный код с яркой кромкой, галочка светящаяся */
+:root[data-theme="matrix"] {
+  --hbf-1: #00C85A66; --hbf-2: #00FF6633; --hbf-edge: #39FF6A; --hbf-glow: 0 0 12px #00FF6644, inset 0 0 0 1px #39FF6A88;
+  --hbc: #B8FFC9; --hbc-hi: #FFFFFF; --hbc-ink: #001A08; --hbc-shadow: #000c; --hbc-glow: drop-shadow(0 0 6px #00FF66CC);
+}
+/* Лес — молодая трава и мох, галочка солнечно-золотая */
+:root[data-theme="forest"] {
+  --hbf-1: #D6E36A; --hbf-2: #8DA432; --hbf-edge: #F6F2BE; --hbf-glow: 0 0 0 transparent;
+  --hbc: #FFC21A; --hbc-hi: #FFF0A6; --hbc-ink: #351903; --hbc-shadow: rgba(53,25,3,.3); --hbc-glow: drop-shadow(0 0 0 transparent);
+}
+/* Морской мир — бирюзовая вода с пеной, галочка коралловая */
+:root[data-theme="ocean"] {
+  --hbf-1: #9FF3F2; --hbf-2: #2BB5C9; --hbf-edge: #FFFFFFCC; --hbf-glow: 0 6px 16px rgba(29,76,89,.25);
+  --hbc: #FF7A6B; --hbc-hi: #FFD1C8; --hbc-ink: #10303A; --hbc-shadow: rgba(16,48,58,.3); --hbc-glow: drop-shadow(0 0 0 transparent);
+}
