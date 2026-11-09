@@ -2219,12 +2219,12 @@ p { margin: 0; }
 
 /* ---------- Домик как игровая приставка: корпус, экран, кнопки — цвета из токенов стиля ---------- */
 :root {
-  --pr-shell-1: #F6EEDB; --pr-shell-2: #E3D5B2; --pr-shell-edge: #C9B88E; --pr-bezel: #26221C; --pr-bezel-2: #3A342B;
-  --pr-btn: #FFFDF6; --pr-btn-ink: #3A332A; --pr-btn-shadow: #C9B88E; --pr-main: linear-gradient(180deg, #FFE066, #FFC21A); --pr-main-ink: #2B2418; --pr-main-shadow: #B8890A;
-  --pr-led: #7CD94A; --pr-label: #3A332A; --pr-tip-bg: rgba(255,255,255,.6); --pr-tip-ink: #5A5040;
+  --pr-shell-1: #56607A; --pr-shell-2: #363D50; --pr-shell-edge: #232838; --pr-bezel: #15171F; --pr-bezel-2: #262A36;
+  --pr-btn: #F3EEE2; --pr-btn-ink: #2B2F3A; --pr-btn-shadow: #1E2230; --pr-main: linear-gradient(180deg, #FFE066, #FFC21A); --pr-main-ink: #2B2418; --pr-main-shadow: #9A7208;
+  --pr-led: #8CF05A; --pr-label: #F3EEE2; --pr-tip-bg: rgba(255,255,255,.12); --pr-tip-ink: #E4DED0;
 }
 .pr-card.pr-device { position: relative; padding: 12px 12px 10px; border-radius: 34px 34px 44px 44px; background: linear-gradient(160deg, var(--pr-shell-1), var(--pr-shell-2)); border: 0;
-  box-shadow: inset 0 3px 0 rgba(255,255,255,.45), inset 0 -5px 0 rgba(0,0,0,.08), 0 6px 0 var(--pr-shell-edge), 0 14px 26px rgba(60, 45, 20, .18); color: var(--pr-label); }
+  box-shadow: inset 0 3px 0 rgba(255,255,255,.45), inset 0 -5px 0 rgba(0,0,0,.08), 0 6px 0 var(--pr-shell-edge), 0 14px 26px rgba(30, 34, 48, .28); color: var(--pr-label); }
 .pr-device .pr-top { display: flex; align-items: center; gap: 8px; padding: 0 8px 8px; }
 .pr-device .pr-top h2 { flex: 1; color: var(--pr-label); font-size: 14px; letter-spacing: .02em; }
 .pr-led { width: 10px; height: 10px; border-radius: 50%; background: var(--pr-led); box-shadow: 0 0 8px var(--pr-led); animation: pr-led 2.4s ease-in-out infinite; }
