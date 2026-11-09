@@ -5,7 +5,7 @@
 
 import { h } from './dom.js';
 import { haptic } from './tg.js';
-import { mascot, tapMascot } from './mascot.js';
+import { mascot, mascotSVG, tapMascot } from './mascot.js';
 import { toast } from './ui.js';
 
 const K = '#2B2140';
@@ -134,6 +134,159 @@ function floatUp(room, emoji, n = 5) {
   }
 }
 
+const FOOD = { 'cat-purple': '🐟', star: '🍬', frog: '🍓', puppy: '🦴', bear: '🍯', leopard: '🍖', panda: '🎋', pig: '🍎' };
+const PURR = { 'cat-purple': 'мрр~', puppy: 'гав! 🐾', frog: 'ква~', pig: 'хрю~', bear: 'урр~', leopard: 'мрр~', panda: 'ммм~', star: '✨~' };
+const reduced = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const anim = (el, frames, opts) => (el.animate ? el.animate(frames, { fill: 'forwards', ...opts }).finished.catch(() => {}) : Promise.resolve());
+let busyAnim = false;
+
+function setFace(pet, kind, expr, acc) {
+  pet.innerHTML = mascotSVG(kind, expr, acc);
+  pet.querySelectorAll('text').forEach(n => n.remove());
+}
+
+function sayFor(room, text, ms = 1400) {
+  room.querySelector('.pr-bubble')?.classList.add('pr-hide');
+  const b = h('div', { class: 'pr-say' }, text);
+  room.append(b);
+  anim(b, [{ opacity: 0, transform: 'translate(-50%, 8px) scale(.7)' }, { opacity: 1, transform: 'translate(-50%, 0) scale(1)' }], { duration: 260, easing: 'cubic-bezier(.3,1.6,.5,1)' });
+  setTimeout(() => { b.remove(); if (!busyAnim) room.querySelector('.pr-bubble')?.classList.remove('pr-hide'); }, ms);
+}
+
+function crumbs(room, n = 6) {
+  for (let i = 0; i < n; i++) {
+    const c = h('i', { class: 'pr-crumb', 'aria-hidden': 'true' });
+    room.append(c);
+    const dx = (Math.random() - .5) * 90, dy = -20 - Math.random() * 40;
+    anim(c, [{ transform: 'translate(0,0)', opacity: 1 }, { transform: `translate(${dx}px, ${dy}px)`, opacity: 1, offset: .5 },
+      { transform: `translate(${dx * 1.3}px, ${dy + 70}px)`, opacity: 0 }], { duration: 700, easing: 'ease-out' }).then(() => c.remove());
+  }
+}
+
+/** Кормёжка: миска, еда падает, маскот ест — ням-ням, сердечки. from/to — сытость до и после. */
+async function playFeed(room, pet, u, { food, treat = false, meter, from, to } = {}) {
+  if (busyAnim) return;
+  busyAnim = true;
+  const emoji = treat ? '🍪' : FOOD[u.mascot] || '🍪';
+  const bowl = h('span', { class: 'pr-bowl', 'aria-hidden': 'true' }, h('i', null, ''));
+  room.append(bowl);
+  const bubble = room.querySelector('.pr-bubble');
+  bubble?.classList.add('pr-hide');
+  try {
+    if (reduced()) { floatUp(room, '😋', 3); setMeter(meter, to); return; }
+    await anim(bowl, [{ transform: 'translate(-50%, 30px) scale(.3)', opacity: 0 }, { transform: 'translate(-50%, 0) scale(1)', opacity: 1 }],
+      { duration: 320, easing: 'cubic-bezier(.3,1.6,.5,1)' });
+    const f = h('span', { class: 'pr-food', 'aria-hidden': 'true' }, emoji);
+    room.append(f);
+    haptic.tap('light');
+    await anim(f, [{ transform: 'translate(120px, -260px) rotate(-40deg) scale(.8)', opacity: 0 },
+      { transform: 'translate(60px, -190px) rotate(-10deg) scale(1)', opacity: 1, offset: .25 },
+      { transform: 'translate(0, 0) rotate(20deg) scale(1)', opacity: 1, offset: .85 },
+      { transform: 'translate(0, -10px) rotate(0) scale(1.1)', opacity: 1 }], { duration: 650, easing: 'cubic-bezier(.5,0,.6,1)' });
+    bowl.firstChild.textContent = emoji;
+    f.remove();
+    setFace(pet, u.mascot, 'surprised', u.accessory);
+    await anim(pet, [{ transform: 'translate(0,0) scale(1)' }, { transform: 'translate(0, 14%) scale(1.04, .96) rotate(4deg)' }], { duration: 260, easing: 'ease-in' });
+    for (let i = 0; i < 3; i++) {
+      haptic.tap('soft');
+      setFace(pet, u.mascot, i % 2 ? 'surprised' : 'happy', u.accessory);
+      crumbs(room, 4);
+      await anim(pet, [{ transform: 'translate(0, 14%) scale(1.04, .96) rotate(4deg)' }, { transform: 'translate(0, 18%) scale(1.12, .86) rotate(-2deg)' },
+        { transform: 'translate(0, 14%) scale(1.04, .96) rotate(4deg)' }], { duration: 260, easing: 'ease-in-out' });
+      if (i === 0) bowl.firstChild.style.transform = 'scale(.6)';
+      if (i === 1) bowl.firstChild.textContent = '';
+    }
+    setFace(pet, u.mascot, 'love', u.accessory);
+    haptic.success();
+    sayFor(room, treat ? 'Ням! Вкусняшка за идеальный день 🍪' : 'Ням-ням! Спасибо 💜');
+    floatUp(room, '💜', 5);
+    setMeter(meter, to, from);
+    await anim(pet, [{ transform: 'translate(0, 14%) scale(1.04, .96)' }, { transform: 'translate(0, -12%) scale(.96, 1.06)', offset: .45 },
+      { transform: 'translate(0,0) scale(1)' }], { duration: 520, easing: 'cubic-bezier(.3,1.5,.5,1)' });
+    await anim(bowl, [{ opacity: 1 }, { opacity: 0, transform: 'translate(-50%, 10px) scale(.6)' }], { duration: 300, delay: 600 });
+  } finally {
+    bowl.remove();
+    bubble?.classList.remove('pr-hide');
+    pet.getAnimations && pet.getAnimations().forEach(a => a.cancel());
+    busyAnim = false;
+    setTimeout(() => { if (!busyAnim && !room.querySelector('.pr-say')) room.querySelector('.pr-bubble')?.classList.remove('pr-hide'); }, 600);
+  }
+}
+
+/** Пустая миска: маскот заглядывает, грустит — и зовёт отметить привычку. */
+async function playEmptyBowl(room, pet, u, expr) {
+  if (busyAnim) return;
+  busyAnim = true;
+  const bowl = h('span', { class: 'pr-bowl', 'aria-hidden': 'true' }, h('i', null, ''));
+  room.append(bowl);
+  try {
+    await anim(bowl, [{ transform: 'translate(-50%, 30px) scale(.3)', opacity: 0 }, { transform: 'translate(-50%, 0) scale(1)', opacity: 1 }],
+      { duration: 300, easing: 'cubic-bezier(.3,1.6,.5,1)' });
+    setFace(pet, u.mascot, 'surprised', u.accessory);
+    await anim(pet, [{ transform: 'translate(0,0)' }, { transform: 'translate(0, 12%) rotate(6deg)', offset: .4 }, { transform: 'translate(0, 12%) rotate(-6deg)', offset: .7 },
+      { transform: 'translate(0, 6%) rotate(0)' }], { duration: 800, easing: 'ease-in-out' });
+    sayFor(room, 'Миска пустая… Отметь привычку — это мой корм 🥺', 1700);
+    await wait(1200);
+    await anim(pet, [{ transform: 'translate(0, 6%)' }, { transform: 'translate(0,0)' }], { duration: 300 });
+    await anim(bowl, [{ opacity: 1 }, { opacity: 0 }], { duration: 250 });
+    setFace(pet, u.mascot, expr, u.accessory);
+  } finally {
+    bowl.remove();
+    pet.getAnimations && pet.getAnimations().forEach(a => a.cancel());
+    busyAnim = false;
+    setTimeout(() => { if (!busyAnim && !room.querySelector('.pr-say')) room.querySelector('.pr-bubble')?.classList.remove('pr-hide'); }, 600);
+  }
+}
+
+/** Погладить: ладошка гладит по голове, маскот жмурится и мурчит. */
+async function playPet(room, pet, u, expr) {
+  if (busyAnim) return;
+  busyAnim = true;
+  const hand = h('span', { class: 'pr-hand', 'aria-hidden': 'true' }, '🤚');
+  room.append(hand);
+  try {
+    if (reduced()) { floatUp(room, '💜', 4); return; }
+    await anim(hand, [{ transform: 'translate(40px, -60px) rotate(30deg)', opacity: 0 }, { transform: 'translate(0, 0) rotate(0)', opacity: 1 }],
+      { duration: 280, easing: 'ease-out' });
+    setFace(pet, u.mascot, 'sleepy', u.accessory);
+    pet.querySelector('svg')?.insertAdjacentHTML('beforeend', '<ellipse cx="24" cy="56" rx="7" ry="4" fill="#F3619C" opacity=".55"/><ellipse cx="76" cy="56" rx="7" ry="4" fill="#F3619C" opacity=".55"/>');
+    sayFor(room, PURR[u.mascot] || 'мрр~', 1900);
+    for (let i = 0; i < 3; i++) {
+      haptic.tap('soft');
+      const dir = i % 2 ? 1 : -1;
+      await Promise.all([
+        anim(hand, [{ transform: 'translate(0, 0) rotate(0)' }, { transform: `translate(${dir * 34}px, 10px) rotate(${dir * -14}deg)`, offset: .5 }, { transform: 'translate(0, 0) rotate(0)' }],
+          { duration: 520, easing: 'ease-in-out' }),
+        anim(pet, [{ transform: 'rotate(0) scale(1)' }, { transform: `rotate(${dir * 7}deg) scale(1.03, .95)`, offset: .5 }, { transform: 'rotate(0) scale(1)' }],
+          { duration: 520, easing: 'ease-in-out' }),
+      ]);
+      floatUp(room, i === 2 ? '💖' : '💜', 2);
+    }
+    haptic.success();
+    await anim(hand, [{ opacity: 1 }, { transform: 'translate(40px, -60px) rotate(30deg)', opacity: 0 }], { duration: 260 });
+    await anim(pet, [{ transform: 'scale(1)' }, { transform: 'translateY(-14%) scale(.96, 1.06)', offset: .4 }, { transform: 'scale(1)' }],
+      { duration: 480, easing: 'cubic-bezier(.3,1.5,.5,1)' });
+    setFace(pet, u.mascot, expr, u.accessory);
+  } finally {
+    hand.remove();
+    pet.getAnimations && pet.getAnimations().forEach(a => a.cancel());
+    busyAnim = false;
+    setTimeout(() => { if (!busyAnim && !room.querySelector('.pr-say')) room.querySelector('.pr-bubble')?.classList.remove('pr-hide'); }, 600);
+  }
+}
+
+function setMeter(meter, to, from) {
+  if (!meter) return;
+  const bar = meter.querySelector('.pr-bar i'), num = meter.querySelector('b');
+  if (from !== undefined) { bar.style.transition = 'none'; bar.style.width = `${from}%`; void bar.offsetWidth; bar.style.transition = ''; }
+  bar.style.width = `${to}%`;
+  bar.style.background = to > 50 ? '#8CC63F' : to > 20 ? '#FFC93C' : '#FF6B6B';
+  if (num) num.textContent = `${to}%`;
+  meter.classList.remove('pr-gain'); void meter.offsetWidth; meter.classList.add('pr-gain');
+}
+
+let lastFood = null; // сытость в прошлый показ: выросла — значит, отметили привычку, кормим
 let shownDead = false; // в этой сессии комната была в паутине — после уборки покажем радость
 
 /** Карточка «Домик» для главной. line — что маскот говорит, onFeed — куда вести за «кормом». */
@@ -172,24 +325,34 @@ export function petRoom(state, { line, onFeed } = {}) {
     tapMascot(pet, u.mascot, expr, u.accessory);
   });
 
+  const foodMeter = meter('🍽', 'Сытость', food, '#8CC63F');
   const pat = h('button', { type: 'button', class: 'pr-btn' }, dead ? '🎁 Помириться' : dusty ? '⏰ Разбудить' : '🤚 Погладить');
   pat.addEventListener('click', () => {
     if (dead || dusty) { haptic.tap(); toast(dead ? 'Отметь привычку — паутина исчезнет 🧹' : 'Одна галочка — и я проснусь 🌅'); onFeed && onFeed(); return; }
-    haptic.success(); floatUp(room, '💜', 6);
-    pet.classList.remove('jump'); void pet.offsetWidth; pet.classList.add('jump');
+    playPet(room, pet, u, expr);
   });
   const feed = h('button', { type: 'button', class: 'pr-btn main' }, '🍽 Покормить');
-  feed.addEventListener('click', () => {
+  feed.addEventListener('click', async () => {
     haptic.tap();
-    if (allDone) { floatUp(room, '😋', 3); toast(`${mName} сыт — все привычки на сегодня сделаны 🎉`, 'good'); return; }
-    toast('Корм — это галочки: отметь привычку 💜');
+    if (allDone) { playFeed(room, pet, u, { treat: true, meter: foodMeter, from: food, to: food }); return; }
+    if (dead || dusty) { toast('Корм — это галочки: отметь привычку 💜'); onFeed && onFeed(); return; }
+    await playEmptyBowl(room, pet, u, expr);
     onFeed && onFeed();
   });
+  // Отметили привычку (сытость выросла) — маскот ест прямо на главной
+  const gained = lastFood !== null && food > lastFood && !dead && !dusty;
+  const before = lastFood;
+  lastFood = food;
+  if (gained) {
+    foodMeter.querySelector('.pr-bar i').style.width = `${before}%`;
+    foodMeter.querySelector('b').textContent = `${before}%`;
+    requestAnimationFrame(() => playFeed(room, pet, u, { meter: foodMeter, from: before, to: food }));
+  }
 
   return h('section', { class: 'pr-card', 'aria-label': `Домик: ${mName}` },
     h('div', { class: 'pr-top' }, h('h2', null, `🏠 Домик · ${mName}`),
       state.level ? h('span', { class: 'pr-lv' }, `ур. ${state.level.level}`) : null),
-    h('div', { class: 'pr-meters' }, meter('🍽', 'Сытость', food, '#8CC63F'), meter('🎉', 'Настроение', fun, '#F065A6')),
+    h('div', { class: 'pr-meters' }, foodMeter, meter('🎉', 'Настроение', fun, '#F065A6')),
     room,
     h('div', { class: 'pr-btns' }, pat, feed),
     h('div', { class: 'pr-tip' }, dead ? 'Отметь привычку — паутина исчезнет, и маскот простит 💜'
