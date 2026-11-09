@@ -442,7 +442,6 @@ def build_morning_message(user_id: int):
         joke = nudges.pick("morning", user_id, today, m=ctx["m"])
     s = ctx["streak"]
     lv = game.level_info(user.get("xp") or 0)
-    hb = habits.summary(user_id)
     today_plans = plans.today_plans(user_id)
     week = game.week_summary(user_id, today)
 
@@ -453,13 +452,11 @@ def build_morning_message(user_id: int):
     elif s["status"] == "lost":
         streak = f"прервалась на {s['lost_value']} — начнём новую?"
     else:
-        streak = "начни сегодня — отметь привычку"
+        streak = "начнётся с первого дела сегодня ✨"
     lines = [f"🌅 <b>Доброе утро!</b>\n{joke}", "", "📊 <b>Твоя статистика</b>",
              f"🔥 Серия: {streak}",
-             f"🌱 Привычки на сегодня: {hb['total']}" if hb["total"] else "🌱 Привычек пока нет — заведи первую в приложении",
              f"🗓️ Планов на сегодня: {len(today_plans)}",
-             f"✅ За неделю: {week['done']} {plural_ru(week['done'], 'квест', 'квеста', 'квестов')}"
-             + (f", привычки на {week['habits_pct']}%" if week.get("habits_pct") is not None else ""),
+             f"✅ За неделю: {week['done']} {plural_ru(week['done'], 'квест', 'квеста', 'квестов')}",
              f"⭐ Уровень {lv['level']} «{html.escape(lv['name'])}» — до следующего {lv['next'] - lv['xp']} XP"]
     text = "\n".join(lines)
 
@@ -568,9 +565,7 @@ async def send_morning_plans(user_id: int):
     if not user.get("morning_plans", 1):
         return
     items = sorted(plans.today_plans(user_id), key=lambda o: o.get("time") or "99")
-    hb = [h for h in habits.habits_view(user_id) if h["kind"] == "build" and h["due_today"] and not h["done_today"]]
-    hb.sort(key=lambda h: h.get("remind_time") or "99:99")
-    if not items and not hb:
+    if not items:  # привычки в утреннюю сводку не добавляем — без давления, только планы
         return
     ctx = nudges.context(user_id)
     lines = []
@@ -580,8 +575,6 @@ async def send_morning_plans(user_id: int):
     if items:
         head = nudges.pick("plans_today", user_id, ctx["today"], m=ctx["m"])
         lines.append(f"🗓️ <b>Сегодня у тебя в планах</b>\n{head}\n\n" + plans_lines(items))
-    if hb:
-        lines.append("🌱 <b>Привычки на сегодня:</b> " + ", ".join(f"{h['emoji']} {html.escape(h['title'])}" for h in hb))
     await ops.safe_send(user_id, "\n\n".join(lines), parse_mode="HTML", reply_markup=app_markup("calendar"))
 
 
@@ -626,8 +619,7 @@ async def send_habit_reminders():
         habits.mark_reminded(h["id"], game.local_today(storage.get_user(user_id)).isoformat())
         try:
             progress = f" ({h['today']}/{h['target']}{(' ' + h['unit']) if h['unit'] else ''})" if h["target"] > 1 else ""
-            streak = f"\n🔥 Серия: {h['streak']} {plural_ru(h['streak'], 'день', 'дня', 'дней')} — не дай ей прерваться!" \
-                if h["streak"] >= 2 and h["streak_unit"] == "day" else ""
+            streak = ""  # без давления серией — просто дружеское напоминание, которое человек сам поставил
             text = f"🌱 <b>Время привычки</b>\n{html.escape(h['emoji'])} {html.escape(h['title'])}{html.escape(progress)}{streak}"
             markup = InlineKeyboardMarkup(inline_keyboard=app_row("habits")) if MINIAPP_URL else None
             await ops.safe_send(user_id, text, parse_mode="HTML", reply_markup=markup)
@@ -727,14 +719,12 @@ def build_evening_message(user_id: int):
             joke = nudges.pick("evening_none", user_id, ctx["today"], m=ctx["m"], hours=ctx["hours"])
         text = f"🌙 <b>Как прошёл день?</b>\n\n{joke}"
 
-    habits_block = habits.evening_text(user_id)
-    if habits_block:
-        text += "\n\n" + habits_block
+    # Список привычек в напоминание не добавляем — давит; только шутка маскота и что уже сделано
     if game.gift_today(storage.get_user(user_id)) == "halloween":
         text += ("\n\n🎃 <b>Подарок к Хэллоуину!</b> Стиль «Хэллоуин» теперь твой навсегда — "
                  "включи его в приложении: Профиль → «Стиль приложения».")
         return text, app_markup("profile")
-    return text, app_markup("habits" if habits_block and "▫️" in habits_block else "")
+    return text, app_markup()
 
 RU_MONTHS = {
     1: "январь", 2: "февраль", 3: "март", 4: "апрель",
@@ -1408,7 +1398,7 @@ async def main():
     scheduler.add_job(send_outbox, "interval", minutes=2)  # ролики от Claude → владелице
     scheduler.add_job(send_daily_reminders, "cron", minute=0)
     scheduler.add_job(send_new_users_digest, "cron", minute=2)
-    scheduler.add_job(send_owner_compliment, "cron", minute=0, second=30)
+    # утренние комплименты владелице отключены по её просьбе (/compliment — вручную, если захочется)
     scheduler.add_job(send_duel_updates, "cron", minute=3)
     scheduler.add_job(send_contest_updates, "cron", minute=4)
     scheduler.add_job(send_evening_reminders, "cron", minute=0)
