@@ -386,7 +386,7 @@ export function petRoom(state, { line, onFeed } = {}) {
 
   const foodMeter = meter('🍖', 'Сытость', food, '#F0606E');
   const clean = dead ? 6 : dusty ? 38 : 100;
-  const tool = (icon, label, cls = '') => h('button', { type: 'button', class: `pr-btn ${cls}`, 'aria-label': label }, h('span', { class: 'pr-tool-ico', 'aria-hidden': 'true' }, icon), h('small', null, label));
+  const tool = (icon, label, cls = '') => h('button', { type: 'button', class: `pr-btn ${cls}`, 'aria-label': label, title: label }, h('span', { class: 'pr-tool-ico', 'aria-hidden': 'true' }, icon), h('small', null, label));
   const pat = tool(dead ? '🎁' : dusty ? '⏰' : '🤚', dead ? 'Помириться' : dusty ? 'Разбудить' : 'Погладить');
   pat.addEventListener('click', () => {
     if (dead || dusty) { haptic.tap(); toast(dead ? 'Отметь привычку — паутина исчезнет 🧹' : 'Одна галочка — и я проснусь 🌅'); onFeed && onFeed(); return; }
