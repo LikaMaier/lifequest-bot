@@ -20,6 +20,29 @@ export function awayDays(state) {
   return typeof s.missed === 'number' && s.missed >= 0 ? s.missed + 1 : 0;
 }
 
+/** Сколько «порций» заработано сегодня (галочки) и сколько маскот уже съел. */
+function portions(state) {
+  const hs = state.habits || {}, t = state.today || {};
+  return hs.total ? { have: hs.done || 0, max: hs.total } : { have: Math.min(t.done || 0, t.goal || 0), max: t.goal || 0 };
+}
+function foodFor(state, n) {
+  const { max } = portions(state);
+  return max ? Math.round(18 + 82 * Math.min(1, n / max)) : 40;
+}
+const fedKey = state => `lq_fed:${state.user && state.user.id}:${state.today && state.today.date}`;
+function readFed(state) {
+  try { return Math.max(0, parseInt(localStorage.getItem(fedKey(state)), 10) || 0); } catch (e) { return 0; }
+}
+function saveFed(state, n) {
+  try { localStorage.setItem(fedKey(state), String(n)); } catch (e) { /* приватный режим */ }
+}
+/** Кормим только по кнопке: галочки копятся в миске, сытость растёт, когда маскот поел. */
+export function feedInfo(state) {
+  const { have } = portions(state);
+  const eaten = Math.min(readFed(state), have);
+  return { have, eaten, pending: have - eaten };
+}
+
 /** Сытость и настроение 0–100 — от галочек сегодня, серии и давности. */
 export function petStats(state) {
   const away = awayDays(state);
@@ -29,8 +52,8 @@ export function petStats(state) {
   }
   const hs = state.habits || {};
   const t = state.today || {};
-  const food = hs.total ? Math.round(18 + 82 * (hs.done / hs.total))
-    : t.goal ? Math.round(18 + 82 * Math.min(1, t.done / t.goal)) : 40;
+  const { eaten } = feedInfo(state);
+  const food = foodFor(state, eaten);
   const streak = (state.streak && state.streak.current) || 0;
   const daily = state.daily && state.daily.status === 'done' ? 20 : 0;
   const fun = Math.min(100, 34 + Math.min(40, streak * 6) + daily + (t.done > 0 ? 10 : 0));
@@ -286,7 +309,6 @@ function setMeter(meter, to, from) {
   meter.classList.remove('pr-gain'); void meter.offsetWidth; meter.classList.add('pr-gain');
 }
 
-let lastFood = null; // сытость в прошлый показ: выросла — значит, отметили привычку, кормим
 let shownDead = false; // в этой сессии комната была в паутине — после уборки покажем радость
 
 /** Карточка «Домик» для главной. line — что маскот говорит, onFeed — куда вести за «кормом». */
@@ -331,23 +353,31 @@ export function petRoom(state, { line, onFeed } = {}) {
     if (dead || dusty) { haptic.tap(); toast(dead ? 'Отметь привычку — паутина исчезнет 🧹' : 'Одна галочка — и я проснусь 🌅'); onFeed && onFeed(); return; }
     playPet(room, pet, u, expr);
   });
-  const feed = h('button', { type: 'button', class: 'pr-btn main' }, '🍽 Покормить');
+  let { pending } = dead || dusty ? { pending: 0 } : feedInfo(state);
+  const badge = h('span', { class: 'pr-badge' }, String(pending));
+  const feed = h('button', { type: 'button', class: `pr-btn main ${pending ? 'has-food' : ''}` }, '🍽 Покормить', pending ? badge : null);
   feed.addEventListener('click', async () => {
     haptic.tap();
-    if (allDone) { playFeed(room, pet, u, { treat: true, meter: foodMeter, from: food, to: food }); return; }
+    if (busyAnim) return;
     if (dead || dusty) { toast('Корм — это галочки: отметь привычку 💜'); onFeed && onFeed(); return; }
+    const info = feedInfo(state);
+    if (info.pending > 0) {
+      const from = foodFor(state, info.eaten), to = foodFor(state, info.have);
+      saveFed(state, info.have);
+      pending = 0;
+      feed.classList.remove('has-food'); badge.remove(); room.querySelector('.pr-bowl.idle')?.remove();
+      const bub = room.querySelector('.pr-bubble');
+      if (bub) { bub.classList.remove('top'); bub.replaceChildren(line || 'Сыт и доволен 💜'); }
+      await playFeed(room, pet, u, { meter: foodMeter, from, to, portions: info.pending });
+      return;
+    }
+    if (allDone) { playFeed(room, pet, u, { treat: true, meter: foodMeter, from: food, to: food }); return; }
     await playEmptyBowl(room, pet, u, expr);
     onFeed && onFeed();
   });
-  // Отметили привычку (сытость выросла) — маскот ест прямо на главной
-  const gained = lastFood !== null && food > lastFood && !dead && !dusty;
-  const before = lastFood;
-  lastFood = food;
-  if (gained) {
-    foodMeter.querySelector('.pr-bar i').style.width = `${before}%`;
-    foodMeter.querySelector('b').textContent = `${before}%`;
-    requestAnimationFrame(() => playFeed(room, pet, u, { meter: foodMeter, from: before, to: food }));
-  }
+  if (pending) room.append(h('span', { class: 'pr-bowl idle', 'aria-hidden': 'true' }, h('i', null, FOOD[u.mascot] || '🍪')));
+  if (pending && say === line) room.querySelector('.pr-bubble')?.classList.add('top');
+  if (pending && say === line) room.querySelector('.pr-bubble')?.replaceChildren(pending > 1 ? `В миске ${pending} ${pending % 10 >= 2 && pending % 10 <= 4 && (pending % 100 < 12 || pending % 100 > 14) ? 'порции' : 'порций'} еды! Покорми меня 🍽` : 'Галочка есть — в миске еда! Покорми меня 🍽');
 
   return h('section', { class: 'pr-card', 'aria-label': `Домик: ${mName}` },
     h('div', { class: 'pr-top' }, h('h2', null, `🏠 Домик · ${mName}`),

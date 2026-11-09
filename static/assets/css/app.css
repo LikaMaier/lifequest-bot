@@ -2162,3 +2162,14 @@ p { margin: 0; }
   --hbf-1: #E8FF6A; --hbf-2: #B9E52E; --hbf-edge: rgba(255,255,255,.7); --hbf-glow: 0 0 0 transparent;
   --hbc: #F065A6; --hbc-hi: #FF9BCB; --hbc-ink: #2B2140; --hbc-shadow: rgba(43,33,64,.25); --hbc-glow: drop-shadow(0 0 0 transparent);
 }
+/* Домик: еда ждёт в миске — кормим по кнопке */
+.pr-bowl.idle { transform: translateX(-50%); animation: pr-bowl-in .4s cubic-bezier(.3,1.6,.5,1) both; }
+.pr-bowl.idle i { animation: pr-food-wiggle 1.6s ease-in-out infinite; }
+@keyframes pr-bowl-in { from { transform: translateX(-50%) translateY(20px) scale(.3); opacity: 0; } }
+@keyframes pr-food-wiggle { 0%,100% { transform: translateX(-50%) rotate(-8deg); } 50% { transform: translateX(-50%) translateY(-4px) rotate(8deg); } }
+.pr-btn { position: relative; }
+.pr-btn.has-food { animation: pr-call 1.4s ease-in-out infinite; }
+@keyframes pr-call { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); box-shadow: 3px 3px 0 #2B2140, 0 0 0 6px rgba(240,101,166,.25); } }
+.pr-badge { position: absolute; right: -6px; top: -8px; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 12px; background: #FFD23F; color: #2B2140; border: 3px solid #2B2140; font-size: 13px; line-height: 18px; font-weight: 900; }
+@media (prefers-reduced-motion: reduce) { .pr-btn.has-food, .pr-bowl.idle, .pr-bowl.idle i { animation: none; } }
+.pr-bubble.top { top: 22%; bottom: auto; }
