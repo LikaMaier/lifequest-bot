@@ -232,3 +232,40 @@
   --pr-btn: rgba(255,255,255,.75); --pr-btn-ink: #10303A; --pr-btn-shadow: #1D7F91; --pr-main: linear-gradient(180deg, #FF9A8B, #FF6B5A); --pr-main-ink: #FFFFFF; --pr-main-shadow: #B8402F;
   --pr-led: #FFE27A; --pr-label: #0E3A45; --pr-tip-bg: rgba(255,255,255,.55); --pr-tip-ink: #10303A;
 }
+
+/* ---------- Дуэли и соревнования на Главной: яркие, но в гамме стиля ---------- */
+:root[data-theme="space"] {
+  --dsp-ink: #FFFFFF; --dsp-btn-bg: #FFFFFF; --dsp-btn-ink: #3B1478; --dsp-badge-bg: #5FFFD9; --dsp-badge-ink: #0B0820;
+  --dsp-side: rgba(16,8,48,.32); --dsp-side-lead: rgba(16,8,48,.55); --dsp-mid: #FFE27A; --dsp-ok: #5FFFD9; --dsp-ghost-bg: rgba(255,255,255,.18);
+  --dsp-shadow: 0 5px 0 #2A0F5C, 0 0 26px #FF5FD266; --dsp-pulse: rgba(95, 255, 217, .35); --dsp-title-shadow: 0 0 14px rgba(255, 95, 210, .9);
+}
+[data-theme="space"] :is(.dsp, .dsp.contest, .dsp.team, .dsp.pending, .dsp.contest.lobby) {
+  background: radial-gradient(circle at 88% 0%, #5FFFD955 0, transparent 42%), linear-gradient(135deg, #6A3CFF 0%, #B23CE6 55%, #FF5FD2 100%); }
+:root[data-theme="halloween"] {
+  --dsp-ink: #1A0D05; --dsp-btn-bg: #1A0D05; --dsp-btn-ink: #FFB043; --dsp-badge-bg: #1A0D05; --dsp-badge-ink: #9BFF4F;
+  --dsp-side: rgba(255,255,255,.33); --dsp-side-lead: rgba(255,255,255,.6); --dsp-mid: #FFF3D6; --dsp-ok: #1F5A0A; --dsp-ghost-bg: rgba(255,255,255,.6);
+  --dsp-shadow: 0 5px 0 #1A0D05, 0 0 24px #FF7A1A66; --dsp-pulse: rgba(155, 255, 79, .35);
+}
+[data-theme="halloween"] :is(.dsp, .dsp.contest, .dsp.team, .dsp.pending, .dsp.contest.lobby) {
+  background: radial-gradient(circle at 15% 0%, #FFE07A 0, transparent 42%), linear-gradient(135deg, #FFB043 0%, #FF7A1A 55%, #D9480F 100%); }
+:root[data-theme="matrix"] {
+  --dsp-ink: #B8FFC9; --dsp-btn-bg: #39FF6A; --dsp-btn-ink: #001A08; --dsp-badge-bg: #39FF6A; --dsp-badge-ink: #001A08;
+  --dsp-side: rgba(57,255,106,.08); --dsp-side-lead: rgba(57,255,106,.18); --dsp-mid: #39FF6A; --dsp-ok: #39FF6A; --dsp-ghost-bg: rgba(57,255,106,.15);
+  --dsp-shadow: 0 0 0 1px #39FF6A, 0 0 24px #00FF6655; --dsp-pulse: rgba(57, 255, 106, .3); --dsp-title-shadow: 0 0 10px #00FF6699;
+}
+[data-theme="matrix"] :is(.dsp, .dsp.contest, .dsp.team, .dsp.pending, .dsp.contest.lobby) {
+  background: radial-gradient(circle at 15% 0%, #39FF6A33 0, transparent 45%), repeating-linear-gradient(0deg, #00FF660A 0 1px, transparent 1px 3px), linear-gradient(135deg, #062A12 0%, #0B3D1C 100%); }
+:root[data-theme="forest"] {
+  --dsp-ink: #2A1A03; --dsp-btn-bg: #365004; --dsp-btn-ink: #F8F1B8; --dsp-badge-bg: #365004; --dsp-badge-ink: #FFD84D;
+  --dsp-side: rgba(255,255,255,.45); --dsp-side-lead: rgba(255,255,255,.78); --dsp-mid: #FFFCE8; --dsp-ok: #2D4A0C;
+  --dsp-shadow: 0 5px 0 #5E7418; --dsp-pulse: rgba(255, 216, 77, .4);
+}
+[data-theme="forest"] :is(.dsp, .dsp.contest, .dsp.team, .dsp.pending, .dsp.contest.lobby) {
+  background: radial-gradient(circle at 15% 0%, #FFF6B0 0, transparent 42%), linear-gradient(135deg, #F6E06A 0%, #C8D45A 55%, #8DA432 100%); }
+:root[data-theme="ocean"] {
+  --dsp-ink: #0E2F38; --dsp-btn-bg: #0E2F38; --dsp-btn-ink: #E6FBFF; --dsp-badge-bg: #FF7A6B; --dsp-badge-ink: #FFFFFF;
+  --dsp-side: rgba(255,255,255,.5); --dsp-side-lead: rgba(255,255,255,.82); --dsp-mid: #FFFFFF; --dsp-ok: #0B5C66;
+  --dsp-shadow: 0 5px 0 #1D6F80, 0 8px 20px rgba(29,76,89,.3); --dsp-pulse: rgba(255, 122, 107, .35);
+}
+[data-theme="ocean"] :is(.dsp, .dsp.contest, .dsp.team, .dsp.pending, .dsp.contest.lobby) {
+  background: radial-gradient(circle at 15% 0%, #FFFFFFAA 0, transparent 42%), linear-gradient(135deg, #9FF3F2 0%, #3BC8D8 55%, #2B8FC0 100%); }
