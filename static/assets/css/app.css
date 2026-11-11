@@ -2399,3 +2399,32 @@ p { margin: 0; }
 :root:is([data-theme="space"], [data-theme="halloween"], [data-theme="matrix"]) .bw-core { fill: #000; stroke: rgba(255,255,255,.18); stroke-width: 2; }
 :root:is([data-theme="space"], [data-theme="halloween"], [data-theme="matrix"]) .bw-count { fill: var(--white); }
 @media (prefers-reduced-motion: reduce) { .bw-arc { animation: none; } }
+.qp-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.qp-modes button { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border: 2px solid transparent; border-radius: 16px; background: color-mix(in srgb, var(--cream-2) 70%, var(--white)); color: var(--ink); font: 800 13px var(--font-body, inherit); font-family: inherit; }
+.qp-modes button span { font-size: 26px; line-height: 1; }
+.qp-modes button[aria-checked="true"] { background: var(--ink); color: var(--white); border-color: var(--ink); }
+
+/* ---------- Друзья: кнопки, лента, квест вдвоём ---------- */
+.fr-ctas { display: grid; grid-template-columns: 1.2fr 1fr; gap: 10px; margin-bottom: 6px; }
+.fr-cta { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px 14px; border: 0; border-radius: 20px; background: var(--white); color: var(--ink); box-shadow: 0 4px 0 var(--line); font-family: inherit; text-align: left; }
+.fr-cta > span { font-size: 26px; line-height: 1; }
+.fr-cta b { font-family: var(--font-display); font-size: 15px; margin-top: 4px; }
+.fr-cta small { font-weight: 800; font-size: 11px; color: var(--muted); }
+.fr-cta.main { background: linear-gradient(135deg, #FF8A6B, #FF5C93); color: #fff; box-shadow: 0 4px 0 var(--ink); }
+.fr-cta.main small { color: rgba(255,255,255,.85); }
+.fr-cta:active { transform: translateY(2px); }
+.fd-item { padding: 10px 12px; border-radius: 18px; background: var(--white); box-shadow: 0 3px 0 var(--line); }
+.fd-item.k-away { background: color-mix(in srgb, var(--yellow) 30%, var(--white)); }
+.fd-head { display: flex; align-items: center; gap: 8px; }
+.fd-ava { width: 40px; height: 40px; flex-shrink: 0; }
+.fd-head b { font-size: 14px; }
+.fd-what { font-weight: 700; font-size: 13px; }
+.fd-when { font-weight: 800; font-size: 11px; color: var(--muted); flex-shrink: 0; }
+.fd-title { margin: 6px 0 0 48px; font-weight: 800; font-size: 14px; }
+.fd-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0 48px; }
+.fd-react { display: inline-flex; align-items: center; gap: 4px; padding: 5px 9px; border: 2px solid transparent; border-radius: 12px; background: color-mix(in srgb, var(--cream-2) 70%, var(--white)); font: 800 14px var(--font-body, inherit); font-family: inherit; color: var(--ink); }
+.fd-react i { font-style: normal; font-size: 12px; }
+.fd-react.on { background: color-mix(in srgb, var(--pink) 30%, var(--white)); border-color: var(--pink); }
+.fd-btn { padding: 7px 11px; border: 0; border-radius: 12px; background: var(--ink); color: var(--white); font: 800 12.5px var(--font-body, inherit); font-family: inherit; }
+.fd-btn:disabled { opacity: .45; }
+.pair-card .btn.small { padding: 8px 14px; font-size: 13px; }

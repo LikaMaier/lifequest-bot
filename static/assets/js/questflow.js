@@ -199,37 +199,30 @@ export function modeButtons() {
 }
 
 
-/** Экран «Не знаешь, чем заняться?»: три вопроса чипами → случайный квест под них.
- *  Без Premium — один в день бесплатно (выбор фильтров тоже бесплатный). */
-const PICK = {
-  time: [['5', '⚡ 5 мин'], ['20', '⏱ 15–30 мин'], ['60', '🕐 час'], ['day', '📅 весь день']],
-  energy: [['lazy', '🥱 лень'], ['normal', '🙂 норм'], ['fire', '🔥 огонь']],
-  mode: [['solo', '🙂 один'], ['pair', '💞 вдвоём'], ['company', '👯 компания']],
-};
-const pickState = { time: '20', energy: 'normal', mode: 'solo' };
-try { Object.assign(pickState, JSON.parse(localStorage.getItem('lq_pick') || '{}')); } catch (e) { /* ignore */ }
+/** Экран «Не знаешь, чем заняться?»: выбери, с кем, — и жми 🎲.
+ *  Без Premium — один случайный квест в день бесплатно. */
+const PICK_MODES = [['solo', '🙂', 'Один'], ['pair', '💞', 'Вдвоём'], ['company', '👯', 'Компания']];
+let pickMode = 'solo';
+try { pickMode = localStorage.getItem('lq_pick_mode') || 'solo'; } catch (e) { /* ignore */ }
 
 export function questPicker() {
   const premium = Boolean(store.state && store.state.premium && store.state.premium.active);
   const free = Boolean(store.state && store.state.free_quest);
-  const row = (key, title) => {
-    const chips = h('div', { class: 'qp-chips', role: 'radiogroup', 'aria-label': title });
-    const paint = () => chips.querySelectorAll('button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === pickState[key])));
-    PICK[key].forEach(([v, label]) => {
-      const b = h('button', { type: 'button', role: 'radio', dataset: { v } }, label);
-      b.addEventListener('click', () => { haptic.select(); pickState[key] = v; try { localStorage.setItem('lq_pick', JSON.stringify(pickState)); } catch (e) { /* ignore */ } paint(); });
-      chips.append(b);
-    });
-    paint();
-    return h('div', { class: 'qp-row' }, h('div', { class: 'qp-q' }, title), chips);
-  };
+  const chips = h('div', { class: 'qp-modes', role: 'radiogroup', 'aria-label': 'С кем' });
+  const paint = () => chips.querySelectorAll('button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === pickMode)));
+  PICK_MODES.forEach(([v, emoji, label]) => {
+    const b = h('button', { type: 'button', role: 'radio', dataset: { v } }, h('span', { 'aria-hidden': 'true' }, emoji), label);
+    b.addEventListener('click', () => { haptic.select(); pickMode = v; try { localStorage.setItem('lq_pick_mode', v); } catch (e) { /* ignore */ } paint(); });
+    chips.append(b);
+  });
+  paint();
   const go = h('button', { type: 'button', class: 'qp-go' }, h('span', { class: 'qp-dice', 'aria-hidden': 'true' }, '🎲'),
     h('span', null, h('b', null, 'Дай задание'), h('small', null, premium ? 'перевыборы без лимита' : free ? '🎁 сегодня бесплатно' : '🔒 на сегодня взят · Premium — без лимита')));
   go.addEventListener('click', () => {
     if (!premium && !free) { haptic.tap(); openPaywall('premium_quests'); return; }
-    openRandom(pickState.mode, { time: pickState.time, energy: pickState.energy });
+    openRandom(pickMode);
   });
   return h('section', { class: 'qp', 'aria-label': 'Подбор задания' },
-    h('h2', null, 'Не знаешь, чем заняться?'), h('p', null, 'Ответь на три вопроса — подберу задание под настроение'),
-    row('time', '⏱ Сколько есть времени?'), row('energy', '⚡ Сколько сил?'), row('mode', '👥 С кем?'), go);
+    h('h2', null, 'Не знаешь, чем заняться?'), h('p', null, 'Случайное задание спасает от прокрастинации. С кем сегодня?'),
+    chips, go);
 }
