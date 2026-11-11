@@ -99,14 +99,6 @@ export function render(el, { state, go }) {
   themes.id = 'themes';
   el.append(sectionTitle('Стиль приложения'), themes);
 
-  // Цель дня
-  const goal = h('div', { class: 'segmented', role: 'group', 'aria-label': 'Цель дня' },
-    [1, 2, 3].map(n => {
-      const b = h('button', { type: 'button', 'aria-pressed': String(u.daily_goal === n) }, `${n} ${n === 1 ? 'задание' : 'задания'}`);
-      b.addEventListener('click', () => { haptic.select(); saveSettings({ daily_goal: n }); });
-      return b;
-    }));
-  el.append(sectionTitle('Цель дня'), h('div', { class: 'card' }, goal));
 
   // Напоминания и часовой пояс
   const hourSelect = (value, key, label) => {

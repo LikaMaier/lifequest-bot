@@ -10,7 +10,7 @@ import { buildRecapCard } from '../share.js';
 import { openSphereManager } from '../sphereui.js';
 const RANGE_WORD = { 1: 'сегодня', 7: 'неделя', 30: 'месяц', all: 'всё время' };
 import { handlePremiumError } from '../premium.js';
-import { hbars, jarChart, ACTIVITY_LABELS } from '../charts.js';
+import { hbars, balanceWheel } from '../charts.js';
 import { openPhotoReport } from '../photoui.js';
 
 const view = { range: '7', kind: 'bar', stats: {} };
@@ -93,7 +93,7 @@ export function update(el, ctx) {
 function draw(body, s, ctx) {
   const r = s.records;
   // Итоги периода: привычки, дела, квесты, XP — и сравнение с прошлым периодом
-  if (s.activity) body.append(activityCard(s.activity));
+  if (s.activity) body.append(activityCard(s.activity, s));
 
   // Рекорды
   const fav = r.favorite_sphere;
@@ -163,7 +163,7 @@ function weekLabel(key) {
 const PREV_WORD = { 1: 'вчера', 7: 'прошлой неделей', 30: 'прошлым месяцем' };
 const PERIOD_TITLE = { 1: 'Итоги дня', 7: 'Итоги недели', 30: 'Итоги месяца', all: 'Итоги за всё время' };
 
-function activityCard(a) {
+function activityCard(a, s) {
   const t = a.totals, p = a.prev;
   const tile = (key, emoji, value, name, color) => {
     let delta = null;
@@ -194,15 +194,13 @@ function activityCard(a) {
       tile('xp', '⭐', t.xp, 'XP', 'yellow')),
     p ? h('p', { class: 'act-note' }, `Стрелки — сравнение с ${PREV_WORD[view.range]}`) : null);
   if (empty) {
-    card.append(h('p', { class: 'act-empty' }, 'Пока пусто — отметь привычку или дело из календаря, и в банке появится первая конфетка 🍬'));
+    card.append(h('p', { class: 'act-empty' }, 'Пока пусто — сделай квест или отметь привычку со сферой, и колесо баланса оживёт ✨'));
     return card;
   }
-  // Банка: каждое сделанное — конфета цвета своей плашки, XP — золотые звёздочки
-  card.append(h('div', { class: 'act-chart act-jar' }, jarChart(a.series, { total }),
-    h('div', { class: 'act-legend', 'aria-hidden': 'true' },
-      [...Object.entries(ACTIVITY_LABELS), ['xp', 'XP']].map(([k, label]) =>
-        h('span', null, h('i', { class: `candy-${k}` }), label))),
-    h('p', { class: 'act-jar-note' }, 'Чем больше сделано, тем полнее банка 🍬')));
+  // Колесо баланса: сферы лепестками, в центре — оценка равномерности
+  const sph = (s.spheres || []).map(x => ({ key: x.key || x.sphere, name: x.name || x.sphere, count: x.count || 0,
+    color: x.color || (SPHERE_INFO[x.sphere] || {}).color || 'lav', emoji: x.emoji || (SPHERE_INFO[x.sphere] || {}).emoji || '⭐' }));
+  card.append(h('div', { class: 'act-chart act-wheel' }, balanceWheel(sph, { label: `Колесо баланса · ${RANGE_WORD[view.range]}` })));
   if (a.best_day && a.days > 1) {
     card.append(h('div', { class: 'act-best' }, h('span', { class: 'act-best-ico', 'aria-hidden': 'true' }, '🏆'),
       h('span', null, 'Лучший день — ', h('b', null, fmtDay(a.best_day.date)), `: сделано ${a.best_day.total}`)));

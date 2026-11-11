@@ -371,7 +371,7 @@ export async function openDuelCreator(ctx, { friend = null, friends = null, onDo
     h('div', null, h('div', { class: 'cal2-label' }, 'Сколько дней'),
       chipRow([3, 7, 14, 30].map(n => ({ value: n })), 'days', it => `${it.value} ${dayWord(it.value)}`)),
     h('div', null, h('div', { class: 'cal2-label' }, 'С кем'), friendRow,
-      h('p', { class: 'tiny bold muted', style: { marginTop: '6px' } }, 'Друг получит приглашение в боте. По ссылке можно позвать того, кого ещё нет в LifeQuest — вам обоим подарим заморозку.')),
+      h('p', { class: 'tiny bold muted', style: { marginTop: '6px' } }, 'Друг получит приглашение в боте. По ссылке можно позвать того, кого ещё нет в LifeQuest — обоим будет бонус.')),
     save));
   return s;
 }

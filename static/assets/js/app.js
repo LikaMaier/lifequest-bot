@@ -11,14 +11,15 @@ import { initKeyboard } from './keyboard.js';
 // Экраны подгружаются лениво — модуль экрана грузится при первом открытии.
 const SCREENS = {
   home: { title: 'Главная', icon: ICONS.home, load: () => import('./screens/home.js') },
-  quests: { title: 'Квесты', icon: ICONS.quests, load: () => import('./screens/quests.js') },
+  quests: { title: 'Квест', icon: ICONS.dice, load: () => import('./screens/quests.js') },
   habits: { title: 'Привычки', icon: ICONS.habits, load: () => import('./screens/habits.js') },
+  pet: { title: 'Домик', sub: true, load: () => import('./screens/pet.js') },
   board: { title: 'Цели месяца', sub: true, load: () => import('./screens/board.js') },
   progress: { title: 'Прогресс', icon: ICONS.progress, load: () => import('./screens/progress.js') },
-  calendar: { title: 'Календарь', icon: ICONS.calendar, load: () => import('./screens/calendar.js') },
+  calendar: { title: 'Календарь', sub: true, load: () => import('./screens/calendar.js') },
   awards: { title: 'Награды', sub: true, load: () => import('./screens/awards.js') },
   shop: { title: 'Магазин', sub: true, load: () => import('./screens/shop.js') },
-  friends: { title: 'Друзья', sub: true, load: () => import('./screens/friends.js') },
+  friends: { title: 'Друзья', icon: ICONS.friends, load: () => import('./screens/friends.js') },
   contest: { title: 'Соревнование', sub: true, load: () => import('./screens/contest.js') },
   notes: { title: 'Заметки', sub: true, load: () => import('./screens/notes.js') },
   album: { title: 'Альбом', sub: true, load: () => import('./screens/album.js') },
@@ -26,7 +27,8 @@ const SCREENS = {
   profile: { title: 'Профиль', sub: true, load: () => import('./screens/profile.js') },
   premium: { title: 'Premium', sub: true, load: () => import('./screens/profile.js'), entry: 'renderPremium' },
 };
-const TABS = ['home', 'habits', 'calendar', 'quests', 'progress'];
+// Квест — большая круглая кнопка по центру: главная фишка должна быть на виду
+const TABS = ['home', 'habits', 'quests', 'friends', 'progress'];
 
 const root = document.getElementById('app');
 const mounted = {}; // name -> { el, module, dirty }
@@ -38,7 +40,7 @@ let tabbar;
 function buildTabbar() {
   tabbar = h('nav', { class: 'tabbar', 'aria-label': 'Разделы' },
     TABS.map(name => {
-      const b = h('button', { type: 'button', class: 'tab', dataset: { tab: name }, 'aria-label': SCREENS[name].title },
+      const b = h('button', { type: 'button', class: name === 'quests' ? 'tab tab-fab' : 'tab', dataset: { tab: name }, 'aria-label': name === 'quests' ? 'Квест: дай задание' : SCREENS[name].title },
         h('span', { html: SCREENS[name].icon, 'aria-hidden': 'true' }), h('span', null, SCREENS[name].title));
       b.addEventListener('click', () => { haptic.select(); go(name); });
       return b;

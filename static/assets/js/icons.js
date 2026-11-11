@@ -4,6 +4,8 @@ const wrap = body => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
 
 export const ICONS = {
   home: wrap('<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1H10v-5.5h4V20h3.5a1 1 0 0 0 1-1v-9"/>'),
+  friends: wrap('<circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19.5c.6-3.3 2.8-5 5.5-5s4.9 1.7 5.5 5"/><circle cx="16.5" cy="9.5" r="2.6"/><path d="M15.5 14.6c2.6-.4 4.6 1.2 5 4.4"/>'),
+  dice: wrap('<rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="8.5" cy="8.5" r="1.3" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1.3" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.3" fill="currentColor"/>'),
   quests: wrap('<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 12.5l2.2 2.2L15.5 10"/>'),
   board: wrap('<rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><path d="M9.2 3.5v17M14.8 3.5v17M3.5 9.2h17M3.5 14.8h17"/>'),
   progress: wrap('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
