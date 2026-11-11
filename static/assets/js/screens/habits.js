@@ -7,10 +7,37 @@ import { myMascot } from '../mascot.js';
 import { habitCard, openHabitEditor, openPause, templatePicker, openTemplatePicker, TIMES } from '../habitui.js';
 
 const WD = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+// Вкладка объединяет привычки и план (календарь): переключатель сверху
+let mode = 'habits';
+let calendarMod = null;
+
+export function openPlan(el, ctx) { mode = 'plan'; render(el, ctx); }
+
+function modeSwitch(el, ctx) {
+  const seg = h('div', { class: 'hp-switch', role: 'tablist', 'aria-label': 'Привычки или план' },
+    [['habits', '💧 Привычки'], ['plan', '🗓️ План']].map(([k, label]) => {
+      const b = h('button', { type: 'button', role: 'tab', 'aria-selected': String(mode === k) }, label);
+      b.addEventListener('click', () => { if (mode === k) return; haptic.select(); mode = k; render(el, ctx); });
+      return b;
+    }));
+  return seg;
+}
+
+async function renderPlan(el, ctx) {
+  const box = h('div', { class: 'hp-plan' });
+  el.append(box);
+  calendarMod = calendarMod || await import('./calendar.js');
+  if (mode !== 'plan' || !box.isConnected) return;
+  calendarMod.render(box, ctx);
+}
+
 const WEEKDAY_FULL = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
 
 export function render(el, ctx) {
   clear(el);
+  if (ctx.params && ctx.params.plan) { mode = 'plan'; ctx.params.plan = false; }
+  el.append(modeSwitch(el, ctx));
+  if (mode === 'plan') { renderPlan(el, ctx); return; }
   const sum = ctx.state.habits;
   const items = sum.items || [];
   const rerender = () => render(el, ctx);

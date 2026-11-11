@@ -45,7 +45,7 @@ async function request(method, path, body) {
 
 export const api = {
   state: () => request('GET', 'api/state'),
-  random: (mode, sphere) => request('POST', 'api/quest/random', { mode, sphere }),
+  random: (mode, sphere, opts = {}) => request('POST', 'api/quest/random', { mode, sphere, ...opts }),
   accept: (id, tier, daily = false) => request('POST', 'api/quest/accept', { id, tier, daily }),
   complete: activeId => request('POST', 'api/quest/complete', { active_id: activeId }),
   skip: activeId => request('POST', 'api/quest/skip', { active_id: activeId }),

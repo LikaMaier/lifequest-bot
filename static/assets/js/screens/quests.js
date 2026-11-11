@@ -1,12 +1,12 @@
-// ② Квесты: три кнопки случайного задания (Premium), тематические наборы
-// (первые задания — всем), списки активных / выполненных / избранных с поиском.
+// ② Квест — главная фишка: «не знаешь, чем заняться?» — три вопроса и задание.
+// Ниже — квест дня, активные задания, наборы и списки. «Брось вызов» живёт во «Друзьях».
 
 import { h, clear, plural, fmtDay } from '../dom.js';
 import { haptic } from '../tg.js';
 import { api } from '../api.js';
 import { myMascot } from '../mascot.js';
 import { emptyState, sectionTitle, skeleton, busy, toastError, sheet, SPHERE_INFO } from '../ui.js';
-import { modeButtons, openQuest, questItem, completeQuest } from '../questflow.js';
+import { questPicker, openQuest, questItem, completeQuest } from '../questflow.js';
 import { openPaywall } from '../premium.js';
 
 const view = { packs: null, tab: 'active', query: '', history: null, historyLoading: false };
@@ -15,26 +15,22 @@ export function render(el, ctx) {
   clear(el);
   const { state } = ctx;
   el.append(h('header', { class: 'page-head' }, myMascot('silly', { size: 56 }),
-    h('div', { class: 'grow' }, h('h1', null, 'Квесты'), h('p', null, 'Выбери формат — я подкину задание. Не понравится — возьмём другое.'))));
-  // Брось вызов — яркая карточка: сразу выбор формата (1 на 1 или компания)
-  const duel = h('button', { type: 'button', class: 'challenge-hero' },
-    h('span', { class: 'challenge-hero-emoji', 'aria-hidden': 'true' }, '⚔️'),
-    h('span', { class: 'grow' }, h('b', null, 'Брось вызов'),
-      h('span', null, 'Соревнуйся с друзьями — один на один или целой компанией')),
-    h('span', { class: 'challenge-hero-go' }, 'Вызвать'));
-  duel.addEventListener('click', async () => {
-    haptic.tap('medium');
-    (await import('./friends.js')).openChallengeChooser(ctx);
-  });
-  el.append(duel);
-
-  // Случайный квест — с Premium (без него — один в неделю); наборы ниже — для всех
+    h('div', { class: 'grow' }, h('h1', null, 'Квест'), h('p', null, 'Задание на сейчас — лекарство от прокрастинации'))));
+  el.append(questPicker());
   const premium = Boolean(state.premium && state.premium.active);
-  el.append(modeButtons(),
-    h('p', { class: 'center tiny muted bold', style: { marginTop: '4px' } }, premium
-      ? `Сегодня ещё ${state.rolls_left} ${plural(state.rolls_left, 'попытка', 'попытки', 'попыток')} — заданий без повторов хватит надолго`
-      : state.free_quest ? '🎁 Один случайный квест в неделю — бесплатно. Выбирай формат!'
-        : 'Бесплатный квест этой недели уже был — новый в понедельник. С Premium — сколько угодно 💛'));
+  if (premium) el.append(h('p', { class: 'center tiny muted bold', style: { marginTop: '4px' } },
+    `Сегодня ещё ${state.rolls_left} ${plural(state.rolls_left, 'попытка', 'попытки', 'попыток')} — заданий без повторов хватит надолго`));
+
+  // Квест дня — если ещё не взят
+  const daily = state.daily;
+  if (daily && daily.status !== 'done' && !state.active.find(q => q.id === daily.id)) {
+    const take = h('button', { type: 'button', class: 'cal2-pill lav' }, 'Взять');
+    const card = h('section', { class: 'home2-bonus', style: { marginTop: '14px' } },
+      h('span', { class: 'home2-bonus-emoji', 'aria-hidden': 'true' }, daily.emoji),
+      h('div', { class: 'grow' }, h('div', { class: 'home2-kicker' }, `Квест дня · +${daily.bonus_xp} XP`), h('div', { class: 'bold' }, daily.title)), take);
+    take.addEventListener('click', () => { haptic.tap(); openQuest({ ...daily, daily: true }, { daily: true }); });
+    el.append(card);
+  }
 
   // Тематические наборы
   const packsHost = h('div', { class: 'pack-row', role: 'list', 'aria-label': 'Наборы квестов' });

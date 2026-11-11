@@ -52,7 +52,7 @@ class RandomQuestDBTest(TempDBTestCase):
 
     def test_premium_only_no_sphere_filter_and_daily_limit(self):
         self.assertTrue(game.get_state(1)["free_quest"])
-        first = game.random_quest(1, "solo")  # без Premium — один случайный квест в неделю
+        first = game.random_quest(1, "solo")  # без Premium — один случайный квест в день
         self.assertTrue(first["free_quest"])
         self.assertFalse(game.get_state(1)["free_quest"])
         with self.assertRaises(game.QuestError) as err:
@@ -217,3 +217,12 @@ class FreezeTokensTest(unittest.TestCase):
         self.assertEqual((cur, used, tokens_used), (6, True, 1))
         view = game.streak_view(5, 5, self.iso(2), game.week_key(self.D), self.D, tokens=1)
         self.assertEqual(view["status"], "freeze")
+
+
+class QuestPickerTest(GameTest if 'GameTest' in globals() else __import__('tests.helpers', fromlist=['TempDBTestCase']).TempDBTestCase):
+    def test_quest_minutes_and_filters(self):
+        self.assertEqual(game.quest_minutes({"title": "", "text": "Сделай за 15 минут"}), 15)
+        self.assertEqual(game.quest_minutes({"title": "Час тишины", "text": ""}), 60)
+        self.assertEqual(game.quest_minutes({"title": "", "text": "без цифр"}), 20)
+        self.assertTrue(game._time_ok({"title": "", "text": "5 минут"}, "5"))
+        self.assertFalse(game._time_ok({"title": "", "text": "5 минут"}, "60"))

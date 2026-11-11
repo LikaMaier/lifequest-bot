@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import random
+import re
 from collections import Counter
 from datetime import date, datetime, timedelta
 
@@ -465,15 +466,44 @@ def choose_quest(pool: list, done: set, active: set, recent: set, rng=random) ->
 
 
 def free_quest_available(user: dict, today: date = None) -> bool:
-    """Без Premium — один случайный квест в неделю, чтобы попробовать."""
+    """Без Premium — один случайный квест в день: главная фишка должна быть доступна каждый день.
+    (В колонке free_quest_week теперь хранится дата последнего бесплатного квеста.)"""
     if is_premium(user):
         return False
-    return user.get("free_quest_week") != week_key(today or local_today(user))
+    return user.get("free_quest_week") != (today or local_today(user)).isoformat()
 
 
-def random_quest(user_id: int, mode: str, sphere: str = None, rng=random) -> dict:
-    """Случайный квест («Для себя», «На двоих», «Для компании») — с Premium,
-    без него — один в неделю. Сферы не выбираются: задание просто случайное."""
+# Оценка времени на квест по тексту: «15 минут» → 15, «час» → 60, «день/неделя» → 240, иначе 20
+_MIN_RE = re.compile(r"(\d+)\s*(?:мин|минут)")
+_HOUR_RE = re.compile(r"(\d+)?\s*час")
+
+
+def quest_minutes(q: dict) -> int:
+    text = f"{q.get('title', '')} {q.get('text', '')}".lower()
+    m = _MIN_RE.search(text)
+    if m:
+        return max(1, int(m.group(1)))
+    hm = _HOUR_RE.search(text)
+    if hm:
+        return 60 * (int(hm.group(1)) if hm.group(1) else 1)
+    if re.search(r"весь день|неделю|каждый день|за день|целый день", text):
+        return 240
+    return 20
+
+
+TIME_BUCKETS = {"5": (0, 10), "20": (11, 35), "60": (36, 90), "day": (91, 10 ** 6)}
+
+
+def _time_ok(q: dict, bucket: str) -> bool:
+    lo, hi = TIME_BUCKETS.get(bucket, (0, 10 ** 6))
+    return lo <= quest_minutes(q) <= hi
+
+
+def random_quest(user_id: int, mode: str, sphere: str = None, rng=random,
+                 time: str = None, energy: str = None) -> dict:
+    """Случайный квест («Для себя», «На двоих», «Для компании»): бесплатно один в день,
+    с Premium — несколько. Фильтры: time — 5/20/60/day (по оценке текста),
+    energy — lazy (лёгкий уровень) / normal / fire (обычный уровень, с результатом)."""
     if mode not in MODES:
         raise QuestError("Неизвестный режим")
     sphere = None
@@ -488,14 +518,26 @@ def random_quest(user_id: int, mode: str, sphere: str = None, rng=random) -> dic
                          code="roll_limit")
     pool = [q for q in CATALOG.values()
             if q["mode"] == mode and not q.get("pack") and (not sphere or q["sphere"] == sphere)]
+    if time in TIME_BUCKETS:
+        narrowed = [q for q in pool if _time_ok(q, time)]
+        pool = narrowed or pool
+    if energy == "fire":
+        narrowed = [q for q in pool if q.get("outcome")]
+        pool = narrowed or pool
     q = choose_quest(pool, _keys_with_status(user_id, "done"), _active_keys(user_id),
                      _recent_offer_keys(user_id, mode), rng)
-    tier = rng.choice(list(q["tiers"].keys()))
+    tiers = list(q["tiers"].keys())
+    if energy == "lazy" and "easy" in tiers:
+        tier = "easy"
+    elif energy in ("normal", "fire") and "medium" in tiers:
+        tier = "medium"
+    else:
+        tier = rng.choice(tiers)
     conn = storage.connect()
     conn.execute("INSERT INTO quest_offers (user_id, quest_key, mode, local_date, offered_at) VALUES (?, ?, ?, ?, ?)",
                  (user_id, q["id"], mode, today.isoformat(), storage.utc_now_str()))
     if free:
-        conn.execute("UPDATE users SET free_quest_week = ? WHERE user_id = ?", (week_key(today), user_id))
+        conn.execute("UPDATE users SET free_quest_week = ? WHERE user_id = ?", (today.isoformat(), user_id))
     # таблица предложений растёт — храним только последние 300 на пользователя
     conn.execute("""DELETE FROM quest_offers WHERE user_id = ? AND id NOT IN (
                         SELECT id FROM quest_offers WHERE user_id = ? ORDER BY id DESC LIMIT 300)""",
@@ -506,6 +548,7 @@ def random_quest(user_id: int, mode: str, sphere: str = None, rng=random) -> dic
     result["rolls_left"] = max(0, roll_limit(user) - rolls_today(user_id, today)) if not free else 0
     result["free_quest"] = free
     result["favorite"] = q["id"] in favorite_keys(user_id)
+    result["minutes"] = quest_minutes(q)
     return result
 
 

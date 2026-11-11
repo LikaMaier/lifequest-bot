@@ -33,7 +33,7 @@ export function openChallengeChooser(ctx, redraw = () => {}) {
   return s;
 }
 
-/** Ссылка-приглашение: новичку и пригласившему — по заморозке. */
+/** Ссылка-приглашение: новичку и пригласившему — бонус. */
 export function inviteLink(state, questId = null) {
   if (!state.bot_username) return '';
   const payload = questId ? `q_${questId}_${state.user.id}` : `ref_${state.user.id}`;
@@ -44,7 +44,7 @@ export function shareInvite(state, quest = null, customText = null) {
   const link = inviteLink(state, quest && quest.id);
   const text = customText || (quest
     ? `Зову тебя на квест в LifeQuest: «${quest.title}». Кто первый?`
-    : 'Я играю в LifeQuest — бот подкидывает странные и классные задания. Давай со мной? По ссылке нам обоим по заморозке серии 🧊');
+    : 'Я играю в LifeQuest — бот подкидывает странные и классные задания. Давай со мной? Будем соревноваться, кто больше успеет 🔥');
   haptic.tap();
   openTgLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`);
 }
@@ -94,8 +94,8 @@ async function draw(el, ctx) {
   }
 
   const invite = h('div', { class: 'card tinted c-blue', style: { marginTop: '14px' } },
-    h('div', { class: 'bold' }, '🧊 Позови друга — получите по заморозке серии'),
-    h('p', { class: 'small bold', style: { margin: '4px 0 12px' } }, 'Подарок — когда друг впервые откроет бота по твоей ссылке.'),
+    h('div', { class: 'bold' }, '🎁 Позови друга — вместе веселее'),
+    h('p', { class: 'small bold', style: { margin: '4px 0 12px' } }, 'Дуэли, соревнования и лига работают только с друзьями. Бонус обоим — когда друг впервые откроет бота по твоей ссылке.'),
     button('Позвать друга', { cls: 'block', onClick: () => shareInvite(state) }));
   if (!cache.friends.length) {
     body.append(invite);

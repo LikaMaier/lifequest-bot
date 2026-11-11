@@ -240,7 +240,8 @@ async def get_state(request):
 async def quest_random(request):
     _limit(request, "random")
     data = await _body(request)
-    quest = game.random_quest(request["user_id"], str(data.get("mode", "")), data.get("sphere") or None)
+    quest = game.random_quest(request["user_id"], str(data.get("mode", "")), data.get("sphere") or None,
+                              time=data.get("time") or None, energy=data.get("energy") or None)
     return web.json_response({"quest": quest, "new_achievements": game.check_achievements(request["user_id"])})
 
 

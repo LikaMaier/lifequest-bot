@@ -304,3 +304,50 @@ export function jarChart(series, { total = null, label = 'Банка сдела�
   } else start();
   return box;
 }
+
+/** Колесо баланса: сферы — лепестки по кругу, у каждого светящаяся дуга по доле сделанного
+ *  относительно самой активной сферы; в центре — оценка баланса от 0 до 10
+ *  (10 — все сферы прокачаны одинаково). spheres: [{key, name, count, color, emoji}]. */
+export function balanceWheel(spheres, { label = 'Колесо баланса' } = {}) {
+  const items = spheres.filter(x => x).slice(0, 8);
+  const n = items.length;
+  const W = 320, C = 160, R1 = 150, R0 = 58, GAP = 0.06;
+  const maxv = Math.max(1, ...items.map(x => x.count || 0));
+  const fr = items.map(x => Math.min(1, (x.count || 0) / maxv));
+  const score = n ? Math.round(10 * fr.reduce((a, b) => a + b, 0) / n * 10) / 10 : 0;
+  const pol = (r, a) => [C + r * Math.cos(a), C + r * Math.sin(a)];
+  const wedge = (a0, a1, r0, r1) => {
+    const [x0, y0] = pol(r1, a0), [x1, y1] = pol(r1, a1), [x2, y2] = pol(r0, a1), [x3, y3] = pol(r0, a0);
+    const big = a1 - a0 > Math.PI ? 1 : 0;
+    return `M${x0.toFixed(1)} ${y0.toFixed(1)} A${r1} ${r1} 0 ${big} 1 ${x1.toFixed(1)} ${y1.toFixed(1)} L${x2.toFixed(1)} ${y2.toFixed(1)} A${r0} ${r0} 0 ${big} 0 ${x3.toFixed(1)} ${y3.toFixed(1)} Z`;
+  };
+  const arc = (a0, a1, r) => {
+    const [x0, y0] = pol(r, a0), [x1, y1] = pol(r, a1);
+    return `M${x0.toFixed(1)} ${y0.toFixed(1)} A${r} ${r} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+  };
+  let defs = '', body = '';
+  items.forEach((sp, i) => {
+    const a0 = -Math.PI / 2 + (i / n) * Math.PI * 2 + GAP / 2, a1 = -Math.PI / 2 + ((i + 1) / n) * Math.PI * 2 - GAP / 2;
+    const mid = (a0 + a1) / 2, col = `var(--${sp.color || 'lav'})`, deep = `var(--${sp.color || 'lav'}-deep)`;
+    const [ix, iy] = pol((R0 + R1) / 2 + 6, mid), [lx, ly] = pol(R1 + 14, mid);
+    body += `<path d="${wedge(a0, a1, R0 + 6, R1)}" class="bw-wedge" style="--c:${col}"/>`;
+    // светящаяся дуга внутри лепестка — доля
+    const span = a1 - a0, fa1 = a0 + span * fr[i];
+    if (fr[i] > 0.02) body += `<path d="${arc(a0, fa1, R0 + 12)}" class="bw-arc" style="--c:${deep};--g:${col}"/>`;
+    body += `<path d="${arc(a0, a1, R0 + 12)}" class="bw-track"/>`;
+    body += `<text x="${ix.toFixed(1)}" y="${(iy + 7).toFixed(1)}" class="bw-emoji" text-anchor="middle">${sp.emoji || '⭐'}</text>`;
+    const deg = mid * 180 / Math.PI + 90, flip = deg > 90 && deg < 270;
+    body += `<text class="bw-label" text-anchor="middle" transform="translate(${lx.toFixed(1)} ${ly.toFixed(1)}) rotate(${(flip ? deg + 180 : deg).toFixed(1)})" dy="${flip ? 4 : 0}">${escBw(sp.name || sp.key)}</text>`;
+    body += `<text x="${ix.toFixed(1)}" y="${(iy + 24).toFixed(1)}" class="bw-count" text-anchor="middle">${sp.count || 0}</text>`;
+  });
+  const svg = `<svg viewBox="-20 -20 ${W + 40} ${W + 40}" class="bw-svg" role="img" aria-label="${label}: ${score} из 10">${defs}
+    <circle cx="${C}" cy="${C}" r="${R0}" class="bw-core"/>${body}
+    <text x="${C}" y="${C + 4}" text-anchor="middle" class="bw-score"><tspan class="bw-score-n">${String(score).replace('.', ',')}</tspan><tspan class="bw-score-d">/10</tspan></text>
+    <text x="${C}" y="${C + 26}" text-anchor="middle" class="bw-score-l">баланс</text></svg>`;
+  const wrap = document.createElement('div'); wrap.className = 'bw'; wrap.innerHTML = svg;
+  const tip = n ? (score >= 8 ? 'Сферы в балансе — редкость, горжусь! ✨' : score >= 5 ? 'Хороший баланс. Подтяни самые тихие лепестки 🌱'
+    : 'Перекос в одну сторону — возьми квест из тихой сферы 🎲') : 'Сделай первый квест — колесо оживёт';
+  wrap.append(Object.assign(document.createElement('p'), { className: 'bw-tip', textContent: tip }));
+  return wrap;
+}
+function escBw(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }

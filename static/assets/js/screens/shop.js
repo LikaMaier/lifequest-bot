@@ -1,4 +1,4 @@
-// Магазин: XP тратится на заморозки серии и аксессуары для маскота.
+// Магазин: XP тратится на аксессуары для маскота.
 // Уровень от покупок не падает — он считается по всему заработанному XP.
 
 import { h, clear } from '../dom.js';
@@ -42,7 +42,6 @@ function draw(body, el, ctx) {
   const u = ctx.state.user;
   const shop = cache;
   const worn = preview === undefined ? shop.accessory : preview;
-  const freeze = shop.items.find(i => i.kind === 'freeze');
 
   // Витрина: маскот в примеряемом аксессуаре и баланс
   body.append(h('section', { class: 'card tinted c-pink center' },
@@ -52,20 +51,7 @@ function draw(body, el, ctx) {
     h('p', { class: 'tiny bold', style: { color: 'var(--pink-deep)', marginTop: '2px' } },
       'можно потратить · уровень от покупок не падает')));
 
-  // Заморозки
-  const full = freeze.count >= freeze.max;
-  const freezeBtn = h('button', { type: 'button', class: 'btn', disabled: full || shop.balance < freeze.price },
-    full ? 'Морозилка полна' : `Купить за ${freeze.price} XP`);
-  freezeBtn.addEventListener('click', () => confirmBuy(freeze, el, ctx));
-  body.append(sectionTitle('Защита серии'), h('section', { class: 'card shop-freeze' },
-    h('div', { class: 'row', style: { gap: '12px', alignItems: 'flex-start' } },
-      h('div', { class: 'shop-ice', 'aria-hidden': 'true' }, '🧊'),
-      h('div', { class: 'grow' },
-        h('div', { class: 'bold' }, freeze.name),
-        h('p', { class: 'small muted bold', style: { marginTop: '2px' } }, freeze.about),
-        h('div', { class: 'shop-tokens', 'aria-label': `В запасе ${freeze.count} из ${freeze.max}` },
-          Array.from({ length: freeze.max }, (_, i) => h('span', { class: i < freeze.count ? 'on' : '' }, '❄️'))))),
-    h('div', { style: { marginTop: '10px' } }, freezeBtn, starsFreeze(ctx, full, el))));
+  // Заморозки серии в витрине больше не продаём (механика сложная, не продвигаем); запас, если есть, работает сам
 
   // Аксессуары: сначала тематические наборы (Хэллоуин, Осень…), потом обычные
   const SET_MARK = { halloween: '🎃', autumn: '🍂', winter: '🎄' };

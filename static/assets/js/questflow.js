@@ -110,7 +110,7 @@ function actionsRow(...buttons) {
 }
 
 /** Рулетка: крутится 0.6–1 с, параллельно идёт запрос. */
-export function openRandom(mode) {
+export function openRandom(mode, opts = {}) {
   const s = sheet(h('div'), { label: `Задание: ${MODE_INFO[mode].label}` });
   const spin = async () => {
     haptic.tap('medium');
@@ -120,7 +120,7 @@ export function openRandom(mode) {
     let i = 0;
     const timer = setInterval(() => { emojiEl.textContent = SPIN_EMOJI[i++ % SPIN_EMOJI.length]; haptic.select(); }, 110);
     try {
-      const [res] = await Promise.all([api.random(mode), wait(reduceMotion() ? 0 : 800)]);
+      const [res] = await Promise.all([api.random(mode, null, opts), wait(reduceMotion() ? 0 : 800)]);
       clearInterval(timer);
       showOffer(res.quest);
       celebrate(res);
@@ -140,7 +140,7 @@ export function openRandom(mode) {
     }));
     const other = h('button', { type: 'button', class: 'btn ghost', 'aria-label': 'Другое задание' },
       h('span', { html: ICONS.reroll, style: { width: '20px', height: '20px', display: 'inline-flex' } }), 'Другое');
-    // бесплатный квест недели: «Другое» — уже с Premium
+    // бесплатный квест дня: «Другое» — уже с Premium
     other.addEventListener('click', () => (q.free_quest ? (s.close(), openPaywall('premium_quests')) : spin()));
     if (q.free_quest) refreshState().catch(() => {});
     s.setContent(h('div', null,
@@ -148,7 +148,7 @@ export function openRandom(mode) {
       actionsRow(acceptBtn, favButton(q)),
       h('div', { class: 'row', style: { justifyContent: 'center' } }, other),
       h('p', { class: 'center tiny muted bold', style: { marginTop: '6px' } }, q.free_quest
-        ? '🎁 Бесплатный квест этой недели. С Premium — сколько угодно'
+        ? '🎁 Твой бесплатный квест на сегодня. С Premium — перевыборы без лимита'
         : `Осталось ${q.rolls_left} ${plural(q.rolls_left, 'попытка', 'попытки', 'попыток')} на сегодня`)));
   };
   spin();
@@ -198,3 +198,38 @@ export function modeButtons() {
     }));
 }
 
+
+/** Экран «Не знаешь, чем заняться?»: три вопроса чипами → случайный квест под них.
+ *  Без Premium — один в день бесплатно (выбор фильтров тоже бесплатный). */
+const PICK = {
+  time: [['5', '⚡ 5 мин'], ['20', '⏱ 15–30 мин'], ['60', '🕐 час'], ['day', '📅 весь день']],
+  energy: [['lazy', '🥱 лень'], ['normal', '🙂 норм'], ['fire', '🔥 огонь']],
+  mode: [['solo', '🙂 один'], ['pair', '💞 вдвоём'], ['company', '👯 компания']],
+};
+const pickState = { time: '20', energy: 'normal', mode: 'solo' };
+try { Object.assign(pickState, JSON.parse(localStorage.getItem('lq_pick') || '{}')); } catch (e) { /* ignore */ }
+
+export function questPicker() {
+  const premium = Boolean(store.state && store.state.premium && store.state.premium.active);
+  const free = Boolean(store.state && store.state.free_quest);
+  const row = (key, title) => {
+    const chips = h('div', { class: 'qp-chips', role: 'radiogroup', 'aria-label': title });
+    const paint = () => chips.querySelectorAll('button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === pickState[key])));
+    PICK[key].forEach(([v, label]) => {
+      const b = h('button', { type: 'button', role: 'radio', dataset: { v } }, label);
+      b.addEventListener('click', () => { haptic.select(); pickState[key] = v; try { localStorage.setItem('lq_pick', JSON.stringify(pickState)); } catch (e) { /* ignore */ } paint(); });
+      chips.append(b);
+    });
+    paint();
+    return h('div', { class: 'qp-row' }, h('div', { class: 'qp-q' }, title), chips);
+  };
+  const go = h('button', { type: 'button', class: 'qp-go' }, h('span', { class: 'qp-dice', 'aria-hidden': 'true' }, '🎲'),
+    h('span', null, h('b', null, 'Дай задание'), h('small', null, premium ? 'перевыборы без лимита' : free ? '🎁 сегодня бесплатно' : '🔒 на сегодня взят · Premium — без лимита')));
+  go.addEventListener('click', () => {
+    if (!premium && !free) { haptic.tap(); openPaywall('premium_quests'); return; }
+    openRandom(pickState.mode, { time: pickState.time, energy: pickState.energy });
+  });
+  return h('section', { class: 'qp', 'aria-label': 'Подбор задания' },
+    h('h2', null, 'Не знаешь, чем заняться?'), h('p', null, 'Ответь на три вопроса — подберу задание под настроение'),
+    row('time', '⏱ Сколько есть времени?'), row('energy', '⚡ Сколько сил?'), row('mode', '👥 С кем?'), go);
+}
