@@ -33,6 +33,7 @@ import contests
 import duels
 import friends
 import game
+import social
 import ops
 import habits
 import notes
@@ -494,6 +495,36 @@ async def duel_action(request):
         raise web.HTTPNotFound()
     result = _with_notify(fn(request["user_id"], _int(request.match_info["id"])))
     result["duels"] = duels.list_view(request["user_id"])
+    return web.json_response(result)
+
+
+# ---------- лента друзей, реакции, пинки, квест вдвоём (social.py) ----------
+async def get_feed(request):
+    return web.json_response(social.feed(request["user_id"]))
+
+
+async def feed_react(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(_with_notify(social.react(request["user_id"], str(data.get("event_id", "")), str(data.get("emoji") or ""))))
+
+
+async def friend_ping(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(_with_notify(social.ping(request["user_id"], _int(data.get("friend_id")), str(data.get("kind", "")))))
+
+
+async def pair_create(request):
+    _limit(request, "write")
+    data = await _body(request)
+    return web.json_response(_with_notify(social.pair_create(request["user_id"], _int(data.get("friend_id")), data.get("quest_key") or None)))
+
+
+async def pair_action(request):
+    _limit(request, "write")
+    result = _with_notify(social.pair_action(request["user_id"], _int(request.match_info["id"]), request.match_info["action"]))
+    result["pair_list"] = social.pair_list(request["user_id"])
     return web.json_response(result)
 
 
@@ -1180,6 +1211,11 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_delete("/api/albums/{id:[0-9]+}", album_delete)
     app.router.add_delete("/api/albums/{id:[0-9]+}/photos/{pid:[0-9a-f]{32}}", album_photo_delete)
     app.router.add_get("/api/friends", get_friends)
+    app.router.add_get("/api/feed", get_feed)
+    app.router.add_post("/api/feed/react", feed_react)
+    app.router.add_post("/api/friends/ping", friend_ping)
+    app.router.add_post("/api/pair", pair_create)
+    app.router.add_post(r"/api/pair/{id:\d+}/{action}", pair_action)
     app.router.add_post("/api/invite-nudge", invite_nudge_seen)
     app.router.add_post("/api/friends/remove", friend_remove)
     app.router.add_get("/api/ai/options", ai_options)

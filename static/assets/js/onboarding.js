@@ -1,5 +1,6 @@
-// Приветствие при первом открытии: 3 шага — что такое LifeQuest, выбор
-// первых привычек из шаблонов и квесты-бонус.
+// Приветствие при первом открытии: обещание из рекламы — сразу. Шаг 1 — что это,
+// шаг 2 — первые привычки, шаг 3 — «первый квест за 5 минут»: закрываем
+// онбординг и открываем случайное задание. Привычки и друзья — после первой победы.
 // Отметка «уже видел» хранится на сервере (users.onboarded) — работает на
 // любом устройстве. Повторно открывается из Профиля.
 
@@ -17,12 +18,12 @@ const feature = (emoji, color, title, text) => h('div', { class: `onb-feature c-
 const SLIDES = [
   {
     color: 'pink', kind: 'cat-purple', expr: 'love',
-    title: 'Привет! Это LifeQuest',
-    lead: 'Трекер привычек и планер, который не ругает, а играет с тобой. Маленькие шаги каждый день — и большие перемены.',
+    title: 'Не знаешь, чем заняться?',
+    lead: 'LifeQuest — игра против прокрастинации. Жми 🎲 — получишь задание на 15 минут. Делай одна или с друзьями, а маскот растёт вместе с тобой.',
     body: () => [
-      feature('🌱', 'lime', 'Привычки', 'Свои ритуалы по расписанию, серии и напоминания в чат.'),
-      feature('🗓️', 'blue', 'План дня', 'Дела по времени, главное дело дня и напоминания.'),
-      feature('🌿', 'yellow', 'Без чувства вины', 'Не успелось — бывает. Перенеси, пропусти или поставь паузу.'),
+      feature('🎲', 'purple', 'Квест на сейчас', 'Случайное задание, когда скучно или всё откладываешь. Каждый день — бесплатно.'),
+      feature('👥', 'orange', 'С друзьями', 'Дуэли, соревнования, квесты вдвоём и лига недели.'),
+      feature('🐾', 'pink', 'Маскот и прогресс', 'Галочки кормят маскота, колесо баланса показывает рост.'),
     ],
   },
   {
@@ -32,13 +33,14 @@ const SLIDES = [
   },
   {
     color: 'purple', kind: 'star', expr: 'wink',
-    title: 'А ещё — приключения',
-    lead: 'Когда захочется чего-то нового, я подкину квест: для себя, на двоих или для компании.',
+    title: 'Первый квест — прямо сейчас',
+    lead: 'Самое сложное — начать. Я подберу задание на 5–15 минут: сделай его, сфоткай результат и получи первые XP.',
     body: () => [
-      feature('✨', 'purple', 'Квесты-бонус', 'Необычные задания на 15 минут или на целый день.'),
-      feature('📷', 'pink', 'Воспоминания', 'Фото с квестов и дней — полароиды в альбоме.'),
-      feature('🔥', 'orange', 'Серия и маскот', 'Делай привычки — маскот радуется, серия растёт.'),
+      feature('⏱️', 'yellow', '5 минут', 'Маленькое, но настоящее дело — почувствуй, как это работает.'),
+      feature('📷', 'pink', 'Фото-отчёт', 'Полароид останется в альбоме воспоминаний.'),
+      feature('⭐', 'purple', '+XP и еда маскоту', 'Первая победа — и Сирень уже доволен.'),
     ],
+    first: true,
   },
 ];
 
@@ -54,12 +56,16 @@ export function showOnboarding({ onDone } = {}) {
     slideHost, dots, h('div', { class: 'row onb-actions' }, back, next));
 
   let release = null;
+  let skipped = false;
   const finish = async () => {
     overlay.remove();
     release && release();
     haptic.success();
     try { setState(await api.settings({ onboarded: true })); } catch (e) { /* не страшно — покажем ещё раз */ }
     onDone && onDone();
+    if (SLIDES[i] && SLIDES[i].first && !skipped) {
+      try { (await import('./questflow.js')).openRandom('solo'); } catch (e) { /* не страшно */ }
+    }
   };
 
   const draw = (dir = 0) => {
@@ -76,7 +82,7 @@ export function showOnboarding({ onDone } = {}) {
     clear(dots).append(...SLIDES.map((_, k) => h('span', { class: `onb-dot ${k === i ? 'on' : ''}`, 'aria-hidden': 'true' })));
     dots.setAttribute('aria-label', `Шаг ${i + 1} из ${SLIDES.length}`);
     back.style.display = i === 0 ? 'none' : '';
-    next.textContent = i === SLIDES.length - 1 ? 'Поехали! 🚀' : SLIDES[i].picker ? 'Позже' : 'Дальше';
+    next.textContent = i === SLIDES.length - 1 ? '🎲 Дай первый квест' : SLIDES[i].picker ? 'Позже' : 'Дальше';
     next.classList.toggle('ghost', Boolean(SLIDES[i].picker));
     skip.style.visibility = i === SLIDES.length - 1 ? 'hidden' : 'visible';
   };
@@ -90,7 +96,7 @@ export function showOnboarding({ onDone } = {}) {
   };
   next.addEventListener('click', () => go(1));
   back.addEventListener('click', () => go(-1));
-  skip.addEventListener('click', finish);
+  skip.addEventListener('click', () => { skipped = true; finish(); });
 
   // свайп между слайдами
   let sx = null, sy = null;
