@@ -6,7 +6,7 @@ import { api } from './api.js';
 import { haptic, openTgLink } from './tg.js';
 import { mascot } from './mascot.js';
 import { sheet, toast, toastError, busy, confetti, modal } from './ui.js';
-import { refreshState } from './store.js';
+import { refreshState, store } from './store.js';
 
 export const MODE_INFO = {
   duel: { emoji: '⚔️', title: 'Дуэль', hint: 'Кто чаще выполнит привычку — получит шапочку для маскота 🎩' },
@@ -309,20 +309,20 @@ export function duelRow(d, { go } = {}) {
 }
 
 /** Окно «Бросить вызов». friend — выбранный заранее друг (или null). */
-export async function openDuelCreator(ctx, { friend = null, friends = null, onDone } = {}) {
+export async function openDuelCreator(ctx, { friend = null, friends = null, onDone, habitId = null } = {}) {
   const { state } = ctx;
   const own = (state.habits.items || []).filter(x => x.kind === 'build');
   const s = sheet(h('div'), { label: 'Бросить вызов' });
   if (!own.length) {
-    const go = h('button', { type: 'button', class: 'btn block' }, 'Выбрать привычку');
-    go.addEventListener('click', async () => { s.close(); (await import('./habitui.js')).openTemplatePicker({}); });
+    const go = h('button', { type: 'button', class: 'btn block' }, '＋ Создать привычку для вызова');
+    go.addEventListener('click', async () => { s.close(); (await import('./habitui.js')).openHabitEditor(null, { onSaved: async () => { await refreshState().catch(() => {}); openDuelCreator({ ...ctx, state: store.state || ctx.state }, { friend, friends, onDone }); } }); });
     s.setContent(h('div', { class: 'stack' }, h('h2', null, '⚔️ Бросить вызов'),
       h('p', { class: 'bold muted' }, 'Сначала заведи хотя бы одну привычку — по ней и будете соревноваться.'), go));
     return s;
   }
   let list = friends;
   if (!list) { try { list = (await api.friends()).friends; } catch { list = []; } }
-  const form = { habit: own[0].id, mode: 'duel', days: 7, friend: friend ? friend.id : (list[0] ? list[0].id : null) };
+  const form = { habit: habitId && own.some(x => x.id === habitId) ? habitId : own[0].id, mode: 'duel', days: 7, friend: friend ? friend.id : (list[0] ? list[0].id : null) };
 
   const chipRow = (items, key, render) => {
     const row = h('div', { class: 'duel-chips' });
@@ -343,6 +343,19 @@ export async function openDuelCreator(ctx, { friend = null, friends = null, onDo
   }));
   drawModes();
 
+  // Новая привычка прямо отсюда: создаём и возвращаемся в вызов с уже выбранной
+  const newHabit = h('button', { type: 'button', class: 'duel-chip duel-chip-new', style: { marginTop: '8px' } }, '＋ Новая привычка');
+  newHabit.addEventListener('click', async () => {
+    haptic.tap();
+    const before = new Set(own.map(x => x.id));
+    s.close();
+    (await import('./habitui.js')).openHabitEditor(null, { onSaved: async () => {
+      await refreshState().catch(() => {});
+      const st = store.state || state;
+      const created = (st.habits.items || []).find(x => x.kind === 'build' && !before.has(x.id));
+      openDuelCreator({ ...ctx, state: st }, { friend: list.find(x => x.id === form.friend) || friend, friends: list, onDone, habitId: created ? created.id : null });
+    } });
+  });
   const friendItems = [...list.map(f => ({ value: f.id, f })), { value: null, link: true }];
   const friendRow = chipRow(friendItems, 'friend', it => it.link ? '📨 По ссылке'
     : h('span', { class: 'duel-chip-friend' }, mascot(it.f.mascot, 'wink', { size: 22, acc: it.f.accessory }), it.f.name));
@@ -366,7 +379,8 @@ export async function openDuelCreator(ctx, { friend = null, friends = null, onDo
   s.setContent(h('div', { class: 'stack duel-create' },
     h('h2', null, '⚔️ Бросить вызов'),
     h('div', null, h('div', { class: 'cal2-label' }, 'Привычка'),
-      chipRow(own.map(x => ({ value: x.id, x })), 'habit', it => `${it.x.emoji} ${it.x.title}`)),
+      chipRow(own.map(x => ({ value: x.id, x })), 'habit', it => `${it.x.emoji} ${it.x.title}`),
+      newHabit, h('p', { class: 'tiny bold muted', style: { marginTop: '6px' } }, 'Нет подходящей? Создай новую — она появится в твоих привычках и сразу встанет в вызов.')),
     h('div', null, h('div', { class: 'cal2-label' }, 'Как соревнуемся'), modes),
     h('div', null, h('div', { class: 'cal2-label' }, 'Сколько дней'),
       chipRow([3, 7, 14, 30].map(n => ({ value: n })), 'days', it => `${it.value} ${dayWord(it.value)}`)),

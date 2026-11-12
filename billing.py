@@ -23,7 +23,7 @@ CURRENCY = "XTR"
 YOOKASSA_TOKEN = os.getenv("YOOKASSA_PROVIDER_TOKEN", "").strip()
 YOOKASSA_RECEIPT = os.getenv("YOOKASSA_RECEIPT", "") == "1"
 YOOKASSA_VAT_CODE = int(os.getenv("YOOKASSA_VAT_CODE", "1") or 1)  # 1 — без НДС
-RUB_PRICES = {"premium_month": 19900, "premium_year": 149000}  # в копейках: 199 ₽ и 1490 ₽
+RUB_PRICES = {"premium_month": 19900, "premium_year": 149000, "premium_forever": 300000}  # в копейках: 199, 1490 и 3000 ₽
 
 # id → название, цена в звёздах, дни Premium (если это Premium)
 PRODUCTS = {
@@ -32,12 +32,20 @@ PRODUCTS = {
                                      "все маскоты, эксклюзивные аксессуары и стили."},
     "premium_year": {"title": "LifeQuest Premium · год", "stars": 990, "days": 365,
                      "description": "Всё из Premium на 12 месяцев — дешевле, чем платить помесячно."},
+    "premium_forever": {"title": "LifeQuest Premium · навсегда", "stars": 2250, "days": 0,
+                        "description": "Весь Premium один раз и навсегда — без продлений и подписок."},
     "freeze": {"title": "Заморозка серии", "stars": 25,
                "description": "Спасёт серию за один пропущенный день. Срабатывает сама."},
     "streak_restore": {"title": "Вернуть серию", "stars": 49,
                        "description": "Серия продолжится с того же числа, как будто пропуска не было."},
 }
 PREMIUM_PRODUCTS = {"premium_month", "premium_year"}
+FOREVER = "premium_forever"
+# «Навсегда» со скидкой — в первый месяц после регистрации (а тем, кто пришёл раньше
+# запуска тарифа, — до FOREVER_LAUNCH_UNTIL включительно)
+FOREVER_DISCOUNT_DAYS = 30
+FOREVER_DISCOUNT = {"RUB": 100000, CURRENCY: 750}
+FOREVER_LAUNCH_UNTIL = date(2026, 12, 12)
 # −50% на первый месяц — одинаково для рублей и звёзд (кто ещё ни разу не платил)
 FIRST_PURCHASE_PRICE = {"premium_month": 75}
 RUB_FIRST_PURCHASE_PRICE = {"premium_month": 9900}
@@ -61,6 +69,18 @@ def paid_before(user_id: int) -> bool:
     n = conn.execute("SELECT COUNT(*) FROM payments WHERE user_id = ?", (user_id,)).fetchone()[0]
     conn.close()
     return n > 0
+
+
+def forever_discount_until(user: dict):
+    """До какой даты (включительно) «навсегда» продаётся со скидкой; None — скидки уже нет."""
+    today = _now().date()
+    until = FOREVER_LAUNCH_UNTIL
+    try:
+        joined = datetime.fromisoformat(str((user or {}).get("created_at") or "")[:19]).date()
+        until = max(until, joined + timedelta(days=FOREVER_DISCOUNT_DAYS))
+    except ValueError:
+        pass
+    return until if today <= until else None
 
 
 def done_count(user_id: int) -> int:
@@ -132,6 +152,8 @@ def price(user_id: int, product: str, currency: str = CURRENCY) -> int:
     """Цена в единицах счёта: копейки для рублей, штуки для звёзд."""
     if product not in PRODUCTS:
         raise game.QuestError("Такого товара нет")
+    if product == FOREVER and forever_discount_until(storage.get_user(user_id)):
+        return FOREVER_DISCOUNT["RUB" if currency == "RUB" else CURRENCY]
     if currency == "RUB":
         if product not in RUB_PRICES:
             raise game.QuestError("Этот товар продаётся только за звёзды")
@@ -218,6 +240,7 @@ def premium_view(user: dict) -> dict:
         "full_prices": {p: PRODUCTS[p]["stars"] for p in PRODUCTS},
         "options": {p: pay_options(uid, p) for p in PRODUCTS},
         "first_discount": not paid_before(uid),
+        "forever_discount_until": (forever_discount_until(user).isoformat() if forever_discount_until(user) else None),
         "social": social_proof(uid),
         "buyable": [p for p in PRODUCTS if buyable(p)],
         "restore": restore_offer(user) if game.PAYMENTS_ENABLED else 0,
@@ -236,7 +259,7 @@ def check_purchase(user_id: int, product: str):
         raise game.QuestError(f"Больше {game.FREEZE_MAX} заморозок не помещается в морозилку 🧊")
     if product == "streak_restore" and not restore_offer(user):
         raise game.QuestError("Эту серию уже не вернуть — но новая начинается сегодня 🌱")
-    if product in PREMIUM_PRODUCTS and game.premium_forever(user):
+    if (product in PREMIUM_PRODUCTS or product == FOREVER) and game.premium_forever(user):
         raise game.QuestError("У тебя уже Premium навсегда 💛")
 
 
@@ -311,6 +334,9 @@ def apply_payment(user_id: int, payload: str, charge_id: str, total: int, curren
     result = {"product": product, "duplicate": False}
     if product in PREMIUM_PRODUCTS:
         result["until"] = _extend_premium(conn, user, PRODUCTS[product]["days"])
+    elif product == FOREVER:
+        conn.execute("UPDATE users SET is_premium = 1, premium_notice = NULL WHERE user_id = ?", (user_id,))
+        result["forever"] = True
     elif product == "freeze":
         conn.execute("UPDATE users SET freeze_tokens = COALESCE(freeze_tokens, 0) + 1 WHERE user_id = ?", (user_id,))
     elif product == "streak_restore":
@@ -365,6 +391,8 @@ def mark_refunded(charge_id: str):
         if until:
             new = until - timedelta(days=PRODUCTS[row["product"]]["days"])
             conn.execute("UPDATE users SET premium_until = ? WHERE user_id = ?", (_fmt(new), row["user_id"]))
+    elif row["product"] == FOREVER:
+        conn.execute("UPDATE users SET is_premium = 0 WHERE user_id = ?", (row["user_id"],))
     elif row["product"] == "freeze":
         conn.execute("UPDATE users SET freeze_tokens = MAX(0, COALESCE(freeze_tokens, 0) - 1) WHERE user_id = ?",
                      (row["user_id"],))

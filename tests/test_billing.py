@@ -226,7 +226,7 @@ class RublePaymentsTest(TempDBTestCase):
             self.assertEqual(billing.invoice_params(1, "premium_month")["currency"], "RUB")
             with self.assertRaises(game.QuestError):
                 billing.invoice_params(1, "freeze")
-            self.assertEqual(billing.premium_view(storage.get_user(1))["buyable"], ["premium_month", "premium_year"])
+            self.assertEqual(billing.premium_view(storage.get_user(1))["buyable"], ["premium_month", "premium_year", "premium_forever"])
 
     def test_old_star_payload_still_accepted(self):
         self.assertEqual(billing.validate_checkout(1, "freeze:1:25", 25, "XTR"), "freeze")
@@ -261,13 +261,14 @@ class PremiumChatTariffsTest(TempDBTestCase):
         self.assertIn("<s>199 ₽</s>", text)
         self.assertIn("1490 ₽", text)
         self.assertIn("75⭐", text)
-        self.assertEqual([b.callback_data for b in buttons[:4]],
-                         ["pay_premium_month:RUB", "pay_premium_year:RUB", "pay_premium_month:XTR", "pay_premium_year:XTR"])
+        self.assertEqual([b.callback_data for b in buttons[:6]],
+                         ["pay_premium_month:RUB", "pay_premium_year:RUB", "pay_premium_forever:RUB",
+                          "pay_premium_month:XTR", "pay_premium_year:XTR", "pay_premium_forever:XTR"])
         self.assertTrue(buttons[0].text.startswith("💳 Оплатить 99 ₽"))
         self.assertIsNotNone(buttons[-1].web_app)
         with mock.patch.object(game, "PAYMENTS_ENABLED", False):
             self.assertEqual([b.callback_data for row in lb.premium_keyboard(1).inline_keyboard for b in row
-                              if b.callback_data], ["pay_premium_month:RUB", "pay_premium_year:RUB"])
+                              if b.callback_data], ["pay_premium_month:RUB", "pay_premium_year:RUB", "pay_premium_forever:RUB"])
 
 
 class PremiumNoticesTest(TempDBTestCase):

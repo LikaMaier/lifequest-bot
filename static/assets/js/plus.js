@@ -62,7 +62,7 @@ export function openPlus({ go, onChange } = {}) {
     h('div', { class: 'plus-grid' },
       kind('Привычка', 'ритуал на каждый день', 'lime', async () => (await import('./habitui.js')).openHabitEditor(null, { onSaved: onChange })),
       kind('План', 'дело на дату и время', 'blue', async () => (await import('./screens/calendar.js')).openQuickAdd(today, { onChange })),
-      kind('Заметка', 'мысль или итог дня', 'lav', () => openNote(today)),
+      kind('Заметка', 'мысль или итог дня', 'lav', () => openNote(today, go)),
       kind('Фото дня', 'в альбом воспоминаний', 'pink', async () => (await import('./planui.js')).openDaySheet(today, { onChange })),
       kind('Квест', 'подкинь приключение', 'orange', () => go && go('quests')),
       kind('Из шаблонов', 'готовые привычки', 'yellow', async () => (await import('./habitui.js')).openTemplatePicker({ onDone: onChange })))));
@@ -70,11 +70,15 @@ export function openPlus({ go, onChange } = {}) {
   return s;
 }
 
-async function openNote(day) {
+async function openNote(day, go) {
   const { noteComposer } = await import('./noteui.js');
   const s = sheet(h('div'), { label: 'Заметка' });
+  const all = h('button', { type: 'button', class: 'cal2-link' }, '📒 Все мои заметки');
+  all.addEventListener('click', () => { haptic.tap(); s.close(); go && go('notes', { fresh: true }); });
   s.setContent(h('div', { class: 'stack' }, h('h2', null, '📝 Заметка'),
-    noteComposer({ day, draftKey: 'plus', placeholder: 'Мысль, идея или итог дня…', onSaved: () => { toast('Заметка сохранена ✓', 'good'); s.close(); } })));
+    noteComposer({ day, draftKey: 'plus', placeholder: 'Мысль, идея или итог дня…', onSaved: () => {
+      toast('Заметка сохранена ✓ — вот все твои заметки', 'good', 2400); s.close(); go && go('notes', { fresh: true });
+    } }), go ? all : null));
 }
 
 /** Плавающая кнопка «+». */
