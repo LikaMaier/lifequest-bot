@@ -2553,3 +2553,27 @@ p { margin: 0; }
 .lg-banner b { display: block; font-size: 15px; }
 .lg-banner span:not(.lg-banner-medal) { display: block; font-size: 12px; font-weight: 800; opacity: .85; }
 .lg-champ { font-size: 13px; }
+
+/* ---------- Главная: сетка недели по привычкам ---------- */
+.hb2-view { display: inline-flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--cream-2, rgba(0,0,0,.06)); margin-right: 6px; }
+.hb2-view button { display: grid; place-items: center; width: 28px; height: 24px; border: 0; border-radius: 8px; background: none; color: var(--muted); }
+.hb2-view button[aria-selected="true"] { background: var(--white); color: var(--ink); box-shadow: 0 1px 0 var(--line); }
+.wg { display: flex; flex-direction: column; gap: 7px; }
+.wg-row { display: grid; grid-template-columns: minmax(0, 1fr) repeat(7, 27px); gap: 4px; align-items: center; }
+.wg-head { margin-bottom: 2px; }
+.wg-d { display: flex; flex-direction: column; align-items: center; line-height: 1.05; font-size: 10px; font-weight: 800; color: var(--muted); }
+.wg-d i { font-style: normal; text-transform: uppercase; opacity: .7; }
+.wg-d b { font-size: 12px; color: var(--ink); }
+.wg-d.today b { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--ink); color: var(--white); }
+.wg-name { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 13px; font-weight: 800; }
+.wg-emoji { font-size: 15px; flex: none; }
+.wg-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wg-cell { display: block; width: 27px; height: 18px; border: 0; padding: 0; border-radius: 7px; background: var(--cream-2, rgba(0,0,0,.07)); font: inherit; }
+.wg-cell.s-done, .wg-cell.s-clean { background: var(--c); box-shadow: inset 0 -2px 0 rgba(0,0,0,.12); }
+.wg-cell.s-miss, .wg-cell.s-slip { background: var(--ink); opacity: .75; }
+.wg-cell.s-skip { background: repeating-linear-gradient(135deg, var(--c) 0 3px, transparent 3px 6px); opacity: .6; }
+.wg-cell.s-pause, .wg-cell.s-off, .wg-cell.s-before { opacity: .35; }
+.wg-cell.s-future { opacity: .45; }
+.wg-cell.today { outline: 2px solid var(--ink); outline-offset: 1px; }
+.wg-cell.s-today { background: var(--cream-2, rgba(0,0,0,.07)); }
+button.wg-cell:active { transform: scale(.92); }

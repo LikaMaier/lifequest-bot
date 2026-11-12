@@ -61,7 +61,7 @@ function streakText(hb) {
   return hb.streak ? `${hb.streak} ${unitWord(hb, hb.streak)} подряд` : 'начни серию сегодня';
 }
 
-async function applyLog(hb, opts, onUpdate) {
+export async function applyLog(hb, opts, onUpdate) {
   try {
     const res = await api.logHabit(hb.id, opts);
     const pastDay = opts.date && opts.date !== hb.week[hb.week.length - 1].date;
