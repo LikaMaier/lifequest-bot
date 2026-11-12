@@ -2545,3 +2545,11 @@ p { margin: 0; }
 @keyframes dh-bob { 0%, 100% { transform: translate(-50%, -50%) rotate(-6deg); } 50% { transform: translate(-50%, -56%) rotate(6deg); } }
 @keyframes dh-twinkle { 0%, 100% { opacity: .35; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.15); } }
 @media (prefers-reduced-motion: reduce) { .dh-inner { transition: none; } .dh-q, .dh-spark { animation: none; } }
+
+/* ---------- Лига: сезон ---------- */
+.lg-banner { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 12px 14px; border-radius: 20px; color: #2A1408;
+  background: radial-gradient(circle at 10% 0%, #FFF3B0 0, transparent 50%), linear-gradient(120deg, #FFD84D, #FFB043 60%, #FF8A6B); box-shadow: 0 4px 0 rgba(43,33,64,.25); }
+.lg-banner-medal { font-size: 34px; line-height: 1; }
+.lg-banner b { display: block; font-size: 15px; }
+.lg-banner span:not(.lg-banner-medal) { display: block; font-size: 12px; font-weight: 800; opacity: .85; }
+.lg-champ { font-size: 13px; }

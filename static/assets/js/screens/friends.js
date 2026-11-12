@@ -67,8 +67,8 @@ async function draw(el, ctx) {
   if (!cache) {
     body.append(skeleton(200));
     try {
-      const [fr, du, co, fe] = await Promise.all([api.friends(), api.duels(), api.contests(), api.feed().catch(() => ({ events: [], reactions: [], pair: { incoming: [], outgoing: [], active: [] } }))]);
-      cache = { ...fr, duels: du, contests: co, feed: fe };
+      const [fr, du, co, fe, lg] = await Promise.all([api.friends(), api.duels(), api.contests(), api.feed().catch(() => ({ events: [], reactions: [], pair: { incoming: [], outgoing: [], active: [] } })), api.league().catch(() => null)]);
+      cache = { ...fr, duels: du, contests: co, feed: fe, league: lg };
     } catch (e) { clear(body); toastError(e); return; }
   }
   clear(body);
@@ -115,21 +115,53 @@ async function draw(el, ctx) {
     .sort((a, b) => (b.points || 0) - (a.points || 0) || b.streak - a.streak);
   const pts = cache.points || { quest: 3, habit: 1, plan: 1 };
   const left = cache.days_left ?? 0;
-  body.append(sectionTitle('Лига недели'),
-    h('p', { class: 'small bold muted', style: { margin: '-4px 0 10px' } },
-      `Квест — ${pts.quest} очка, привычка и дело из плана — по ${pts.habit}. ${left ? `До финала ${left} ${plural(left, 'день', 'дня', 'дней')}.` : 'Сегодня финал недели!'} Нажми на друга, чтобы бросить вызов.`),
-    h('div', { class: 'stack-sm' }, rows.map((f, i) => {
-      const row = h(f.me ? 'div' : 'button', { type: f.me ? null : 'button', class: `quest-item ${f.me ? 'c-yellow' : 'c-blue'}`, style: { width: '100%' } },
-        h('div', { class: 'bold', style: { width: '22px', textAlign: 'center' } }, i < 3 && f.points ? ['🥇', '🥈', '🥉'][i] : String(i + 1)),
-        h('div', { style: { width: '44px', height: '42px', flexShrink: 0 } }, mascot(f.mascot, f.me ? 'happy' : 'wink', { size: 44, acc: f.accessory })),
-        h('div', { class: 'grow', style: { textAlign: 'left' } }, h('div', { class: 'q-title' }, f.name),
-          h('div', { class: 'q-meta' }, `🎯 ${f.week_done || 0} · 🌱 ${f.week_habits || 0} · 📅 ${f.week_plans || 0} · 🔥 ${f.streak}`)),
-        h('div', { class: 'center' }, h('div', { class: 'num', style: { fontSize: '22px' } }, String(f.points || 0)),
-          h('div', { class: 'tiny bold muted' }, f.me ? plural(f.points || 0, 'очко', 'очка', 'очков') : '⚔️ вызов')));
-      if (!f.me) row.addEventListener('click', () => { haptic.tap(); openDuelCreator(ctx, { friend: f, friends: cache.friends, onDone: redraw }); });
-      return row;
-    })), invite);
+  const lg = cache.league;
+  if (lg && lg.last && lg.last.fresh) body.append(seasonBanner(lg));
+  const seg = h('div', { class: 'segmented', role: 'tablist', style: { marginBottom: '10px' } },
+    [['week', 'Неделя'], ['season', `Сезон · ${cap(lg ? lg.label : 'месяц')}`]].map(([key, text]) => {
+      const b = h('button', { type: 'button', role: 'tab', 'aria-pressed': String(leagueMode === key), 'aria-selected': String(leagueMode === key) }, text);
+      b.addEventListener('click', () => { haptic.select(); leagueMode = key; draw(el, ctx); });
+      return b;
+    }));
+  const leagueRows = (list, mode) => h('div', { class: 'stack-sm' }, list.map((f, i) => {
+    const row = h(f.me ? 'div' : 'button', { type: f.me ? null : 'button', class: `quest-item ${f.me ? 'c-yellow' : 'c-blue'}`, style: { width: '100%' } },
+      h('div', { class: 'bold', style: { width: '22px', textAlign: 'center' } }, i < 3 && f.points ? ['🥇', '🥈', '🥉'][i] : String(i + 1)),
+      h('div', { style: { width: '44px', height: '42px', flexShrink: 0 } }, mascot(f.mascot, f.me ? 'happy' : 'wink', { size: 44, acc: f.accessory })),
+      h('div', { class: 'grow', style: { textAlign: 'left' } }, h('div', { class: 'q-title' }, f.name, f.champion ? h('span', { class: 'lg-champ', title: 'Чемпион прошлого сезона' }, ' 🏆') : null),
+        h('div', { class: 'q-meta' }, mode === 'week' ? `🎯 ${f.week_done || 0} · 🌱 ${f.week_habits || 0} · 📅 ${f.week_plans || 0} · 🔥 ${f.streak}` : `🎯 ${f.quests} · 🌱 ${f.habits} · 📅 ${f.plans}${f.wins ? ` · 🏆 ${f.wins}` : ''}`)),
+      h('div', { class: 'center' }, h('div', { class: 'num', style: { fontSize: '22px' } }, String(f.points || 0)),
+        h('div', { class: 'tiny bold muted' }, f.me ? plural(f.points || 0, 'очко', 'очка', 'очков') : '⚔️ вызов')));
+    if (!f.me) row.addEventListener('click', () => { haptic.tap(); const fr = cache.friends.find(x => x.id === f.id) || f; openDuelCreator(ctx, { friend: fr, friends: cache.friends, onDone: redraw }); });
+    return row;
+  }));
+  if (leagueMode === 'season' && lg) {
+    const byId = new Map(cache.friends.map(f => [f.id, f]));
+    const srows = lg.rows.map(r => ({ ...r, name: r.me ? 'Ты' : r.name, mascot: r.me ? state.user.mascot : (byId.get(r.id) || {}).mascot, accessory: r.me ? state.user.accessory : (byId.get(r.id) || {}).accessory }));
+    body.append(sectionTitle('Лига · сезон'), seg,
+      h('p', { class: 'small bold muted', style: { margin: '-4px 0 10px' } },
+        `Очки с 1 ${genitive(lg.label)}. ${lg.days_left ? `До конца сезона ${lg.days_left} ${plural(lg.days_left, 'день', 'дня', 'дней')}.` : 'Сегодня финал сезона!'} За 1–3 место — +${lg.rewards[1]} / +${lg.rewards[2]} / +${lg.rewards[3]} XP, чемпиону — 🏆 у имени на месяц.`),
+      leagueRows(srows, 'season'), invite);
+  } else {
+    body.append(sectionTitle('Лига · неделя'), seg,
+      h('p', { class: 'small bold muted', style: { margin: '-4px 0 10px' } },
+        `Квест — ${pts.quest} очка, привычка и дело из плана — по ${pts.habit}. ${left ? `До финала ${left} ${plural(left, 'день', 'дня', 'дней')}.` : 'Сегодня финал недели!'} Нажми на друга, чтобы бросить вызов.`),
+      leagueRows(rows, 'week'), invite);
+  }
 }
+
+let leagueMode = 'week';
+const cap = s => s ? s[0].toUpperCase() + s.slice(1) : '';
+
+function seasonBanner(lg) {
+  const l = lg.last;
+  const medal = l.rank === 1 ? '🏆' : l.rank === 2 ? '🥈' : l.rank === 3 ? '🥉' : '🏁';
+  const text = l.rank === 1 ? `Ты чемпион ${genitive(l.label)}!` : `${cap(l.label)}: ты ${l.rank}-е место из ${l.members}`;
+  return h('section', { class: 'lg-banner' }, h('span', { class: 'lg-banner-medal', 'aria-hidden': 'true' }, medal),
+    h('div', { class: 'grow' }, h('b', null, text), h('span', null, `${l.points} ${plural(l.points, 'очко', 'очка', 'очков')} за сезон${l.xp ? ` · +${l.xp} XP` : ''}`)));
+}
+const GEN = { 'январь': 'января', 'февраль': 'февраля', 'март': 'марта', 'апрель': 'апреля', 'май': 'мая', 'июнь': 'июня', 'июль': 'июля', 'август': 'августа', 'сентябрь': 'сентября', 'октябрь': 'октября', 'ноябрь': 'ноября', 'декабрь': 'декабря' };
+const genitive = m => GEN[m] || m;
+
 
 
 // ---------- лента, реакции, пинки ----------
