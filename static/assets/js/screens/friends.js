@@ -1,6 +1,7 @@
 // Друзья: «Брось вызов» и «Квест вдвоём», живая лента друзей с реакциями
 // и «подбодрить / пнуть», твои вызовы, лига недели, приглашения.
 
+import { monthlyEntry } from '../monthlyui.js';
 import { h, clear, plural } from '../dom.js';
 import { haptic, openTgLink } from '../tg.js';
 import { api } from '../api.js';
@@ -80,6 +81,7 @@ async function draw(el, ctx) {
   const pairBtn = h('button', { type: 'button', class: 'fr-cta' }, h('span', { 'aria-hidden': 'true' }, '🤝'), h('b', null, 'Квест вдвоём'), h('small', null, 'одно задание на двоих'));
   pairBtn.addEventListener('click', () => { haptic.tap(); openPairCreator(ctx, { friends: cache.friends, onDone: redraw }); });
   body.append(h('div', { class: 'fr-ctas' }, cta, pairBtn));
+  body.append(monthlyEntry(state, ctx.go, { friends: true }));
 
   // Квесты вдвоём: входящие, активные, отправленные
   const pr = cache.feed.pair || { incoming: [], outgoing: [], active: [] };

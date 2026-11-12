@@ -12,6 +12,7 @@ import { habitRing, openTemplatePicker } from '../habitui.js';
 import { planRow } from '../planui.js';
 import { openPlus, plusFab } from '../plus.js';
 import { chestRow } from '../chest.js';
+import { openMonthly } from './monthly.js';
 import { openContest } from '../contestui.js';
 import { petStrip } from '../petroom.js';
 import { api } from '../api.js';
@@ -169,16 +170,36 @@ function dailyHero(state, go) {
   const daily = state.daily;
   const active = state.active.find(q => q.id === daily.id);
   const done = daily.status === 'done';
+  const seenKey = `lq_daily_seen:${state.user.id || state.user.user_id || ''}:${state.today.date}`;
+  let seen = Boolean(active || done);
+  try { seen = seen || localStorage.getItem(seenKey) === '1'; } catch (e) { /* приватный режим */ }
+
   const take = h('button', { type: 'button', class: 'dh-btn' }, done ? '✓ Выполнено' : active ? 'Открыть квест' : 'Беру квест');
   take.addEventListener('click', () => { haptic.tap('medium'); openQuest(active || { ...daily, daily: true }, { daily: !active && !done }); });
   const other = h('button', { type: 'button', class: 'dh-other' }, done ? '🎲 Ещё одно задание' : 'не то? подбери другое 🎲');
   other.addEventListener('click', () => { haptic.tap(); go('quests'); });
   const meta = [daily.minutes ? `⏱ ${daily.minutes} мин` : null, daily.sphere_label || daily.sphere ? `${daily.sphere_emoji || '✨'} ${daily.sphere_label || daily.sphere}` : null, `+${daily.bonus_xp} XP`].filter(Boolean);
-  return h('section', { class: `dh ${done ? 'done' : ''}`, 'aria-label': 'Квест дня' },
+  const front = h('div', { class: `dh dh-face ${done ? 'done' : ''}`, 'aria-label': 'Квест дня' },
     h('div', { class: 'dh-kicker' }, done ? '🎉 КВЕСТ ДНЯ СДЕЛАН' : '🎲 КВЕСТ ДНЯ'),
     h('div', { class: 'dh-row' }, h('span', { class: 'dh-emoji', 'aria-hidden': 'true' }, daily.emoji), h('h2', { class: 'dh-title' }, daily.title)),
     h('div', { class: 'dh-meta' }, meta.map(m => h('span', null, m))),
     take, other);
+  if (seen) return front;
+
+  // Рубашка карты: что внутри — узнаешь, только перевернув
+  const back = h('button', { type: 'button', class: 'dh dh-face dh-back', 'aria-label': 'Открыть квест дня' },
+    h('div', { class: 'dh-kicker' }, '🎲 КВЕСТ ДНЯ'),
+    h('div', { class: 'dh-back-art', 'aria-hidden': 'true' }, h('span', { class: 'dh-q' }, '?'), h('span', { class: 'dh-spark s1' }, '✦'), h('span', { class: 'dh-spark s2' }, '✦'), h('span', { class: 'dh-spark s3' }, '✧')),
+    h('div', { class: 'dh-back-hint' }, 'Нажми, чтобы перевернуть карту'),
+    h('div', { class: 'dh-meta' }, h('span', null, `+${daily.bonus_xp} XP`), h('span', null, 'новое каждый день')));
+  const flip = h('div', { class: 'dh-flip' }, h('div', { class: 'dh-inner' }, back, front));
+  back.addEventListener('click', () => {
+    haptic.tap('medium');
+    flip.classList.add('flipped');
+    try { localStorage.setItem(seenKey, '1'); } catch (e) { /* ок */ }
+    setTimeout(() => { flip.replaceWith(front); front.classList.remove('dh-face'); }, 700);
+  });
+  return flip;
 }
 /** Строки «твой ход»: входящий вызов, дуэль без отметки сегодня, соревнование с неотмеченными пунктами. */
 function turnLines(state, go) {
@@ -198,6 +219,9 @@ function turnLines(state, go) {
   }
   for (const c of (state.contests || []).filter(x => x.status === 'active' && !x.not_started && x.done_today < x.items).slice(0, 2)) {
     out.push(line(c.emoji || '🏆', `Соревнование: ${c.title}`, `сегодня отмечено ${c.done_today} из ${c.items}${c.place ? ` · ты ${c.place}-е место` : ''}`, () => openContest(go, c.id)));
+  }
+  for (const c of (state.monthly_nudges || []).slice(0, 2)) {
+    out.push(line(c.emoji, `${c.title}: отметь сегодня`, c.kind === 'days' ? 'получилось? нажми и засчитай день' : `сколько ${c.unit[2]} сегодня?`, () => openMonthly(go, c.id)));
   }
   return out;
 }

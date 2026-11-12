@@ -404,11 +404,25 @@ def public_quest(q: dict, tier: str = None) -> dict:
     }
 
 
+_DAILY_SWITCH = date(2026, 11, 13)  # до этой даты — старая схема (хэш даты), чтобы не сломать уже взятые задания
+
+
+def _daily_pool() -> list:
+    return sorted(k for k, q in CATALOG.items() if q["mode"] == "solo" and not q.get("pack"))
+
+
 def daily_quest_id(day: date) -> str:
-    """Задание дня — общее для всех, детерминированное по дате."""
-    pool = sorted(k for k, q in CATALOG.items() if q["mode"] == "solo" and not q.get("pack"))
-    idx = int(hashlib.sha256(f"lifequest-daily-{day.isoformat()}".encode()).hexdigest(), 16) % len(pool)
-    return pool[idx]
+    """Задание дня — общее для всех, детерминированное по дате.
+
+    Идём по фиксированно перемешанному списку: без повторов, пока не пройдём
+    весь каталог (хэш даты иногда выдавал одно и то же два дня подряд)."""
+    pool = _daily_pool()
+    if day < _DAILY_SWITCH:
+        idx = int(hashlib.sha256(f"lifequest-daily-{day.isoformat()}".encode()).hexdigest(), 16) % len(pool)
+        return pool[idx]
+    order = pool[:]
+    random.Random("lifequest-daily-order").shuffle(order)
+    return order[(day.toordinal() - _DAILY_SWITCH.toordinal()) % len(order)]
 
 
 def daily_status(user_id: int, day: date) -> str:
