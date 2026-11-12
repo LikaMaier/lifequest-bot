@@ -9,6 +9,8 @@ import { haptic, pushBack } from './tg.js';
 import { myMascot } from './mascot.js';
 import { setState, store } from './store.js';
 import { templatePicker } from './habitui.js';
+import { ICONS } from './icons.js';
+import { balanceWheel } from './charts.js';
 
 const feature = (emoji, color, title, text) => h('div', { class: `onb-feature c-${color}` },
   h('span', { class: 'onb-feature-emoji', 'aria-hidden': 'true' }, emoji),
@@ -17,6 +19,11 @@ const feature = (emoji, color, title, text) => h('div', { class: `onb-feature c-
 // Плавающие вокруг маскота значки — у каждого слайда свои
 const floaters = list => h('div', { class: 'onb-floats', 'aria-hidden': 'true' },
   list.map(([emoji, cls]) => h('span', { class: `onb-float ${cls}` }, emoji)));
+
+// Мини-панель вкладок: показывает, где в приложении живёт то, о чём слайд
+const TOUR_TABS = [['home', 'Главная', 'home'], ['habits', 'Привычки', 'habits'], ['quests', 'Квест', 'dice'], ['friends', 'Друзья', 'friends'], ['progress', 'Прогресс', 'progress']];
+const tourTabs = active => h('div', { class: 'tour-tabs', 'aria-hidden': 'true' }, TOUR_TABS.map(([key, label, icon]) =>
+  h('span', { class: `tour-tab ${key === active ? 'on' : ''} ${key === 'quests' ? 'fab' : ''}` }, h('span', { class: 'tour-tab-ico', html: ICONS[icon] }), h('small', null, label))));
 
 // Приманка на первом экране: самые «вкусные» задания из каталога, три случайных
 const TEASERS = [
@@ -48,23 +55,46 @@ const SLIDES = [
     quotes: true,
   },
   {
-    color: 'lav', expr: 'wink', grad: 'b', dense: true,
-    kicker: 'Что внутри',
-    title: 'Игра, в которой<br>выигрываешь ты',
-    lead: null,
-    body: () => [
-      feature('🎲', 'purple', 'Квесты и наборы', '400+ заданий: смелость, творчество, свидания, тайные добрые дела.'),
-      feature('💧', 'blue', 'Привычки и план дня', 'Галочки, серии и неделя одним взглядом.'),
-      feature('🏁', 'orange', 'Челленджи месяца', '«Месяц чтения», «месяц шагов» — отмечаешь каждый день, друзья видят твой результат.'),
-      feature('⚔️', 'red', 'Друзья и лига', 'Дуэли, соревнования, квесты вдвоём и сезон месяца с титулом чемпиона.'),
-      feature('🏠', 'lime', 'Маскот и Домик', 'Твои галочки кормят маскота, а прогресс виден в колесе баланса.'),
-    ],
+    color: 'purple', grad: 'b', tour: 'quests',
+    kicker: 'Экскурсия · 1 из 4',
+    title: 'Квест — когда<br>не знаешь, чем заняться',
+    lead: 'Большая кнопка в центре. Выбери, с кем играешь, и получи задание. А ещё — тематические наборы.',
+    demo: () => h('div', { class: 'tour-box' },
+      h('div', { class: 'tour-modes' }, [['🙂', 'Один', true], ['💞', 'Вдвоём'], ['👯', 'Компания']].map(([e, t, on]) =>
+        h('span', { class: `tour-mode ${on ? 'on' : ''}` }, h('i', null, e), t))),
+      h('div', { class: 'tour-go' }, '🎲 Дай задание'),
+      h('div', { class: 'tour-chips' }, ['🎬 Кино про тебя', '🕶️ Тайный агент добра', '🔥 Дерзкие 30 минут', '💘 Свидания'].map(t => h('span', null, t)))),
   },
   {
-    color: 'lime', expr: 'happy', picker: true, grad: 'c',
-    kicker: 'Шаг первый',
-    title: 'С чего начнём?',
-    lead: 'Выбери до 3 привычек — маленькие шаги работают лучше. Остальное добавишь потом.',
+    color: 'lime', picker: true, grad: 'c', tour: 'habits',
+    kicker: 'Экскурсия · 2 из 4',
+    title: 'Привычки и план дня',
+    lead: 'Галочки, серии и неделя одним взглядом. Выбери до 3 привычек — или позже.',
+  },
+  {
+    color: 'orange', grad: 'a', tour: 'friends',
+    kicker: 'Экскурсия · 3 из 4',
+    title: 'Друзья: вызовы,<br>лига и челленджи',
+    lead: 'Дуэли на привычках, квесты вдвоём, лента с фото и челленджи месяца, где видно результат каждого.',
+    demo: () => h('div', { class: 'tour-box' },
+      h('div', { class: 'tour-ch' }, h('span', { class: 'tour-ch-e' }, '📚'), h('div', { class: 'grow' },
+        h('b', null, 'Месяц чтения'), h('span', null, '310 из 600 страниц'), h('div', { class: 'tour-bar' }, h('i', { style: { width: '52%' } })))),
+      [['🥇', 'Соня', '530'], ['🥈', 'Ты', '310', true], ['🥉', 'Олег', '290']].map(([m, n, v, me]) =>
+        h('div', { class: `tour-row ${me ? 'me' : ''}` }, h('span', null, m), h('b', { class: 'grow' }, n), h('b', null, v))),
+      h('div', { class: 'tour-reacts' }, ['⚔️ Брось вызов', '🤝 Квест вдвоём', '🔥 👏 😂'].map(t => h('span', null, t)))),
+  },
+  {
+    color: 'pink', grad: 'd', tour: 'progress',
+    kicker: 'Экскурсия · 4 из 4',
+    title: 'Прогресс и маскот',
+    lead: 'Колесо баланса показывает, какие сферы растут. Твои галочки кормят маскота в Домике, а уровень открывает новое.',
+    demo: () => h('div', { class: 'tour-box tour-prog' },
+      h('div', { class: 'tour-wheel' }, balanceWheel([
+        { key: 'a', name: 'Смелость', emoji: '🦁', color: 'red', count: 6 }, { key: 'b', name: 'Творчество', emoji: '🎨', color: 'pink', count: 4 },
+        { key: 'c', name: 'Энергия', emoji: '🔋', color: 'lime', count: 5 }, { key: 'd', name: 'Развитие', emoji: '📚', color: 'yellow', count: 3 },
+        { key: 'e', name: 'Приключения', emoji: '🧭', color: 'lav', count: 2 }, { key: 'f', name: 'Дисциплина', emoji: '🛡️', color: 'blue', count: 4 }])),
+      h('div', { class: 'tour-pet' }, myMascot('love', { size: 54 }), h('div', { class: 'grow' }, h('b', null, 'Домик маскота'), h('span', null, 'покорми, погладь, наряди'))),
+      h('div', { class: 'tour-reacts' }, ['🗺️ Карта пути', '🟩 Год одним взглядом', '📲 Сторис недели'].map(t => h('span', null, t)))),
   },
   {
     color: 'purple', expr: 'silly', grad: 'd',
@@ -113,7 +143,7 @@ export function showOnboarding({ onDone } = {}) {
     overlay.classList.add(`g-${s.grad}`);
     const parts = [];
     if (s.card) { drawCard(s, dir); return; }
-    if (!s.picker) {
+    if (!s.picker && !s.tour) {
       parts.push(h('div', { class: 'onb-hero-wrap' },
         s.floats ? floaters(s.floats) : null,
         h('div', { class: 'onb-hero' }, myMascot(s.expr, { size: s.dense ? 84 : 118, cls: 'jump' }))));
@@ -125,10 +155,14 @@ export function showOnboarding({ onDone } = {}) {
       parts.push(h('div', { class: 'onb-quotes' }, (quotes || (quotes = pickTeasers())).map((q, k) =>
         h('span', { class: 'onb-quote', style: { '--d': `${0.15 + k * 0.12}s` } }, q))));
     }
+    const where = s.tour ? h('div', { class: 'tour-where' }, h('span', { class: 'tour-where-label' }, 'где это в приложении'), tourTabs(s.tour)) : null;
+    if (s.picker && where) parts.push(where);
     if (s.picker) parts.push(templatePicker({ max: 3, title: '', onDone: () => go(1) }));
+    else if (s.demo) parts.push(s.demo());
     else if (s.body) parts.push(h('div', { class: 'stack-sm onb-features' }, s.body()));
+    if (where && !s.picker) parts.push(where);
     clear(slideHost).append(h('section', {
-      class: `onb-slide c-${s.color} ${s.picker ? 'picker' : ''} ${s.dense ? 'dense' : ''} ${dir > 0 ? 'from-right' : dir < 0 ? 'from-left' : ''}`,
+      class: `onb-slide c-${s.color} ${s.picker ? 'picker' : ''} ${s.dense ? 'dense' : ''} ${s.tour ? 'tour' : ''} ${dir > 0 ? 'from-right' : dir < 0 ? 'from-left' : ''}`,
       'aria-live': 'polite',
     }, parts));
     clear(dots).append(...SLIDES.map((_, k) => h('span', { class: `onb-dot ${k === i ? 'on' : ''} ${k < i ? 'past' : ''}`, 'aria-hidden': 'true' })));
