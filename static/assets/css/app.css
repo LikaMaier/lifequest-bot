@@ -667,11 +667,11 @@ p { margin: 0; }
 .onb-lead { text-align: center; font-weight: 700; font-size: 15px; line-height: 1.45; color: var(--ink-soft); }
 .onb-quotes { display: flex; flex-direction: column; gap: 7px; margin-top: 4px; }
 .onb-quote {
-  align-self: center; max-width: 100%; padding: 9px 15px; border-radius: 16px 16px 16px 5px;
-  background: var(--white); box-shadow: 0 3px 0 var(--line); font-weight: 800; font-size: 13.5px; color: var(--ink);
+  align-self: stretch; padding: 10px 14px; border-radius: 16px 16px 16px 5px; text-align: left;
+  background: var(--white); box-shadow: 0 3px 0 var(--line); font-weight: 800; font-size: 13.5px; line-height: 1.3; color: var(--ink);
   animation: onb-quote-in .45s cubic-bezier(.3,1.3,.5,1) both; animation-delay: var(--d, 0s);
 }
-.onb-quote:nth-child(even) { align-self: center; border-radius: 16px 16px 5px 16px; }
+.onb-quote:nth-child(even) { border-radius: 16px 16px 5px 16px; }
 @keyframes onb-quote-in { from { transform: translateY(10px) scale(.94); opacity: 0; } to { transform: none; opacity: 1; } }
 .onb-features { margin-top: 2px; }
 .onb-slide.dense .onb-hero-wrap { width: 180px; height: 116px; margin-bottom: 2px; }

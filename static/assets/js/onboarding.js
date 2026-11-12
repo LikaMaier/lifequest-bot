@@ -18,6 +18,26 @@ const feature = (emoji, color, title, text) => h('div', { class: `onb-feature c-
 const floaters = list => h('div', { class: 'onb-floats', 'aria-hidden': 'true' },
   list.map(([emoji, cls]) => h('span', { class: `onb-float ${cls}` }, emoji)));
 
+// Приманка на первом экране: самые «вкусные» задания из каталога, три случайных
+const TEASERS = [
+  '☕ Оплати кофе следующему в очереди — и исчезни',
+  '🚌 Доедь до конечной незнакомого маршрута',
+  '🍽️ Поужинай в ресторане один — без телефона',
+  '🌅 Встреть рассвет на крыше',
+  '🎞️ Сними по секунде каждый час — получится трейлер дня',
+  '🫧 Выдувай мыльные пузыри на мосту',
+  '📞 Позвони тому, с кем год только переписываешься',
+  '🎲 Придумай три странных правила и живи по ним до вечера',
+  '🛝 Качайся на качелях, когда стемнеет',
+  '🚲 Поезжай без маршрута — поворот на каждом перекрёстке',
+];
+const pickTeasers = (n = 3) => {
+  const pool = TEASERS.slice();
+  const out = [];
+  while (out.length < n && pool.length) out.push(...pool.splice(Math.floor(Math.random() * pool.length), 1));
+  return out;
+};
+
 const SLIDES = [
   {
     color: 'pink', expr: 'love', grad: 'a',
@@ -25,7 +45,7 @@ const SLIDES = [
     title: 'Не знаешь,<br>чем заняться?',
     lead: 'Жми 🎲 — и получишь живое задание на 15 минут. Не «помой посуду», а то, после чего день становится историей.',
     floats: [['🎲', 'f1'], ['⭐', 'f2'], ['🔥', 'f3'], ['📸', 'f4']],
-    quotes: ['«Сходи на конечную остановку»', '«Проживи день как герой фильма»', '«Скажи три искренних спасибо»'],
+    quotes: true,
   },
   {
     color: 'lav', expr: 'wink', grad: 'b', dense: true,
@@ -75,6 +95,7 @@ export function showOnboarding({ onDone } = {}) {
 
   let release = null;
   let skipped = false;
+  let quotes = null;
   const finish = async () => {
     overlay.remove();
     release && release();
@@ -100,7 +121,7 @@ export function showOnboarding({ onDone } = {}) {
     parts.push(h('h1', { class: 'onb-title', html: s.title }));
     if (s.lead) parts.push(h('p', { class: 'onb-lead' }, s.lead));
     if (s.quotes) {
-      parts.push(h('div', { class: 'onb-quotes' }, s.quotes.map((q, k) =>
+      parts.push(h('div', { class: 'onb-quotes' }, (quotes || (quotes = pickTeasers())).map((q, k) =>
         h('span', { class: 'onb-quote', style: { '--d': `${0.15 + k * 0.12}s` } }, q))));
     }
     if (s.picker) parts.push(templatePicker({ max: 3, title: '', onDone: () => go(1) }));
