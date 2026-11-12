@@ -1068,11 +1068,13 @@ def premium_tariffs(user_id: int) -> list:
     out = []
     currencies = ["RUB"] + (["XTR"] if game.PAYMENTS_ENABLED else [])
     for cur in currencies:
-        for product, name in (("premium_month", "30 дней"), ("premium_year", "Год")):
+        for product, name in (("premium_month", "30 дней"), ("premium_year", "Год"), ("premium_forever", "Навсегда")):
             amount = billing.price(user_id, product, cur)
             full = billing.full_price(product, cur)
             note = []
-            if amount < full:
+            if amount < full and product == "premium_forever":
+                note.append(f"скидка первого месяца, вместо <s>{billing.format_amount(full, cur)}</s>")
+            elif amount < full:
                 note.append(f"первый месяц, вместо <s>{billing.format_amount(full, cur)}</s>")
             if product == "premium_year":
                 note.append(f"выгоднее на {round(100 * (1 - amount / (12 * billing.full_price('premium_month', cur))))}%")
@@ -1162,6 +1164,7 @@ async def on_pre_checkout(query: PreCheckoutQuery):
 PAID_TEXT = {
     "premium_month": "👑 <b>Premium активен</b> до {until}. Спасибо, что поддерживаешь LifeQuest! 💛",
     "premium_year": "👑 <b>Premium на год</b> — до {until}. Спасибо, что ты с нами 💛",
+    "premium_forever": "👑 <b>Premium навсегда!</b> Больше никаких продлений — всё открыто. Спасибо, что ты с нами 💛",
     "freeze": "🧊 <b>Заморозка в запасе</b> — серия под защитой.",
     "streak_restore": "🔥 <b>Серия возвращена: {streak} дн.</b> Сделай сегодня одно дело, чтобы она продолжилась!",
 }

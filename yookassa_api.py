@@ -28,7 +28,7 @@ import storage
 API = "https://api.yookassa.ru/v3/payments"
 SHOP_ID = os.getenv("YOOKASSA_SHOP_ID", "").strip()
 SECRET_KEY = os.getenv("YOOKASSA_SECRET_KEY", "").strip()
-PRODUCTS = ("premium_month", "premium_year")
+PRODUCTS = ("premium_month", "premium_year", "premium_forever")
 TIMEOUT = aiohttp.ClientTimeout(total=20)
 
 

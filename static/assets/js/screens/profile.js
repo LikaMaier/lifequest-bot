@@ -8,7 +8,7 @@ import { mascot, mascotSVG } from '../mascot.js';
 import { sectionTitle, progressBar, toast, toastError, busy, button, ICONS } from '../ui.js';
 import { setState, store, refreshState } from '../store.js';
 import { buildShareCard } from '../share.js';
-import { PROMISE, compareTable, socialProof, premiumActions, openPaywall, handlePremiumError } from '../premium.js';
+import { PROMISE, compareTable, perksList, socialProof, premiumActions, openPaywall, handlePremiumError } from '../premium.js';
 
 const COMMON_TZ = [
   'Europe/Kaliningrad', 'Europe/Moscow', 'Europe/Samara', 'Asia/Yekaterinburg', 'Asia/Omsk', 'Asia/Novosibirsk',
@@ -188,6 +188,7 @@ export function renderPremium(el, { state }) {
     mascot(state.user.mascot || 'star', 'love', { size: 110, cls: 'jump', acc: 'wizard' }),
     h('h1', { style: { marginTop: '10px' } }, p.active || p.forever ? 'LifeQuest Premium' : PROMISE[0]),
     h('p', { class: 'bold', style: { marginTop: '8px', color: 'var(--ink-soft)' } }, status)));
+  if (!p.active && !p.forever) el.append(perksList());
   el.append(compareTable());
   const proof = socialProof();
   if (proof) el.append(proof);

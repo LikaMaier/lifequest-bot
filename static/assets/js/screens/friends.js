@@ -14,7 +14,7 @@ import { contestCard, openContestCreator } from '../contestui.js';
 let cache = null;
 
 /** Выбор формата вызова: 1 на 1 по привычке (дуэль) или компания с пунктами (соревнование). */
-export function openChallengeChooser(ctx, redraw = () => {}) {
+export function openChallengeChooser(ctx, redraw = () => {}, friend = null) {
   const s = sheet(h('div'), { label: 'Брось вызов' });
   // открыли не с экрана «Друзья» — список друзей для дуэли подгрузим сами
   const friendsList = async () => (cache && cache.friends) || (await api.friends()).friends;
@@ -26,10 +26,10 @@ export function openChallengeChooser(ctx, redraw = () => {}) {
     return b;
   };
   s.setContent(h('div', { class: 'stack' },
-    h('h2', null, '⚔️ Брось вызов'),
+    h('h2', null, friend ? `⚔️ Вызов: ${friend.name}` : '⚔️ Брось вызов'),
     h('p', { class: 'bold muted', style: { margin: '-6px 0 0' } }, 'Выбери формат'),
     option('🤺', 'orange', '1 на 1 по привычке', ['С одним другом и одной привычкой', 'Засчитывается само, когда отмечаешь привычку', 'Дуэль — у кого серия длиннее, или «вместе» — общая серия'],
-      async () => { try { openDuelCreator(ctx, { friends: await friendsList(), onDone: () => { cache = null; redraw(); } }); } catch (e) { toastError(e); } }),
+      async () => { try { openDuelCreator(ctx, { friend, friends: await friendsList(), onDone: () => { cache = null; redraw(); } }); } catch (e) { toastError(e); } }),
     option('🏆', 'purple', 'Компания и несколько пунктов', ['До 20 человек по ссылке', 'Свои пункты: «без сахара», «зарядка», «8000 шагов»', 'Отмечаете каждый день — побеждает тот, у кого больше очков'],
       () => openContestCreator(ctx, { onDone: () => { cache = null; } }))));
   return s;
@@ -132,7 +132,7 @@ async function draw(el, ctx) {
         h('div', { class: 'q-meta' }, mode === 'week' ? `🎯 ${f.week_done || 0} · 🌱 ${f.week_habits || 0} · 📅 ${f.week_plans || 0} · 🔥 ${f.streak}` : `🎯 ${f.quests} · 🌱 ${f.habits} · 📅 ${f.plans}${f.wins ? ` · 🏆 ${f.wins}` : ''}`)),
       h('div', { class: 'center' }, h('div', { class: 'num', style: { fontSize: '22px' } }, String(f.points || 0)),
         h('div', { class: 'tiny bold muted' }, f.me ? plural(f.points || 0, 'очко', 'очка', 'очков') : '⚔️ вызов')));
-    if (!f.me) row.addEventListener('click', () => { haptic.tap(); const fr = cache.friends.find(x => x.id === f.id) || f; openDuelCreator(ctx, { friend: fr, friends: cache.friends, onDone: redraw }); });
+    if (!f.me) row.addEventListener('click', () => { haptic.tap(); const fr = cache.friends.find(x => x.id === f.id) || f; openChallengeChooser(ctx, redraw, fr); });
     return row;
   }));
   if (leagueMode === 'season' && lg) {

@@ -11,6 +11,7 @@ import { openQuest } from '../questflow.js';
 import { habitRing, openTemplatePicker, applyLog, openHabitDetail } from '../habitui.js';
 import { planRow } from '../planui.js';
 import { openPlus, plusFab } from '../plus.js';
+import { refreshState } from '../store.js';
 import { chestRow } from '../chest.js';
 import { openMonthly } from './monthly.js';
 import { openContest } from '../contestui.js';
@@ -109,8 +110,10 @@ export function render(el, ctx) {
   // План дня
   const calLink = h('button', { type: 'button', class: 'home2-link' }, 'План ›');
   calLink.addEventListener('click', () => { haptic.tap(); go('calendar'); });
+  const notesLink = h('button', { type: 'button', class: 'home2-link', style: { marginRight: '10px' } }, '📒 Заметки');
+  notesLink.addEventListener('click', () => { haptic.tap(); go('notes', { fresh: true }); });
   el.append(h('div', { class: 'home2-head', style: { marginTop: '18px' } }, h('h2', null, 'План дня'),
-    state.plans_today.length ? h('span', { class: 'home2-count' }, String(state.plans_today.length)) : null, calLink));
+    state.plans_today.length ? h('span', { class: 'home2-count' }, String(state.plans_today.length)) : null, notesLink, calLink));
   if (!state.plans_today.length) {
     const plan = h('button', { type: 'button', class: 'quest-item c-blue' }, h('span', { class: 'q-emoji', 'aria-hidden': 'true' }, '🗓️'),
       h('span', { class: 'grow' }, h('span', { class: 'q-title', style: { display: 'block' } }, 'На сегодня планов нет'),
@@ -286,7 +289,8 @@ function weekStrip(state, go) {
   const cells = days.map((iso, i) => {
     const b = h('button', { type: 'button', class: `wk-day ${iso === today ? 'today' : ''} ${iso > today ? 'future' : ''}`, 'aria-label': `${WD[i]}, ${Number(iso.slice(8))}` },
       h('span', { class: 'wk-wd' }, WD[i]), h('b', null, String(Number(iso.slice(8)))));
-    b.addEventListener('click', () => { haptic.select(); go('calendar'); });
+    // тап по дню — сразу лист этого дня: планы, заметки, фото
+    b.addEventListener('click', async () => { haptic.select(); (await import('../planui.js')).openDaySheet(iso, { onChange: () => { weekCache.clear(); refreshState().catch(() => {}); } }); });
     return b;
   });
   const open = h('button', { type: 'button', class: 'home2-link' }, `${MONTHS[m - 1]} ›`);

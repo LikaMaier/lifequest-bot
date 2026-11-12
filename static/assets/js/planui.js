@@ -333,8 +333,21 @@ export function openDaySheet(date, { onChange } = {}) {
       notesHost.replaceChildren(...notes.map(n => noteCard(n, { onChange: loadNotes })));
     } catch (e) { /* заметки подгрузятся при следующем открытии */ }
   };
+  // Привычки этого дня (для дней текущей недели — данные уже в состоянии)
+  const hbItems = ((store.state && store.state.habits && store.state.habits.items) || [])
+    .map(hb => ({ hb, d: (hb.week_mon || []).find(x => x.date === date) }))
+    .filter(x => x.d && ['done', 'miss', 'skip', 'today', 'clean', 'slip'].includes(x.d.state));
+  const hbDone = hbItems.filter(x => x.d.state === 'done' || x.d.state === 'clean').length;
+  const habitsBlock = hbItems.length ? h('div', null,
+    h('h3', { style: { marginBottom: '8px' } }, `Привычки · ${hbDone} из ${hbItems.length}`),
+    h('div', { class: 'day-habits' }, hbItems.map(({ hb, d }) => {
+      const ok = d.state === 'done' || d.state === 'clean';
+      return h('span', { class: `day-habit c-${hb.color} ${ok ? 'ok' : d.state === 'today' ? 'wait' : 'no'}` },
+        h('span', { 'aria-hidden': 'true' }, hb.emoji), ' ', hb.title, h('b', null, ok ? ' ✓' : d.state === 'today' ? '' : d.state === 'skip' ? ' ⏭' : ' ✗'));
+    }))) : null;
   const body = h('div', { class: 'stack' },
     h('h2', null, dayTitle(date)),
+    habitsBlock,
     planHost,
     h('div', null,
       h('h3', { style: { marginBottom: '8px' } }, date <= today ? 'Как всё прошло?' : 'Заметки к этому дню'),

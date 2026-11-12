@@ -388,6 +388,7 @@ def _return_url(request) -> str:
 PAID_SBP_TEXT = {
     "premium_month": "👑 <b>Premium активен</b> до {until}. Спасибо, что поддерживаешь LifeQuest! 💛",
     "premium_year": "👑 <b>Premium на год</b> — до {until}. Спасибо, что ты с нами 💛",
+    "premium_forever": "👑 <b>Premium навсегда!</b> Больше никаких продлений — всё открыто. Спасибо, что ты с нами 💛",
 }
 
 
