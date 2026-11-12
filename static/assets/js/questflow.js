@@ -86,8 +86,10 @@ export async function completeQuest(activeId) {
     confetti(70);
     await refreshState();
     await celebrate(res, { xpText: '🎉 Засчитано!' });
-    if (res.trial_offer) offerTrial();
-    else if (res.history_id) openPhotoReport(res.history_id, res.title || 'Задание', { intro: true });
+    // Сначала предлагаем фото, потом (если есть) — пробный Premium
+    const after = res.trial_offer ? () => setTimeout(offerTrial, 300) : null;
+    const sheetEl = res.history_id ? openPhotoReport(res.history_id, res.title || 'Задание', { intro: true, onClose: after }) : null;
+    if (!sheetEl && after) after();
     return res;
   } catch (e) {
     toastError(e);
