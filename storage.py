@@ -385,6 +385,7 @@ def init_db():
         PRIMARY KEY (user_id, day))""")
     # Общие фотоальбомы и доступ к своему альбому (albums.py)
     _ensure_column(c, "photos", "album_id", "INTEGER")
+    _ensure_column(c, "photos", "shared", "INTEGER DEFAULT 0")
     c.execute("CREATE INDEX IF NOT EXISTS idx_photos_album ON photos(album_id)")
     c.execute("""CREATE TABLE IF NOT EXISTS shared_albums (
         id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id INTEGER NOT NULL, title TEXT NOT NULL, emoji TEXT,

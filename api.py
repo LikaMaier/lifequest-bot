@@ -1087,7 +1087,7 @@ async def upload_photo(request):
             if len(raw) > photos.MAX_BYTES:
                 raise game.QuestError("Фото больше 5 МБ — выбери поменьше")
         elif part.name in ("target", "quest_history_id", "plan_id", "plan_date", "day", "board_cell", "caption",
-                           "album_id"):
+                           "album_id", "shared"):
             fields[part.name] = (await part.text())[:200]
     return web.json_response(photos.save_upload(request["user_id"], raw, fields))
 
@@ -1119,6 +1119,8 @@ async def patch_photo(request):
     _limit(request, "write")
     data = await _body(request)
     pid = request.match_info["id"]
+    if "shared" in data and "caption" not in data:
+        return web.json_response(photos.set_shared(request["user_id"], pid, bool(data.get("shared"))))
     album_id = albums.photo_album(pid)
     if album_id and albums.is_member(album_id, request["user_id"]):  # общий альбом — подпись меняет любой участник
         return web.json_response(albums.set_caption(request["user_id"], album_id, pid, data.get("caption")))

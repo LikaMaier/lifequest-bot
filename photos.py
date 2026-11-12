@@ -167,6 +167,8 @@ def save_upload(user_id: int, raw: bytes, data: dict) -> dict:
                 if limit == LIMIT_FREE else f"В альбоме уже {total} фото — это максимум. Удали старые, чтобы добавить новые.")
         raise game.QuestError(text, code="photo_limit")
     fields = _target(user_id, data)
+    if fields.get("target_type") == "quest":
+        fields["shared"] = 1 if str(data.get("shared") or "") in ("1", "true", "on") else 0
 
     from PIL import Image, ImageOps
     Image.MAX_IMAGE_PIXELS = 40_000_000  # защита от «бомб» с гигантским разрешением
@@ -241,7 +243,7 @@ def _row_view(user_id: int, r: dict) -> dict:
         "id": r["id"], "target": r["target_type"], "quest_history_id": r["quest_history_id"],
         "plan_id": r["plan_id"], "plan_date": r["plan_date"], "day": r["day"] or r["plan_date"] or r["created_at"][:10],
         "board_cell": r["board_cell"], "w": r["w"], "h": r["h"], "label": label, "caption": r.get("caption") or "",
-        "created_at": r["created_at"], "album_id": r.get("album_id"),
+        "created_at": r["created_at"], "album_id": r.get("album_id"), "shared": bool(r.get("shared")),
         "thumb": sign(user_id, r["id"], "thumb"), "url": sign(user_id, r["id"], "full"),
     }
 
@@ -311,6 +313,33 @@ def stats(user_id: int) -> dict:
     total = conn.execute("SELECT COUNT(*) FROM photos WHERE user_id = ?", (user_id,)).fetchone()[0]
     conn.close()
     return {"enabled": enabled(), "count": total, "limit": limit_for(storage.get_user(user_id)), "per_item": PER_ITEM}
+
+
+def set_shared(user_id: int, photo_id: str, on: bool) -> dict:
+    conn = storage.connect()
+    conn.execute("UPDATE photos SET shared = ? WHERE id = ? AND user_id = ?", (1 if on else 0, photo_id, user_id))
+    conn.commit()
+    conn.close()
+    return {"photo": view(user_id, photo_id)}
+
+
+def quest_photos_shared(user_id: int, history_ids: list) -> dict:
+    """Фото к квестам, которые владелец разрешил показывать друзьям в ленте: history_id -> [фото]."""
+    if not history_ids:
+        return {}
+    conn = storage.connect(rows=True)
+    rows = conn.execute(f"""SELECT * FROM photos WHERE user_id = ? AND shared = 1
+                            AND quest_history_id IN ({','.join('?' * len(history_ids))}) ORDER BY created_at""",
+                        (user_id, *history_ids)).fetchall()
+    conn.close()
+    out = {}
+    for r in rows:
+        r = dict(r)
+        out.setdefault(r["quest_history_id"], []).append({
+            "id": r["id"], "w": r["w"], "h": r["h"], "caption": r.get("caption") or "", "label": r.get("caption") or "",
+            "day": r["day"], "target": "quest", "created_at": r["created_at"],
+            "thumb": sign(user_id, r["id"], "thumb"), "url": sign(user_id, r["id"], "full")})
+    return out
 
 
 def set_caption(user_id: int, photo_id: str, caption) -> dict:

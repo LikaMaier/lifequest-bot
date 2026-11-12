@@ -88,7 +88,7 @@ export function memoryBoard(list, { onDelete, small = false, captions = true } =
 export const photosEnabled = () => Boolean(store.state && store.state.photos && store.state.photos.enabled);
 
 /** Лента фото элемента (задание / план / день / клетка карты) с добавлением. */
-export function photoStrip(target, { title = 'Фото', onChange } = {}) {
+export function photoStrip(target, { title = 'Фото', onChange, extra } = {}) {
   const box = h('div', { class: 'photo-strip-box' });
   if (!photosEnabled()) {
     box.append(h('p', { class: 'tiny muted bold' }, '📷 Фото пока недоступны'));
@@ -126,7 +126,7 @@ export function photoStrip(target, { title = 'Фото', onChange } = {}) {
       try {
         const blob = await prepareImage(file);
         preview.style.backgroundImage = `url(${URL.createObjectURL(blob)})`;
-        const res = await uploadPhoto(blob, filters, f => { bar.style.width = `${Math.round(f * 100)}%`; });
+        const res = await uploadPhoto(blob, { ...filters, ...(extra ? extra() : {}) }, f => { bar.style.width = `${Math.round(f * 100)}%`; });
         items = [res.photo, ...items];
         haptic.success();
         refreshState().catch(() => {});
@@ -407,15 +407,22 @@ function trim(ctx, text, max) {
 }
 
 /** Лист «фото-отчёт» к выполненному заданию. */
-export function openPhotoReport(historyId, title, { intro = false } = {}) {
+export function openPhotoReport(historyId, title, { intro = false, onClose } = {}) {
   if (!photosEnabled() || !historyId) return null;
   const close = h('button', { type: 'button', class: 'btn ghost block' }, intro ? 'Не сейчас' : 'Готово');
+  let shareOn = true;
+  try { shareOn = localStorage.getItem('lq_photo_share') !== '0'; } catch (e) { /* ок */ }
+  const sw = h('button', { type: 'button', class: `pr-share ${shareOn ? 'on' : ''}`, role: 'switch', 'aria-checked': String(shareOn) },
+    h('span', { class: 'pr-share-knob', 'aria-hidden': 'true' }), h('span', { class: 'grow' }, h('b', null, 'Показать друзьям в ленте'), h('span', null, 'друзья увидят фото рядом с твоим квестом')));
+  sw.addEventListener('click', () => { haptic.select(); shareOn = !shareOn; sw.classList.toggle('on', shareOn); sw.setAttribute('aria-checked', String(shareOn)); try { localStorage.setItem('lq_photo_share', shareOn ? '1' : '0'); } catch (e) { /* ок */ } });
   const s = sheet(h('div', { class: 'stack' },
-    h('h2', null, intro ? '📷 Добавим фото в календарь?' : '📷 Фото-отчёт'),
-    h('p', { class: 'muted bold' }, intro
-      ? `«${title}» выполнено! Сфотографируй момент — фото появится в календаре на этот день и на доске воспоминаний.`
-      : title),
-    photoStrip({ target: 'quest', quest_history_id: historyId }, { title: 'Фото-отчёт' }), close), { label: 'Фото-отчёт' });
+    h('div', { class: 'center' }, h('div', { class: 'pr-cam', 'aria-hidden': 'true' }, '📸'),
+      h('h2', null, intro ? 'Покажешь, как это было?' : '📷 Фото-отчёт'),
+      h('p', { class: 'muted bold small', style: { marginTop: '4px' } }, intro
+        ? `«${title}» сделано! Сфотографируй момент — фото останется в календаре и на доске воспоминаний.`
+        : title)),
+    photoStrip({ target: 'quest', quest_history_id: historyId }, { title: 'Фото-отчёт', extra: () => ({ shared: shareOn ? '1' : '0' }) }),
+    sw, close), { label: 'Фото-отчёт', onClose });
   close.addEventListener('click', () => s.close());
   return s;
 }

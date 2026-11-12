@@ -9,6 +9,7 @@ import random
 from datetime import date, datetime, timedelta
 
 import game
+import photos
 import storage
 from quests_database import CATALOG
 
@@ -89,14 +90,16 @@ def feed(user_id: int) -> dict:
             continue
         pub = _public(fu)
         # выполненные квесты
-        for r in conn.execute("""SELECT id, quest_key, title, completed_at, local_date FROM quest_history
-                                 WHERE user_id = ? AND status = 'done' AND local_date >= ?
-                                 ORDER BY completed_at DESC LIMIT 5""", (fid, since)).fetchall():
+        qrows = conn.execute("""SELECT id, quest_key, title, completed_at, local_date FROM quest_history
+                                WHERE user_id = ? AND status = 'done' AND local_date >= ?
+                                ORDER BY completed_at DESC LIMIT 5""", (fid, since)).fetchall()
+        shared = photos.quest_photos_shared(fid, [r["id"] for r in qrows])
+        for r in qrows:
             q = CATALOG.get(r["quest_key"]) or {}
             events.append({"id": f"q:{fid}:{r['id']}", "kind": "quest", "friend": pub, "date": r["local_date"],
                            "at": r["completed_at"], "emoji": q.get("emoji") or "🎯",
                            "title": r["title"] or q.get("title") or "квест",
-                           "text": f"{pub['name']} сделал(а) квест"})
+                           "text": f"{pub['name']} сделал(а) квест", "photos": shared.get(r["id"], [])})
         # серия — круглые отметки
         s = game.user_streak(fu, game.local_today(fu))
         if s["current"] >= 3 and s["status"] == "done" and (s["current"] % 7 == 0 or s["current"] in (3, 5, 10)):

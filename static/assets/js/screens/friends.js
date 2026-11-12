@@ -2,6 +2,7 @@
 // и «подбодрить / пнуть», твои вызовы, лига недели, приглашения.
 
 import { monthlyEntry } from '../monthlyui.js';
+import { lazyThumb, openViewer } from '../photoui.js';
 import { h, clear, plural } from '../dom.js';
 import { haptic, openTgLink } from '../tg.js';
 import { api } from '../api.js';
@@ -180,6 +181,13 @@ function feedItem(e, reactions, redraw) {
       e.kind === 'quest' ? ` сделал(а) квест` : e.kind === 'streak' ? ` держит серию ${e.streak} дн. 🔥` : ` не заходил(а) ${e.away} дн. 💤`)),
     h('span', { class: 'fd-when' }, when));
   const title = e.kind === 'quest' ? h('div', { class: 'fd-title' }, h('span', { 'aria-hidden': 'true' }, e.emoji), ' ', e.title) : null;
+  // Фото к квесту, которые друг открыл для ленты
+  const photos = (e.photos || []).length ? h('div', { class: `fd-photos n${Math.min(3, e.photos.length)}` }, e.photos.slice(0, 3).map((p, i) => {
+    const b = h('button', { type: 'button', class: 'fd-photo', 'aria-label': `Фото ${i + 1} от ${f.name}` }, lazyThumb(p, e.title));
+    if (i === 2 && e.photos.length > 3) b.append(h('span', { class: 'fd-photo-more' }, `+${e.photos.length - 3}`));
+    b.addEventListener('click', () => { haptic.tap(); openViewer(e.photos.map(x => ({ ...x, mine: false, can_delete: false, by: f.name })), i); });
+    return b;
+  })) : null;
   const row = h('div', { class: 'fd-actions' });
   if (e.kind === 'away') {
     const cheer = h('button', { type: 'button', class: 'fd-btn', disabled: !e.can_cheer }, e.can_cheer ? '👋 Подбодрить' : '👋 Отправлено');
@@ -214,7 +222,7 @@ function feedItem(e, reactions, redraw) {
       row.append(cheer);
     }
   }
-  return h('article', { class: `fd-item k-${e.kind}` }, head, title, row);
+  return h('article', { class: `fd-item k-${e.kind}` }, head, title, photos, row);
 }
 
 function fmtRel(iso) {

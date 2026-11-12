@@ -2587,3 +2587,21 @@ button.wg-cell:active { transform: scale(.92); }
 .mo-join { font-size: 17px; padding: 16px; border-radius: 20px; color: #fff; background: linear-gradient(120deg, #F3619C, #B23CFF); box-shadow: 0 5px 0 #6B2BA8, 0 10px 22px rgba(178,60,255,.35); animation: mo-pulse 1.8s ease-in-out infinite; }
 @keyframes mo-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
 @media (prefers-reduced-motion: reduce) { .mo-join { animation: none; } }
+
+/* ---------- Фото в ленте друзей и фото-отчёт после квеста ---------- */
+.fd-photos { display: grid; gap: 6px; margin: 8px 0 4px; }
+.fd-photos.n1 { grid-template-columns: 1fr; }
+.fd-photos.n2 { grid-template-columns: 1fr 1fr; }
+.fd-photos.n3 { grid-template-columns: 1fr 1fr 1fr; }
+.fd-photo { position: relative; display: block; width: 100%; aspect-ratio: 1; padding: 0; border: 0; border-radius: 14px; overflow: hidden; background: var(--cream-2, rgba(0,0,0,.06)); box-shadow: 0 2px 0 var(--line); }
+.fd-photos.n1 .fd-photo { aspect-ratio: 4 / 3; }
+.fd-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.fd-photo-more { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(43,33,64,.45); color: #fff; font-weight: 900; font-size: 20px; }
+.pr-cam { font-size: 44px; line-height: 1; margin-bottom: 6px; animation: dh-bob 2.4s ease-in-out infinite; display: inline-block; }
+.pr-share { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border: 0; border-radius: 16px; background: var(--cream-2, rgba(0,0,0,.05)); color: var(--ink); text-align: left; font-family: inherit; }
+.pr-share b { display: block; font-size: 13.5px; }
+.pr-share .grow span { display: block; font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.pr-share-knob { position: relative; flex: none; width: 44px; height: 26px; border-radius: 13px; background: var(--line); transition: background .2s; }
+.pr-share-knob::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--white); box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .2s; }
+.pr-share.on .pr-share-knob { background: var(--lime-deep, #7C9414); }
+.pr-share.on .pr-share-knob::after { transform: translateX(18px); }
