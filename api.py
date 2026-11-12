@@ -304,6 +304,21 @@ async def get_stats(request):
     return web.json_response(data)
 
 
+async def get_year(request):
+    """Год одним взглядом: активность по дням за последние 365 дней (для тепловой карты)
+    плюс уровни — для карты пути."""
+    from datetime import timedelta as _td
+    user = storage.get_user(request["user_id"])
+    today = game.local_today(user)
+    start = today - _td(days=364)
+    days = activity.by_day(request["user_id"], start, today)
+    out = {d: v["habits"] + v["plans"] + v["quests"] for d, v in days.items() if (v["habits"] + v["plans"] + v["quests"])}
+    return web.json_response({"start": start.isoformat(), "end": today.isoformat(), "days": out,
+                              "active_days": len(out), "total": sum(out.values()),
+                              "levels": [{"level": i + 1, "name": name, "xp": xp} for i, (xp, name) in enumerate(game.LEVELS)],
+                              "level": game.level_info(user.get("xp") or 0)})
+
+
 async def get_achievements(request):
     user = storage.get_user(request["user_id"])
     return web.json_response({
@@ -1221,6 +1236,7 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_get("/api/ai/options", ai_options)
     app.router.add_post("/api/ai/quest", ai_quest)
     app.router.add_get("/api/recap", get_recap)
+    app.router.add_get("/api/year", get_year)
     app.router.add_get("/api/spheres", get_spheres)
     app.router.add_post("/api/spheres", sphere_create)
     app.router.add_patch("/api/spheres/{key}", sphere_update)

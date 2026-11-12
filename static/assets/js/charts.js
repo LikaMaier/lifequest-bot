@@ -351,3 +351,62 @@ export function balanceWheel(spheres, { label = 'Колесо баланса' } 
   return wrap;
 }
 function escBw(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+
+/** Год одним взглядом: 53 недели × 7 дней, чем больше сделано — тем ярче. days: {iso: total}. */
+export function yearHeatmap({ start, end, days = {} }, { label = 'Активность за год' } = {}) {
+  const s = new Date(start + 'T00:00:00'), e = new Date(end + 'T00:00:00');
+  const first = new Date(s); first.setDate(s.getDate() - ((s.getDay() + 6) % 7)); // с понедельника
+  const weeks = Math.ceil(((e - first) / 864e5 + 1) / 7);
+  const cell = 11, gap = 3, left = 26, top = 18;
+  const W = left + weeks * (cell + gap), H = top + 7 * (cell + gap);
+  const max = Math.max(1, ...Object.values(days));
+  const MONTHS = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+  let rects = '', months = '', lastM = -1;
+  for (let w = 0; w < weeks; w++) {
+    for (let d = 0; d < 7; d++) {
+      const dt = new Date(first); dt.setDate(first.getDate() + w * 7 + d);
+      if (dt < s || dt > e) continue;
+      const iso = dt.toISOString().slice(0, 10);
+      const v = days[iso] || 0;
+      const lvl = !v ? 0 : v >= max * 0.75 ? 4 : v >= max * 0.5 ? 3 : v >= max * 0.25 ? 2 : 1;
+      rects += `<rect x="${left + w * (cell + gap)}" y="${top + d * (cell + gap)}" width="${cell}" height="${cell}" rx="2.5" class="yh-c l${lvl}"><title>${iso}: ${v}</title></rect>`;
+      if (d === 0 && dt.getMonth() !== lastM && dt.getDate() <= 7) { lastM = dt.getMonth(); months += `<text x="${left + w * (cell + gap)}" y="11" class="yh-m">${MONTHS[lastM]}</text>`; }
+    }
+  }
+  const wd = ['пн', '', 'ср', '', 'пт', '', 'вс'].map((t, i) => t ? `<text x="0" y="${top + i * (cell + gap) + 9}" class="yh-m">${t}</text>` : '').join('');
+  const wrap = document.createElement('div'); wrap.className = 'yh';
+  wrap.innerHTML = `<div class="yh-scroll"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${label}">${months}${wd}${rects}</svg></div>
+    <div class="yh-legend" aria-hidden="true"><span>меньше</span>${[0, 1, 2, 3, 4].map(i => `<i class="yh-c l${i}"></i>`).join('')}<span>больше</span></div>`;
+  requestAnimationFrame(() => { const sc = wrap.querySelector('.yh-scroll'); if (sc) sc.scrollLeft = sc.scrollWidth; });
+  return wrap;
+}
+
+/** Карта пути: уровни — остановки на извилистой тропе, маскот стоит на текущей. */
+export function journeyMap(levels, level, petSvg, { label = 'Карта пути' } = {}) {
+  const cur = level.level;
+  const from = Math.max(1, cur - 2), to = from + 5;
+  const stops = [];
+  for (let l = from; l <= to; l++) {
+    const info = levels.find(x => x.level === l) || { level: l, name: `Уровень ${l}`, xp: null };
+    stops.push(info);
+  }
+  const W = 340, H = 230, n = stops.length;
+  const pts = stops.map((_, i) => ({ x: 30 + (i / (n - 1)) * (W - 60), y: i % 2 ? 70 : 160 }));
+  let path = `M${pts[0].x} ${pts[0].y}`;
+  for (let i = 1; i < n; i++) { const a = pts[i - 1], b = pts[i]; const cx = (a.x + b.x) / 2; path += ` C${cx} ${a.y}, ${cx} ${b.y}, ${b.x} ${b.y}`; }
+  const curIdx = stops.findIndex(s => s.level === cur);
+  const prog = Math.max(0, Math.min(1, level.progress || 0));
+  let body = `<path d="${path}" class="jm-road"/><path d="${path}" class="jm-done" pathLength="100" style="--p:${((curIdx + prog) / (n - 1) * 100).toFixed(1)}"/>`;
+  stops.forEach((s, i) => {
+    const p = pts[i], done = s.level < cur, here = s.level === cur;
+    body += `<g class="jm-stop ${done ? 'done' : ''} ${here ? 'here' : ''}" transform="translate(${p.x} ${p.y})"><circle r="15"/><text y="5" text-anchor="middle" class="jm-n">${done ? '✓' : s.level}</text>
+      <text y="${here || !(i % 2) ? 34 : -24}" text-anchor="middle" class="jm-name">${s.name}</text></g>`;
+  });
+  const pp = pts[Math.max(0, curIdx)];
+  body += `<g class="jm-pet" transform="translate(${pp.x - 30} ${pp.y - 72})"><foreignObject width="60" height="60"><div xmlns="http://www.w3.org/1999/xhtml" class="jm-pet-in">${petSvg}</div></foreignObject></g>`;
+  const next = levels.find(x => x.level === cur + 1);
+  const wrap = document.createElement('div'); wrap.className = 'jm';
+  wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" class="jm-svg" role="img" aria-label="${label}: уровень ${cur}, ${level.xp} из ${level.next} XP">${body}</svg>
+    <p class="jm-tip">${next ? `До «${next.name}» — ещё <b>${Math.max(0, level.next - level.xp)} XP</b>. Один квест — и ближе.` : 'Ты на вершине карты — дальше только легенды ✨'}</p>`;
+  return wrap;
+}

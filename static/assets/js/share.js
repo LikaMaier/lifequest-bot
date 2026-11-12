@@ -203,3 +203,62 @@ export async function milestoneCard(m) {
   ctx.fillText('LIFEQUEST', 90, H - 70);
   return canvas.toDataURL('image/jpeg', 0.9);
 }
+
+/** Сторис «Моя неделя в LifeQuest» — 1080×1920: квесты, привычки, серия, лучший день, маскот. */
+export async function buildWeekStory(a, state, { title = 'Моя неделя', spheres = [] } = {}) {
+  await document.fonts.ready;
+  const W = 1080, H = 1920;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  if (!ctx.roundRect) {
+    ctx.roundRect = function (x, y, w, hgt, rad) { this.moveTo(x + rad, y); this.arcTo(x + w, y, x + w, y + hgt, rad); this.arcTo(x + w, y + hgt, x, y + hgt, rad); this.arcTo(x, y + hgt, x, y, rad); this.arcTo(x, y, x + w, y, rad); this.closePath(); };
+  }
+  const grad = ctx.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, '#2B2140'); grad.addColorStop(.55, '#5B3E8A'); grad.addColorStop(1, '#F065A6');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+  for (let i = 0; i < 90; i++) { ctx.fillStyle = `rgba(255,255,255,${0.15 + Math.random() * 0.5})`; ctx.beginPath(); ctx.arc(Math.random() * W, Math.random() * H * .6, Math.random() * 2.4, 0, Math.PI * 2); ctx.fill(); }
+
+  ctx.fillStyle = '#FFE27A'; ctx.font = '800 40px Nunito, sans-serif'; ctx.fillText('LIFEQUEST', 90, 150);
+  ctx.fillStyle = '#fff'; fitText(ctx, title, 900, 110); ctx.fillText(title, 90, 290);
+  ctx.font = '700 44px Nunito, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.85)';
+  ctx.fillText(state.user && state.user.first_name ? `${state.user.first_name} в LifeQuest` : 'в LifeQuest', 90, 360);
+
+  const pet = await loadSvg(mascotSVG(state.user.mascot, 'love', state.user.accessory));
+  ctx.drawImage(pet, 600, 380, 420, 400);
+
+  const t = a.totals || { quests: 0, habits: 0, plans: 0, xp: 0 };
+  ctx.fillStyle = '#fff'; ctx.font = '800 220px Unbounded, sans-serif'; ctx.fillText(String(t.quests), 90, 720);
+  ctx.font = '800 50px Nunito, sans-serif'; ctx.fillText(plural(t.quests, 'квест', 'квеста', 'квестов'), 96, 800);
+
+  const streak = (state.streak && state.streak.current) || 0;
+  const tiles = [
+    { color: '#DBFA40', value: String(t.habits), label: plural(t.habits, 'привычка', 'привычки', 'привычек') },
+    { color: '#93ABD8', value: String(t.plans), label: plural(t.plans, 'дело', 'дела', 'дел') },
+    { color: '#ED7C30', value: String(streak), label: `${plural(streak, 'день', 'дня', 'дней')} серии 🔥` },
+    { color: '#EDE986', value: `${t.xp}`, label: 'XP за неделю' },
+  ];
+  tiles.forEach((tl, i) => {
+    const x = 90 + (i % 2) * 460, y = 880 + Math.floor(i / 2) * 320;
+    roundRect(ctx, x, y, 440, 290, 52, tl.color, 'rgba(0,0,0,.25)');
+    ctx.fillStyle = '#2C2A22'; fitText(ctx, tl.value, 360, 110); ctx.fillText(tl.value, x + 40, y + 160);
+    ctx.font = '800 34px Nunito, sans-serif'; ctx.fillText(tl.label, x + 40, y + 235);
+  });
+  // неделя по дням — столбики
+  const series = a.series || [];
+  if (series.length) {
+    const max = Math.max(1, ...series.map(d => d.total));
+    const bw = 900 / series.length;
+    series.forEach((d, i) => {
+      const hgt = 30 + (d.total / max) * 120, x = 90 + i * bw + 10, y = 1730 - hgt;
+      roundRect(ctx, x, y, bw - 20, hgt, 22, d.total ? '#FFE27A' : 'rgba(255,255,255,.18)', null);
+      ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = '800 28px Nunito, sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'][(new Date(d.date + 'T00:00:00').getDay() + 6) % 7], x + (bw - 20) / 2, 1772);
+      ctx.textAlign = 'left';
+    });
+  }
+  if (a.best_day) { ctx.fillStyle = '#FFE27A'; ctx.font = '800 36px Nunito, sans-serif'; ctx.fillText(`🏆 лучший день: сделано ${a.best_day.total}`, 90, 1560); }
+  ctx.fillStyle = '#fff'; ctx.font = '800 40px Nunito, sans-serif';
+  ctx.fillText(state.bot_username ? `@${state.bot_username}` : 'LifeQuest в Telegram', 90, 1840);
+  return canvas.toDataURL('image/jpeg', 0.92);
+}
