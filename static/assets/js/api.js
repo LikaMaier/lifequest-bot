@@ -85,6 +85,7 @@ export const api = {
   buy: item => request('POST', 'api/shop/buy', { item }),
   equip: item => request('POST', 'api/shop/equip', { item }),
   share: image => request('POST', 'api/share', { image }),
+  year: () => request('GET', 'api/year'),
   habits: () => request('GET', 'api/habits'),
   createHabit: data => request('POST', 'api/habits', data),
   updateHabit: (id, data) => request('POST', 'api/habits/update', { id, ...data }),

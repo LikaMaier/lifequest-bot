@@ -10,7 +10,10 @@ import { buildRecapCard } from '../share.js';
 import { openSphereManager } from '../sphereui.js';
 const RANGE_WORD = { 1: 'сегодня', 7: 'неделя', 30: 'месяц', all: 'всё время' };
 import { handlePremiumError } from '../premium.js';
-import { hbars, balanceWheel } from '../charts.js';
+import { hbars, balanceWheel, yearHeatmap, journeyMap } from '../charts.js';
+import { buildWeekStory } from '../share.js';
+import { store } from '../store.js';
+import { mascotSVG } from '../mascot.js';
 import { openPhotoReport } from '../photoui.js';
 
 const view = { range: '7', kind: 'bar', stats: {} };
@@ -86,7 +89,7 @@ export async function render(el, ctx) {
 }
 
 export function update(el, ctx) {
-  view.stats = {}; // данные изменились — перезапросим
+  view.stats = {}; view.year = null; // данные изменились — перезапросим
   render(el, ctx);
 }
 
@@ -94,6 +97,16 @@ function draw(body, s, ctx) {
   const r = s.records;
   // Итоги периода: привычки, дела, квесты, XP — и сравнение с прошлым периодом
   if (s.activity) body.append(activityCard(s.activity, s));
+
+  // Карта пути и год одним взглядом — грузим один раз
+  const mapHost = h('section', { class: 'card', style: { marginTop: '14px' } }, skeleton(120));
+  const yearHost = h('section', { class: 'card', style: { marginTop: '10px' } }, skeleton(100));
+  body.append(sectionTitle('Карта пути'), mapHost, sectionTitle('Год одним взглядом'), yearHost);
+  (view.year ? Promise.resolve(view.year) : api.year().then(y => (view.year = y))).then(y => {
+    const u = ctx.state.user;
+    clear(mapHost); mapHost.append(journeyMap(y.levels, y.level, mascotSVG(u.mascot, 'happy', u.accessory)));
+    clear(yearHost); yearHost.append(h('p', { class: 'small bold muted', style: { margin: '0 0 8px' } }, `${y.active_days} ${plural(y.active_days, 'активный день', 'активных дня', 'активных дней')} · ${y.total} ${plural(y.total, 'дело', 'дела', 'дел')} за год`), yearHeatmap(y));
+  }).catch(() => { mapHost.remove(); yearHost.remove(); });
 
   // Рекорды
   const fav = r.favorite_sphere;
@@ -201,6 +214,18 @@ function activityCard(a, s) {
   const sph = (s.spheres || []).map(x => ({ key: x.key || x.sphere, name: x.name || x.sphere, count: x.count || 0,
     color: x.color || (SPHERE_INFO[x.sphere] || {}).color || 'lav', emoji: x.emoji || (SPHERE_INFO[x.sphere] || {}).emoji || '⭐' }));
   card.append(h('div', { class: 'act-chart act-wheel' }, balanceWheel(sph, { label: `Колесо баланса · ${RANGE_WORD[view.range]}` })));
+  if (view.range === '7' || view.range === '30') {
+    const share = h('button', { type: 'button', class: 'story-btn' }, '📲 ', view.range === '7' ? 'Сторис недели для Instagram' : 'Сторис месяца для Instagram');
+    share.addEventListener('click', busy(share, async () => {
+      try {
+        const img = await buildWeekStory(a, store.state, { title: view.range === '7' ? 'Моя неделя' : 'Мой месяц' });
+        await api.share(img);
+        haptic.success();
+        toast('📬 Сторис уже в чате с ботом — сохрани и выложи в Instagram ✨', 'good', 3600);
+      } catch (e) { toastError(e); }
+    }));
+    card.append(share);
+  }
   if (a.best_day && a.days > 1) {
     card.append(h('div', { class: 'act-best' }, h('span', { class: 'act-best-ico', 'aria-hidden': 'true' }, '🏆'),
       h('span', null, 'Лучший день — ', h('b', null, fmtDay(a.best_day.date)), `: сделано ${a.best_day.total}`)));
