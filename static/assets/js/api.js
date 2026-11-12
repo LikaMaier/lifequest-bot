@@ -61,6 +61,7 @@ export const api = {
   premiumSbp: product => request('POST', 'api/premium/sbp', { product }),
   premiumSbpCheck: id => request('POST', 'api/premium/sbp/check', { id }),
   premiumTrial: () => request('POST', 'api/premium/trial'),
+  league: () => request('GET', 'api/league'),
   monthly: () => request('GET', 'api/monthly'),
   monthlyOne: (id, period) => request('GET', `api/monthly/${id}${period ? `?period=${period}` : ''}`),
   monthlyAction: (id, action, body) => request('POST', `api/monthly/${id}/${action}`, body || {}),

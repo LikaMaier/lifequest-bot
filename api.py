@@ -30,6 +30,7 @@ import client_errors
 import login_bonus
 import challenges
 import monthly
+import league
 import contests
 import duels
 import friends
@@ -459,6 +460,10 @@ async def get_packs(request):
 
 async def get_friends(request):
     return web.json_response(friends.list_view(request["user_id"]))
+
+
+async def get_league(request):
+    return web.json_response(league.view(request["user_id"]))
 
 
 _NOTIFY_TASKS = set()
@@ -1260,6 +1265,7 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_delete("/api/albums/{id:[0-9]+}", album_delete)
     app.router.add_delete("/api/albums/{id:[0-9]+}/photos/{pid:[0-9a-f]{32}}", album_photo_delete)
     app.router.add_get("/api/friends", get_friends)
+    app.router.add_get("/api/league", get_league)
     app.router.add_get("/api/monthly", get_monthly)
     app.router.add_get(r"/api/monthly/{id:[a-z]+}", get_monthly_one)
     app.router.add_post(r"/api/monthly/{id:[a-z]+}/{action}", monthly_action)
