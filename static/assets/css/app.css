@@ -2577,3 +2577,8 @@ p { margin: 0; }
 .wg-cell.today { outline: 2px solid var(--ink); outline-offset: 1px; }
 .wg-cell.s-today { background: var(--cream-2, rgba(0,0,0,.07)); }
 button.wg-cell:active { transform: scale(.92); }
+.mo-cta { display: inline-block; margin-top: 8px; padding: 7px 12px; border-radius: 12px; font-size: 12px; font-weight: 900; color: var(--mo-ink, #2A1F3D);
+  background: linear-gradient(120deg, var(--mo-a, #FFE27A), var(--mo-b, #FFB6D9)); box-shadow: 0 2px 0 rgba(43,33,64,.18); }
+.mo-join { font-size: 17px; padding: 16px; border-radius: 20px; color: #fff; background: linear-gradient(120deg, #F3619C, #B23CFF); box-shadow: 0 5px 0 #6B2BA8, 0 10px 22px rgba(178,60,255,.35); animation: mo-pulse 1.8s ease-in-out infinite; }
+@keyframes mo-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+@media (prefers-reduced-motion: reduce) { .mo-join { animation: none; } }

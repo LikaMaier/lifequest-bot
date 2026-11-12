@@ -84,7 +84,8 @@ function catalogCard(c, go) {
     h('span', { class: 'mo-goal' }, c.kind === 'days' ? `${c.goal} ${unitOf(c.goal, c.unit)}` : `${fmt(c.goal)} ${unitOf(c.goal, c.unit)}`),
     c.friends.length ? h('span', { class: 'mo-friends' }, c.friends.slice(0, 3).map(f => h('span', { class: 'mo-ava', html: mascotSVG(f.mascot, 'happy', f.accessory), title: f.name })),
       h('span', { class: 'tiny bold' }, c.friends_count > 3 ? `+${c.friends_count - 3}` : ''))
-      : h('span', { class: 'tiny bold muted' }, c.participants ? `${c.participants} ${plural(c.participants, 'участник', 'участника', 'участников')}` : 'будь первым'));
+      : h('span', { class: 'tiny bold muted' }, c.participants ? `${c.participants} ${plural(c.participants, 'участник', 'участника', 'участников')}` : 'будь первым'),
+    h('span', { class: 'mo-cta' }, 'Участвовать ›'));
   card.addEventListener('click', () => openMonthly(go, c.id));
   return card;
 }
@@ -118,8 +119,8 @@ function drawDetail(body, ctx, d) {
   body.append(h('p', { class: 'mo-period' }, `${cap(d.period_label)} · ${d.participants} ${plural(d.participants, 'участник', 'участника', 'участников')}${d.days_left ? ` · ${d.days_left} ${plural(d.days_left, 'день', 'дня', 'дней')} до конца` : ''}`));
 
   if (!d.joined) {
-    const join = h('button', { type: 'button', class: 'btn block' }, `${d.emoji} Участвую!`);
-    join.addEventListener('click', () => busy(join, async () => {
+    const join = h('button', { type: 'button', class: 'btn block mo-join' }, `${d.emoji} Участвую!`);
+    join.addEventListener('click', busy(join, async () => {
       try { const nd = await api.monthlyAction(d.id, 'join'); haptic.success(); confetti(60); toast('Ты в игре! Отмечай результат каждый день', 'good', 2400); redraw(nd); }
       catch (e) { toastError(e); }
     }));
@@ -167,7 +168,7 @@ function drawDetail(body, ctx, d) {
 
   if (d.joined) {
     const leave = h('button', { type: 'button', class: 'btn ghost small block', style: { marginTop: '18px' } }, 'Выйти из челленджа');
-    leave.addEventListener('click', () => busy(leave, async () => {
+    leave.addEventListener('click', busy(leave, async () => {
       try { await api.monthlyAction(d.id, 'leave'); list = null; toast('Вышел(ла). Записи за месяц остались', '', 2000); go('challenges', { fresh: true }); }
       catch (e) { toastError(e); }
     }));
@@ -195,19 +196,19 @@ function logCard(d, redraw, go) {
   if (d.kind === 'days') {
     if (my.logged_today) {
       const undo = h('button', { type: 'button', class: 'home2-link' }, 'отменить');
-      undo.addEventListener('click', () => busy(undo, async () => { try { redraw(await api.monthlyAction(d.id, 'undo')); } catch (e) { toastError(e); } }));
+      undo.addEventListener('click', busy(undo, async () => { try { redraw(await api.monthlyAction(d.id, 'undo')); } catch (e) { toastError(e); } }));
       return h('section', { class: 'card tinted c-lime mo-log' }, h('div', { class: 'mo-log-done' }, '✓ Сегодня засчитано'), undo);
     }
     const b = h('button', { type: 'button', class: 'btn block' }, '✓ Сегодня получилось!');
-    b.addEventListener('click', () => busy(b, () => send(1, false)));
+    b.addEventListener('click', busy(b, () => send(1, false)));
     return h('section', { class: 'card tinted c-yellow mo-log' }, h('p', { class: 'bold', style: { marginBottom: '10px' } }, 'Отметь день, когда справишься'), b);
   }
   const input = h('input', { class: 'input mo-input', type: 'number', inputmode: 'numeric', min: '0', placeholder: '0', 'aria-label': `Сколько ${unitOf(5, d.unit)} сегодня` });
   const add = h('button', { type: 'button', class: 'btn' }, 'Добавить');
-  add.addEventListener('click', () => busy(add, () => send(Number(input.value) || 0, false)));
+  add.addEventListener('click', busy(add, () => send(Number(input.value) || 0, false)));
   const quick = h('div', { class: 'mo-quick' }, d.steps.map(s => {
     const q = h('button', { type: 'button', class: 'mo-chip' }, `+${fmt(s)}`);
-    q.addEventListener('click', () => busy(q, () => send(s, false)));
+    q.addEventListener('click', busy(q, () => send(s, false)));
     return q;
   }));
   const box = h('section', { class: 'card tinted c-yellow mo-log' },
@@ -215,12 +216,12 @@ function logCard(d, redraw, go) {
     h('div', { class: 'mo-log-row' }, input, add), quick);
   if (d.milestone) {
     const m = h('button', { type: 'button', class: 'btn ghost small block', style: { marginTop: '10px' } }, `${d.milestone.emoji} ${d.milestone.label}`);
-    m.addEventListener('click', () => busy(m, () => send(0, true)));
+    m.addEventListener('click', busy(m, () => send(0, true)));
     box.append(m);
   }
   if (my.today_entries) {
     const undo = h('button', { type: 'button', class: 'home2-link', style: { marginTop: '8px' } }, 'отменить последнюю запись');
-    undo.addEventListener('click', () => busy(undo, async () => { try { redraw(await api.monthlyAction(d.id, 'undo')); } catch (e) { toastError(e); } }));
+    undo.addEventListener('click', busy(undo, async () => { try { redraw(await api.monthlyAction(d.id, 'undo')); } catch (e) { toastError(e); } }));
     box.append(h('div', { class: 'center' }, undo));
   }
   return box;
@@ -248,7 +249,7 @@ function editGoal(d, redraw) {
   const s = sheet(h('div', null, h('h2', null, 'Моя цель на месяц'),
     h('p', { class: 'muted bold small', style: { margin: '4px 0 12px' } }, `Рекомендуем ${fmt(d.goal)} ${unitOf(d.goal, d.unit)}, но цель твоя — ставь свою.`),
     input, save), { label: 'Цель' });
-  save.addEventListener('click', () => busy(save, async () => {
+  save.addEventListener('click', busy(save, async () => {
     try { const nd = await api.monthlyAction(d.id, 'goal', { goal: Number(input.value) }); s.close(); toast('Цель обновлена', 'good', 1500); redraw(nd); }
     catch (e) { toastError(e); }
   }));
