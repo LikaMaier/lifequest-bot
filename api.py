@@ -29,6 +29,7 @@ import yookassa_api
 import client_errors
 import login_bonus
 import challenges
+import monthly
 import contests
 import duels
 import friends
@@ -195,6 +196,7 @@ def _state(request) -> dict:
     data["user_spheres"] = spheres.list_spheres(request["user_id"])
     data["challenge"] = challenges.summary(request["user_id"])
     data["contests"] = contests.summary(request["user_id"])
+    data["monthly_nudges"] = monthly.today_nudges(request["user_id"])
     data["invite_nudge"] = _invite_nudge_due(user)
     return data
 
@@ -510,6 +512,38 @@ async def duel_action(request):
         raise web.HTTPNotFound()
     result = _with_notify(fn(request["user_id"], _int(request.match_info["id"])))
     result["duels"] = duels.list_view(request["user_id"])
+    return web.json_response(result)
+
+
+# ---------- челленджи месяца (monthly.py) ----------
+async def get_monthly(request):
+    return web.json_response(monthly.list_view(request["user_id"]))
+
+
+async def get_monthly_one(request):
+    period = request.query.get("period") or None
+    return web.json_response(monthly.detail(request["user_id"], request.match_info["id"], period))
+
+
+async def monthly_action(request):
+    _limit(request, "write")
+    action = request.match_info["action"]
+    cid = request.match_info["id"]
+    uid = request["user_id"]
+    data = await _body(request)
+    if action == "join":
+        result = monthly.join(uid, cid)
+    elif action == "leave":
+        result = monthly.leave(uid, cid)
+    elif action == "goal":
+        result = monthly.set_goal(uid, cid, data.get("goal"))
+    elif action == "log":
+        result = _with_notify(monthly.log(uid, cid, data.get("value"), bool(data.get("milestone"))))
+        result["state"] = _state(request)
+    elif action == "undo":
+        result = monthly.undo(uid, cid)
+    else:
+        raise web.HTTPNotFound()
     return web.json_response(result)
 
 
@@ -1226,6 +1260,9 @@ def create_app(bot_token: str, bot=None, init_data_max_age: int = None) -> web.A
     app.router.add_delete("/api/albums/{id:[0-9]+}", album_delete)
     app.router.add_delete("/api/albums/{id:[0-9]+}/photos/{pid:[0-9a-f]{32}}", album_photo_delete)
     app.router.add_get("/api/friends", get_friends)
+    app.router.add_get("/api/monthly", get_monthly)
+    app.router.add_get(r"/api/monthly/{id:[a-z]+}", get_monthly_one)
+    app.router.add_post(r"/api/monthly/{id:[a-z]+}/{action}", monthly_action)
     app.router.add_get("/api/feed", get_feed)
     app.router.add_post("/api/feed/react", feed_react)
     app.router.add_post("/api/friends/ping", friend_ping)

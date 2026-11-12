@@ -269,3 +269,10 @@
 }
 [data-theme="ocean"] :is(.dsp, .dsp.contest, .dsp.team, .dsp.pending, .dsp.contest.lobby) {
   background: radial-gradient(circle at 15% 0%, #FFFFFFAA 0, transparent 42%), linear-gradient(135deg, #9FF3F2 0%, #3BC8D8 55%, #2B8FC0 100%); }
+
+/* ---------- Челленджи месяца: градиент входной плашки и заливка дней ---------- */
+:root[data-theme="space"] { --mo-a: #5B3CFF; --mo-b: #FF5FD2; --mo-ink: #FFFFFF; --mo-l1: #3A2C7A; --mo-l2: #5B3CFF; --mo-l3: #A05CFF; --mo-l4: #FF5FD2; }
+:root[data-theme="halloween"] { --mo-a: #FF7A1A; --mo-b: #FFB043; --mo-ink: #1A0D05; --mo-l1: #FFE3B3; --mo-l2: #FFB043; --mo-l3: #FF7A1A; --mo-l4: #9BFF4F; }
+:root[data-theme="matrix"] { --mo-a: #0B3A1A; --mo-b: #1F7A3A; --mo-ink: #B8FFC9; --mo-l1: #0E3F1E; --mo-l2: #1F7A3A; --mo-l3: #2ECC5A; --mo-l4: #39FF6A; }
+:root[data-theme="forest"] { --mo-a: #FFD84D; --mo-b: #A4D65E; --mo-ink: #2A1A03; --mo-l1: #EEF3C4; --mo-l2: #C9E07A; --mo-l3: #8DBE3A; --mo-l4: #365004; }
+:root[data-theme="ocean"] { --mo-a: #A8E6F0; --mo-b: #3BB6C9; --mo-ink: #0E2F38; --mo-l1: #D6F3F8; --mo-l2: #8BD8E6; --mo-l3: #3BB6C9; --mo-l4: #FF7A6B; }

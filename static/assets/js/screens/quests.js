@@ -8,6 +8,7 @@ import { myMascot } from '../mascot.js';
 import { emptyState, sectionTitle, skeleton, busy, toastError, sheet, SPHERE_INFO } from '../ui.js';
 import { questPicker, openQuest, questItem, completeQuest } from '../questflow.js';
 import { openPaywall } from '../premium.js';
+import { monthlyEntry } from '../monthlyui.js';
 
 const view = { packs: null, tab: 'active', query: '', history: null, historyLoading: false };
 
@@ -24,13 +25,19 @@ export function render(el, ctx) {
   // Квест дня — если ещё не взят
   const daily = state.daily;
   if (daily && daily.status !== 'done' && !state.active.find(q => q.id === daily.id)) {
-    const take = h('button', { type: 'button', class: 'cal2-pill lav' }, 'Взять');
+    // Пока карту на главной не перевернули — название не раскрываем
+    let seen = false;
+    try { seen = localStorage.getItem(`lq_daily_seen:${state.user.id || state.user.user_id || ''}:${state.today.date}`) === '1'; } catch (e) { /* ок */ }
+    const take = h('button', { type: 'button', class: 'cal2-pill lav' }, seen ? 'Взять' : 'Открыть');
     const card = h('section', { class: 'home2-bonus', style: { marginTop: '14px' } },
-      h('span', { class: 'home2-bonus-emoji', 'aria-hidden': 'true' }, daily.emoji),
-      h('div', { class: 'grow' }, h('div', { class: 'home2-kicker' }, `Квест дня · +${daily.bonus_xp} XP`), h('div', { class: 'bold' }, daily.title)), take);
-    take.addEventListener('click', () => { haptic.tap(); openQuest({ ...daily, daily: true }, { daily: true }); });
+      h('span', { class: 'home2-bonus-emoji', 'aria-hidden': 'true' }, seen ? daily.emoji : '🎴'),
+      h('div', { class: 'grow' }, h('div', { class: 'home2-kicker' }, `Квест дня · +${daily.bonus_xp} XP`), h('div', { class: 'bold' }, seen ? daily.title : 'Карта ещё не перевёрнута')), take);
+    take.addEventListener('click', () => { haptic.tap(); if (seen) openQuest({ ...daily, daily: true }, { daily: true }); else ctx.go('home'); });
     el.append(card);
   }
+
+  // Челленджи месяца
+  el.append(monthlyEntry(state, ctx.go));
 
   // Тематические наборы
   const packsHost = h('div', { class: 'pack-row', role: 'list', 'aria-label': 'Наборы квестов' });
