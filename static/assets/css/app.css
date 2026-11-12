@@ -2684,3 +2684,38 @@ button.wg-cell:active { transform: scale(.92); }
 @keyframes onb-card-float { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-8px) rotate(2deg); } }
 @keyframes onb-shine { 0% { left: -60%; } 55%, 100% { left: 130%; } }
 @media (prefers-reduced-motion: reduce) { .onb-card, .onb-card-shine { animation: none; } .onb-card-inner { transition: none; } }
+
+/* ---------- Приветствие: экскурсия по вкладкам ---------- */
+.onb-slide.tour { gap: 9px; }
+.onb-slide.tour .onb-title { font-size: 23px; }
+.onb-slide.tour .onb-lead { font-size: 14px; }
+.tour-box { display: flex; flex-direction: column; gap: 9px; padding: 13px; border-radius: 22px; background: var(--white); box-shadow: 0 4px 0 var(--line), 0 10px 24px rgba(43,33,64,.08); animation: onb-quote-in .45s cubic-bezier(.3,1.25,.5,1) both .08s; pointer-events: none; }
+.tour-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.tour-mode { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border-radius: 14px; background: var(--cream-2, rgba(0,0,0,.05)); font-weight: 800; font-size: 12px; }
+.tour-mode i { font-style: normal; font-size: 20px; }
+.tour-mode.on { background: var(--ink); color: var(--white); }
+.tour-go { padding: 13px; border-radius: 16px; text-align: center; font-family: var(--font-display); font-size: 16px; color: #fff; background: linear-gradient(120deg, #E9A6F0, #F3619C); box-shadow: 0 4px 0 var(--ink); animation: onb-pulse 1.9s ease-in-out infinite; }
+.tour-chips, .tour-reacts { display: flex; flex-wrap: wrap; gap: 6px; }
+.tour-chips span, .tour-reacts span { padding: 6px 10px; border-radius: 12px; background: var(--cream-2, rgba(0,0,0,.05)); font-weight: 800; font-size: 11.5px; }
+.tour-ch { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 16px; background: linear-gradient(120deg, var(--mo-a, #FFE27A), var(--mo-b, #FFB6D9)); color: var(--mo-ink, #2A1F3D); }
+.tour-ch-e { font-size: 28px; }
+.tour-ch b { display: block; font-size: 13.5px; } .tour-ch span { font-size: 11.5px; font-weight: 800; opacity: .85; }
+.tour-bar { height: 7px; border-radius: 4px; background: rgba(255,255,255,.55); margin-top: 5px; overflow: hidden; }
+.tour-bar i { display: block; height: 100%; border-radius: 4px; background: var(--pink-deep, #B23C6C); }
+.tour-row { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 12px; font-size: 13.5px; }
+.tour-row.me { background: var(--cream-2, rgba(0,0,0,.05)); }
+.tour-prog { gap: 6px; }
+.tour-wheel { max-width: 236px; align-self: center; width: 100%; }
+.tour-wheel .bw-tip { display: none; }
+.tour-pet { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 16px; background: var(--cream-2, rgba(0,0,0,.05)); }
+.tour-pet b { display: block; font-size: 13.5px; } .tour-pet span { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.tour-where { display: flex; flex-direction: column; align-items: center; gap: 5px; margin-top: 2px; }
+.tour-where-label { font-weight: 800; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.tour-tabs { display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; gap: 2px; width: 100%; max-width: 300px; padding: 5px 6px; border-radius: 18px; background: var(--white); box-shadow: 0 3px 0 var(--line); }
+.tour-tab { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 0; border-radius: 12px; color: var(--muted); opacity: .55; }
+.tour-tab small { font-size: 8.5px; font-weight: 800; }
+.tour-tab-ico { width: 18px; height: 18px; display: block; } .tour-tab-ico svg { width: 100%; height: 100%; }
+.tour-tab.on { opacity: 1; color: var(--ink); background: color-mix(in srgb, var(--c) 45%, var(--white)); box-shadow: 0 0 0 2px var(--c-deep); animation: tour-ping 1.5s ease-in-out infinite; }
+.tour-tab.fab.on { background: linear-gradient(120deg, #E9A6F0, #F3619C); color: #fff; }
+@keyframes tour-ping { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.09); } }
+@media (prefers-reduced-motion: reduce) { .tour-tab.on, .tour-go { animation: none; } }
