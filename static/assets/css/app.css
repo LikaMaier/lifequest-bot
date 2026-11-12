@@ -2650,3 +2650,37 @@ button.wg-cell:active { transform: scale(.92); }
 .pr-share-knob::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--white); box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .2s; }
 .pr-share.on .pr-share-knob { background: var(--lime-deep, #7C9414); }
 .pr-share.on .pr-share-knob::after { transform: translateX(18px); }
+
+/* ---------- Приветствие: именное приглашение и карта с фольгой ---------- */
+.onb-invite { gap: 12px; }
+.onb-kicker-gold { color: #B8860B; }
+.onb-kicker-gold span { color: #E0A82E; }
+.onb-card-wrap { position: relative; align-self: center; width: 216px; height: 292px; margin: 6px 0 4px; perspective: 1200px; }
+.onb-card { display: block; width: 100%; height: 100%; padding: 0; border: 0; background: none; font-family: inherit; cursor: pointer; animation: onb-card-float 3.4s ease-in-out infinite; }
+.onb-card.open { animation: none; cursor: default; }
+.onb-card-inner { position: relative; display: block; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .8s cubic-bezier(.4, 0, .2, 1); }
+.onb-card.open .onb-card-inner { transform: rotateY(180deg); }
+.onb-card-face { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 26px; overflow: hidden;
+  backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.onb-card-back { color: #F6D77A;
+  background: radial-gradient(circle at 50% 38%, rgba(246,215,122,.20) 0, transparent 55%), repeating-linear-gradient(135deg, rgba(246,215,122,.07) 0 8px, transparent 8px 18px), linear-gradient(155deg, #2B1B4E 0%, #1A1033 55%, #3A1650 100%);
+  box-shadow: inset 0 0 0 2px #E0A82E, inset 0 0 0 7px #1A1033, inset 0 0 0 8px rgba(224,168,46,.55), 0 10px 0 #120A26, 0 22px 40px rgba(43,27,78,.45); }
+.onb-card-q { font-family: var(--font-display); font-size: 110px; line-height: 1; background: linear-gradient(180deg, #FFF1B8, #E0A82E 60%, #B8860B); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 5px 0 rgba(0,0,0,.35)); }
+.onb-card-hint { margin-top: 14px; font-weight: 800; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; opacity: .85; }
+.onb-card-corner { position: absolute; font-family: var(--font-display); font-size: 13px; letter-spacing: .08em; opacity: .8; }
+.onb-card-corner.tl { left: 18px; top: 16px; } .onb-card-corner.br { right: 18px; bottom: 16px; transform: rotate(180deg); }
+.onb-card-shine { position: absolute; top: -20%; bottom: -20%; left: -60%; width: 45%; transform: skewX(-20deg); background: linear-gradient(90deg, transparent, rgba(255,255,255,.28), transparent); animation: onb-shine 2.8s ease-in-out infinite; }
+.onb-card-front { transform: rotateY(180deg); padding: 22px 18px; gap: 10px; text-align: center; color: #2A1F3D;
+  background: radial-gradient(circle at 85% 8%, rgba(255,226,122,.75) 0, transparent 45%), linear-gradient(160deg, #FFFDF4, #FFE9F3 70%, #F3E3FF);
+  box-shadow: inset 0 0 0 2px #E0A82E, 0 10px 0 #C98A1A, 0 22px 40px rgba(224,168,46,.35); }
+.onb-card-tag { padding: 4px 10px; border-radius: 99px; background: #2B1B4E; color: #F6D77A; font-weight: 800; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; }
+.onb-card-emoji { font-size: 64px; line-height: 1.1; }
+.onb-card-text { font-family: var(--font-display); font-size: 18px; line-height: 1.22; }
+.onb-card-meta { font-weight: 800; font-size: 11.5px; color: #8A6A1A; }
+.onb-card-spark { position: absolute; color: #E0A82E; font-size: 20px; animation: dh-twinkle 1.8s ease-in-out infinite; z-index: 2; pointer-events: none; }
+.onb-card-spark.s1 { left: -22px; top: 30px; } .onb-card-spark.s2 { right: -24px; top: 110px; animation-delay: .6s; font-size: 16px; } .onb-card-spark.s3 { left: -14px; bottom: 40px; animation-delay: 1.1s; font-size: 14px; }
+.onb-more-label { align-self: center; font-weight: 800; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.onb-quotes[hidden] { display: none; }
+@keyframes onb-card-float { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-8px) rotate(2deg); } }
+@keyframes onb-shine { 0% { left: -60%; } 55%, 100% { left: 130%; } }
+@media (prefers-reduced-motion: reduce) { .onb-card, .onb-card-shine { animation: none; } .onb-card-inner { transition: none; } }

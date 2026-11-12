@@ -7,7 +7,7 @@ import { h, clear } from './dom.js';
 import { api } from './api.js';
 import { haptic, pushBack } from './tg.js';
 import { myMascot } from './mascot.js';
-import { setState } from './store.js';
+import { setState, store } from './store.js';
 import { templatePicker } from './habitui.js';
 
 const feature = (emoji, color, title, text) => h('div', { class: `onb-feature c-${color}` },
@@ -40,11 +40,11 @@ const pickTeasers = (n = 3) => {
 
 const SLIDES = [
   {
-    color: 'pink', expr: 'love', grad: 'a',
-    kicker: 'Лекарство от прокрастинации',
-    title: 'Не знаешь,<br>чем заняться?',
-    lead: 'Жми 🎲 — и получишь живое задание на 15 минут. Не «помой посуду», а то, после чего день становится историей.',
-    floats: [['🎲', 'f1'], ['⭐', 'f2'], ['🔥', 'f3'], ['📸', 'f4']],
+    color: 'pink', expr: 'love', grad: 'a', card: true,
+    kicker: 'Личное приглашение',
+    title: 'тебе выпала карта',
+    lead: 'Нажми на неё. Внутри — задание, после которого обычный день становится историей.',
+    leadOpen: 'Это одна из 400+. Здесь нет «помой посуду» — только то, о чём потом рассказывают. Каждый день — новая карта.',
     quotes: true,
   },
   {
@@ -112,6 +112,7 @@ export function showOnboarding({ onDone } = {}) {
     SLIDES.forEach(x => overlay.classList.remove(`g-${x.grad}`));
     overlay.classList.add(`g-${s.grad}`);
     const parts = [];
+    if (s.card) { drawCard(s, dir); return; }
     if (!s.picker) {
       parts.push(h('div', { class: 'onb-hero-wrap' },
         s.floats ? floaters(s.floats) : null,
@@ -138,7 +139,55 @@ export function showOnboarding({ onDone } = {}) {
     next.classList.toggle('onb-go', i === SLIDES.length - 1);
     skip.style.visibility = i === SLIDES.length - 1 ? 'hidden' : 'visible';
   };
+  // Первый экран: именное приглашение и закрытая карта — переверни, чтобы увидеть задание
+  let cardOpen = false;
+  const drawCard = (s, dir) => {
+    const name = (store.state && store.state.user && store.state.user.first_name) || '';
+    const picks = quotes || (quotes = pickTeasers());
+    const first = picks[0];
+    const emoji = first.split(' ')[0], text = first.slice(emoji.length + 1);
+    const lead = h('p', { class: 'onb-lead' }, cardOpen ? s.leadOpen : s.lead);
+    const more = h('div', { class: 'onb-quotes', hidden: !cardOpen }, h('span', { class: 'onb-more-label' }, 'а ещё в колоде:'),
+      picks.slice(1).map((q, k) => h('span', { class: 'onb-quote', style: { '--d': `${0.25 + k * 0.14}s` } }, q)));
+    const faceBack = h('div', { class: 'onb-card-face onb-card-back' },
+      h('span', { class: 'onb-card-corner tl' }, 'LQ'), h('span', { class: 'onb-card-corner br' }, 'LQ'),
+      h('span', { class: 'onb-card-q' }, '?'), h('span', { class: 'onb-card-hint' }, 'нажми, чтобы открыть'),
+      h('span', { class: 'onb-card-shine', 'aria-hidden': 'true' }));
+    const front = h('div', { class: 'onb-card-face onb-card-front' },
+      h('span', { class: 'onb-card-tag' }, 'твой квест'), h('span', { class: 'onb-card-emoji', 'aria-hidden': 'true' }, emoji),
+      h('span', { class: 'onb-card-text' }, text), h('span', { class: 'onb-card-meta' }, '15 минут · +XP · фото на память'));
+    const card = h('button', { type: 'button', class: `onb-card ${cardOpen ? 'open' : ''}`, 'aria-label': cardOpen ? text : 'Открыть карту' },
+      h('span', { class: 'onb-card-inner' }, faceBack, front));
+    const flip = () => {
+      if (cardOpen) return;
+      cardOpen = true;
+      haptic.success();
+      card.classList.add('open');
+      card.setAttribute('aria-label', text);
+      lead.textContent = s.leadOpen;
+      more.hidden = false;
+      next.textContent = 'Хочу ещё →';
+      next.classList.remove('onb-go');
+    };
+    card.addEventListener('click', flip);
+    clear(slideHost).append(h('section', { class: `onb-slide onb-invite c-${s.color} ${dir < 0 ? 'from-left' : ''}`, 'aria-live': 'polite' },
+      h('div', { class: 'onb-kicker onb-kicker-gold' }, h('span', { 'aria-hidden': 'true' }, '✦ '), s.kicker, h('span', { 'aria-hidden': 'true' }, ' ✦')),
+      h('h1', { class: 'onb-title' }, name ? `${name}, ${s.title}` : s.title[0].toUpperCase() + s.title.slice(1)),
+      h('div', { class: 'onb-card-wrap' }, h('span', { class: 'onb-card-spark s1', 'aria-hidden': 'true' }, '✦'), h('span', { class: 'onb-card-spark s2', 'aria-hidden': 'true' }, '✧'),
+        h('span', { class: 'onb-card-spark s3', 'aria-hidden': 'true' }, '✦'), card),
+      lead, more));
+    clear(dots).append(...SLIDES.map((_, k) => h('span', { class: `onb-dot ${k === i ? 'on' : ''}`, 'aria-hidden': 'true' })));
+    back.style.display = 'none';
+    next.textContent = cardOpen ? 'Хочу ещё →' : '✨ Открыть карту';
+    next.classList.remove('ghost');
+    next.classList.toggle('onb-go', !cardOpen);
+    skip.style.visibility = 'visible';
+    flipCard = flip;
+  };
+  let flipCard = null;
+
   const go = d => {
+    if (d > 0 && SLIDES[i].card && !cardOpen && flipCard) { flipCard(); return; }
     const n = i + d;
     if (n < 0) return;
     if (n >= SLIDES.length) { finish(); return; }
