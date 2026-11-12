@@ -510,6 +510,23 @@ def _views(user_id: int, rows: list) -> list:
             c, dn, sk = logs.get(d.isoformat(), (0, 0, 0))
             week.append({"date": d.isoformat(), "count": c, "done": bool(dn), "skipped": bool(sk),
                          "state": _day_state(h, d, logs, paused) if kind == "build" else ("slip" if c else "clean")})
+        # Неделя пн–вс для сетки на главной: будущие дни — future, до создания — before
+        created = _first_day(h, logs) if kind == "build" else None
+        week_mon = []
+        for i in range(7):
+            d = monday + timedelta(days=i)
+            c, dn, sk = logs.get(d.isoformat(), (0, 0, 0))
+            if d > today:
+                st = "future"
+            elif kind == "quit":
+                st = "slip" if c else "clean"
+            elif created and d < created:
+                st = "before"
+            else:
+                st = _day_state(h, d, logs, paused)
+                if st == "miss" and d == today:
+                    st = "today"
+            week_mon.append({"date": d.isoformat(), "state": st, "count": c})
         t_count, t_done, t_skip = logs.get(today.isoformat(), (0, 0, 0))
         week_done = sum(1 for i in range(7) if logs.get((monday + timedelta(days=i)).isoformat(), (0, 0, 0))[1])
         per_week = h.get("per_week") or 3
@@ -527,7 +544,7 @@ def _views(user_id: int, rows: list) -> list:
             "time_of_day": h.get("time_of_day") or "any", "remind_time": h.get("remind_time"),
             "today": t_count, "done_today": bool(t_done), "skipped_today": bool(t_skip),
             "due_today": due, "week_done": week_done, "paused": is_paused,
-            "week": week, "streak": streak, "best": best, "streak_unit": unit,
+            "week": week, "week_mon": week_mon, "streak": streak, "best": best, "streak_unit": unit,
             "total_days": sum(1 for v in logs.values() if v[1]),
             "slips_today": t_count if kind == "quit" else 0,
         })

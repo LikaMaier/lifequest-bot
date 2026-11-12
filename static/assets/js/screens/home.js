@@ -8,7 +8,7 @@ import { moodFor } from '../mascot.js';
 import { busy, toastError } from '../ui.js';
 import { buyStars } from '../premium.js';
 import { openQuest } from '../questflow.js';
-import { habitRing, openTemplatePicker } from '../habitui.js';
+import { habitRing, openTemplatePicker, applyLog, openHabitDetail } from '../habitui.js';
 import { planRow } from '../planui.js';
 import { openPlus, plusFab } from '../plus.js';
 import { chestRow } from '../chest.js';
@@ -64,14 +64,29 @@ export function render(el, ctx) {
   habitsCard = h('section', { class: 'home2-card' });
   const habitsLink = h('button', { type: 'button', class: 'home2-link' }, hs.items && hs.items.length ? 'Все' : 'Добавить');
   habitsLink.addEventListener('click', () => { haptic.tap(); go('habits'); });
-  habitsCard.append(h('div', { class: 'home2-head' }, h('h2', null, 'Привычки сегодня'),
-    hs.total ? h('span', { class: 'home2-count' }, `${hs.done} из ${hs.total}`) : null, habitsLink));
+  const buildAll = (hs.items || []).filter(x => x.kind === 'build');
+  const gridMode = buildAll.length && habitsView() === 'grid';
+  // Переключатель вида: кольца на сегодня / сетка недели
+  const viewToggle = buildAll.length ? h('div', { class: 'hb2-view', role: 'tablist', 'aria-label': 'Вид привычек' },
+    ['rings', 'grid'].map(m => {
+      const b = h('button', { type: 'button', role: 'tab', 'aria-selected': String((gridMode ? 'grid' : 'rings') === m), 'aria-label': m === 'grid' ? 'Сетка недели' : 'Сегодня',
+        html: m === 'grid' ? '<svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor"><rect x="2" y="3" width="7" height="3" rx="1.5"/><rect x="11" y="3" width="7" height="3" rx="1.5"/><rect x="2" y="8.5" width="7" height="3" rx="1.5"/><rect x="11" y="8.5" width="7" height="3" rx="1.5"/><rect x="2" y="14" width="7" height="3" rx="1.5"/><rect x="11" y="14" width="7" height="3" rx="1.5"/></svg>'
+          : '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="6" cy="10" r="3.6"/><circle cx="14.5" cy="10" r="3.6"/></svg>' });
+      b.addEventListener('click', () => { haptic.select(); setHabitsView(m); rerender(); });
+      return b;
+    })) : null;
+  habitsCard.append(h('div', { class: 'home2-head' }, h('h2', null, gridMode ? 'Эта неделя' : viewToggle ? 'Привычки' : 'Привычки сегодня'),
+    hs.total ? h('span', { class: 'home2-count' }, `${hs.done} из ${hs.total}`) : null, viewToggle, habitsLink));
   if (!hs.items || !hs.items.length) {
     const pick = h('button', { type: 'button', class: 'quest-item c-lime' }, h('span', { class: 'q-emoji', 'aria-hidden': 'true' }, '🌱'),
       h('span', { class: 'grow' }, h('span', { class: 'q-title', style: { display: 'block' } }, 'Выбери первые привычки'),
         h('span', { class: 'q-meta', style: { display: 'block' } }, 'Вода, зарядка, чтение — в пару касаний')));
     pick.addEventListener('click', () => { haptic.tap(); openTemplatePicker({ onDone: rerender }); });
     habitsCard.append(pick);
+  } else if (gridMode) {
+    habitsCard.append(weekGrid(buildAll, state));
+    const ch = chestRow(state.chest);
+    if (ch) habitsCard.append(ch);
   } else if (!due.length) {
     habitsCard.append(h('p', { class: 'home2-empty' }, hs.pause ? '⏸ Пауза — отдыхай, серии не горят' : 'Сегодня по расписанию привычек нет — выходной 🌿'));
   } else {
@@ -201,6 +216,37 @@ function dailyHero(state, go) {
   });
   return flip;
 }
+
+// ---------- Сетка недели: привычки строками, дни столбцами ----------
+const HB_VIEW_KEY = 'lq_home_hb_view';
+function habitsView() { try { return localStorage.getItem(HB_VIEW_KEY) || 'rings'; } catch (e) { return 'rings'; } }
+function setHabitsView(v) { try { localStorage.setItem(HB_VIEW_KEY, v); } catch (e) { /* ок */ } }
+
+function weekGrid(items, state) {
+  const today = state.today.date;
+  const days = (items[0] && items[0].week_mon) || [];
+  const d0 = days[0] ? Number(days[0].date.slice(8)) : 0, d6 = days[6] ? Number(days[6].date.slice(8)) : 0;
+  const m0 = days[0] ? Number(days[0].date.slice(5, 7)) : 1, m6 = days[6] ? Number(days[6].date.slice(5, 7)) : 1;
+  const MG = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+  const range = m0 === m6 ? `${d0}–${d6} ${MG[m0 - 1]}` : `${d0} ${MG[m0 - 1]} – ${d6} ${MG[m6 - 1]}`;
+  const head = h('div', { class: 'wg-row wg-head' }, h('span', { class: 'wg-name tiny bold muted' }, range),
+    days.map((d, i) => h('span', { class: `wg-d ${d.date === today ? 'today' : ''}` }, h('i', null, WD[i][0]), h('b', null, String(Number(d.date.slice(8)))))));
+  const rows = items.map(hb => h('div', { class: `wg-row c-${hb.color}` },
+    h('span', { class: 'wg-name' }, h('span', { class: 'wg-emoji', 'aria-hidden': 'true' }, hb.emoji), h('span', { class: 'wg-title' }, hb.title)),
+    (hb.week_mon || []).map(d => {
+      const isToday = d.date === today;
+      const cell = h(isToday ? 'button' : 'span', { type: isToday ? 'button' : null, class: `wg-cell s-${d.state} ${isToday ? 'today' : ''}`,
+        title: `${hb.title}: ${d.state === 'done' ? 'сделано' : d.state === 'miss' ? 'пропуск' : d.state === 'skip' ? 'пропущено осознанно' : d.state === 'pause' ? 'пауза' : d.state === 'off' ? 'не по расписанию' : ''}`,
+        'aria-label': isToday ? `${hb.title}: ${hb.done_today ? 'выполнено, нажми чтобы снять' : 'отметить сегодня'}` : null });
+      if (isToday) cell.addEventListener('click', busy(cell, async () => {
+        if (hb.target === 1 || !hb.done_today) await applyLog(hb, { delta: hb.done_today ? -1 : 1 }, () => {});
+        else openHabitDetail(hb, { onChanged: () => {} });
+      }));
+      return cell;
+    })));
+  return h('div', { class: 'wg', role: 'table', 'aria-label': 'Привычки за неделю' }, head, rows);
+}
+
 /** Строки «твой ход»: входящий вызов, дуэль без отметки сегодня, соревнование с неотмеченными пунктами. */
 function turnLines(state, go) {
   const out = [];
