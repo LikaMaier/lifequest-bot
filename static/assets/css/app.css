@@ -2380,19 +2380,24 @@ p { margin: 0; }
 /* ---------- Колесо баланса ---------- */
 .act-wheel { padding: 6px 4px 10px; }
 .bw { display: flex; flex-direction: column; align-items: center; }
-.bw-svg { width: 100%; max-width: 340px; height: auto; display: block; }
-.bw-core { fill: var(--ink); }
-.bw-wedge { fill: color-mix(in srgb, var(--c) 22%, var(--white)); stroke: color-mix(in srgb, var(--c) 45%, var(--white)); stroke-width: 1.5; }
-.bw-track { fill: none; stroke: rgba(43, 33, 64, .12); stroke-width: 7; stroke-linecap: round; }
-.bw-arc { fill: none; stroke: var(--c); stroke-width: 7; stroke-linecap: round; filter: drop-shadow(0 0 5px var(--g)); stroke-dasharray: 1000; animation: bw-grow 1.1s cubic-bezier(.3,.9,.4,1) both; }
-@keyframes bw-grow { from { stroke-dashoffset: 1000; } to { stroke-dashoffset: 0; } }
-.bw-emoji { font-size: 22px; }
-.bw-count { font: 800 12px var(--font-body, inherit); fill: var(--ink); opacity: .7; }
-.bw-label { font: 800 10.5px var(--font-body, inherit); fill: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
-.bw-score { fill: var(--white); }
-.bw-score-n { font: 800 30px var(--font-display); }
-.bw-score-d { font: 800 13px var(--font-body, inherit); fill: rgba(255,255,255,.65); }
-.bw-score-l { font: 800 9px var(--font-body, inherit); fill: rgba(255,255,255,.7); letter-spacing: .14em; text-transform: uppercase; }
+.bw-svg { width: 100%; max-width: 360px; height: auto; display: block; overflow: visible; }
+.bw-bg { fill: color-mix(in srgb, var(--c) 14%, var(--white)); }
+.bw-ring { fill: none; stroke: var(--ink); stroke-opacity: .10; stroke-width: 1; stroke-dasharray: 2 4; }
+.bw-outer { fill: none; stroke: var(--ink); stroke-opacity: .12; stroke-width: 1.2; }
+.bw-fill { transform-origin: 180px 180px; transform-box: view-box; animation: bw-grow .9s cubic-bezier(.2, .8, .2, 1) both; animation-delay: var(--d, 0s); filter: drop-shadow(0 2px 4px color-mix(in srgb, var(--c) 45%, transparent)); }
+.bw-tip-line { fill: none; stroke: rgba(255,255,255,.75); stroke-width: 2; stroke-linecap: round; }
+.bw-core { fill: var(--white); }
+.bw-chip { animation: bw-pop .5s cubic-bezier(.3, 1.4, .4, 1) both; animation-delay: var(--d, 0s); transform-origin: center; transform-box: fill-box; }
+.bw-chip-c { fill: var(--white); stroke: var(--c); stroke-width: 2.5; filter: drop-shadow(0 2px 0 color-mix(in srgb, var(--c) 60%, var(--ink))); }
+.bw-emoji { font-size: 17px; }
+.bw-count { font: 800 11px var(--font-body, inherit); fill: var(--muted); }
+.bw-label { font: 800 11px var(--font-body, inherit); fill: var(--ink); }
+.bw-score { fill: var(--ink); }
+.bw-score-n { font: 800 22px var(--font-display); }
+.bw-score-l { font: 800 8px var(--font-body, inherit); fill: var(--muted); letter-spacing: .12em; text-transform: uppercase; }
+@keyframes bw-grow { from { transform: scale(.2); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes bw-pop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .bw-fill, .bw-chip { animation: none; } }
 .bw-tip { margin: 2px 0 0; font-weight: 800; font-size: 12.5px; color: var(--muted); text-align: center; }
 :root:is([data-theme="space"], [data-theme="halloween"], [data-theme="matrix"]) .bw-wedge { fill: color-mix(in srgb, var(--c) 18%, #0B0820); stroke: color-mix(in srgb, var(--c) 40%, transparent); }
 :root:is([data-theme="space"], [data-theme="halloween"], [data-theme="matrix"]) .bw-track { stroke: rgba(255,255,255,.1); }

@@ -311,39 +311,49 @@ export function jarChart(series, { total = null, label = 'Банка сдела�
 export function balanceWheel(spheres, { label = 'Колесо баланса' } = {}) {
   const items = spheres.filter(x => x).slice(0, 8);
   const n = items.length;
-  const W = 320, C = 160, R1 = 150, R0 = 58, GAP = 0.06;
+  // Классическое «колесо жизни»: сектор заполняется от центра на долю, кольца-уровни, подписи снаружи
+  const W = 360, C = 180, R1 = 100, R0 = 28, GAP = 0.045, CHIP = R1 + 28;
   const maxv = Math.max(1, ...items.map(x => x.count || 0));
   const fr = items.map(x => Math.min(1, (x.count || 0) / maxv));
   const score = n ? Math.round(10 * fr.reduce((a, b) => a + b, 0) / n * 10) / 10 : 0;
   const pol = (r, a) => [C + r * Math.cos(a), C + r * Math.sin(a)];
+  const f = v => v.toFixed(1);
   const wedge = (a0, a1, r0, r1) => {
     const [x0, y0] = pol(r1, a0), [x1, y1] = pol(r1, a1), [x2, y2] = pol(r0, a1), [x3, y3] = pol(r0, a0);
     const big = a1 - a0 > Math.PI ? 1 : 0;
-    return `M${x0.toFixed(1)} ${y0.toFixed(1)} A${r1} ${r1} 0 ${big} 1 ${x1.toFixed(1)} ${y1.toFixed(1)} L${x2.toFixed(1)} ${y2.toFixed(1)} A${r0} ${r0} 0 ${big} 0 ${x3.toFixed(1)} ${y3.toFixed(1)} Z`;
+    return `M${f(x0)} ${f(y0)} A${r1} ${r1} 0 ${big} 1 ${f(x1)} ${f(y1)} L${f(x2)} ${f(y2)} A${r0} ${r0} 0 ${big} 0 ${f(x3)} ${f(y3)} Z`;
   };
-  const arc = (a0, a1, r) => {
-    const [x0, y0] = pol(r, a0), [x1, y1] = pol(r, a1);
-    return `M${x0.toFixed(1)} ${y0.toFixed(1)} A${r} ${r} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`;
-  };
-  let defs = '', body = '';
+  let defs = `<radialGradient id="bwBg" cx="50%" cy="45%" r="60%"><stop offset="0" stop-color="var(--white)" stop-opacity=".95"/><stop offset="1" stop-color="var(--white)" stop-opacity=".55"/></radialGradient>
+    <filter id="bwSoft" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#2B2140" flood-opacity=".14"/></filter>
+    <filter id="bwGlow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+  let back = '', fill = '', chips = '';
   items.forEach((sp, i) => {
     const a0 = -Math.PI / 2 + (i / n) * Math.PI * 2 + GAP / 2, a1 = -Math.PI / 2 + ((i + 1) / n) * Math.PI * 2 - GAP / 2;
-    const mid = (a0 + a1) / 2, col = `var(--${sp.color || 'lav'})`, deep = `var(--${sp.color || 'lav'}-deep)`;
-    const [ix, iy] = pol((R0 + R1) / 2 + 6, mid), [lx, ly] = pol(R1 + 14, mid);
-    body += `<path d="${wedge(a0, a1, R0 + 6, R1)}" class="bw-wedge" style="--c:${col}"/>`;
-    // светящаяся дуга внутри лепестка — доля
-    const span = a1 - a0, fa1 = a0 + span * fr[i];
-    if (fr[i] > 0.02) body += `<path d="${arc(a0, fa1, R0 + 12)}" class="bw-arc" style="--c:${deep};--g:${col}"/>`;
-    body += `<path d="${arc(a0, a1, R0 + 12)}" class="bw-track"/>`;
-    body += `<text x="${ix.toFixed(1)}" y="${(iy + 7).toFixed(1)}" class="bw-emoji" text-anchor="middle">${sp.emoji || '⭐'}</text>`;
-    const deg = mid * 180 / Math.PI + 90, flip = deg > 90 && deg < 270;
-    body += `<text class="bw-label" text-anchor="middle" transform="translate(${lx.toFixed(1)} ${ly.toFixed(1)}) rotate(${(flip ? deg + 180 : deg).toFixed(1)})" dy="${flip ? 4 : 0}">${escBw(sp.name || sp.key)}</text>`;
-    body += `<text x="${ix.toFixed(1)}" y="${(iy + 24).toFixed(1)}" class="bw-count" text-anchor="middle">${sp.count || 0}</text>`;
+    const mid = (a0 + a1) / 2, key = sp.color || 'lav', col = `var(--${key})`, deep = `var(--${key}-deep)`;
+    const [gx0, gy0] = pol(R0, mid), [gx1, gy1] = pol(R1, mid);
+    defs += `<linearGradient id="bwg${i}" gradientUnits="userSpaceOnUse" x1="${f(gx0)}" y1="${f(gy0)}" x2="${f(gx1)}" y2="${f(gy1)}"><stop offset="0" stop-color="${col}"/><stop offset="1" stop-color="${deep}"/></linearGradient>`;
+    back += `<path d="${wedge(a0, a1, R0, R1)}" class="bw-bg" style="--c:${col}"/>`;
+    const r = R0 + (R1 - R0) * fr[i];
+    if (fr[i] > 0.02) fill += `<path d="${wedge(a0, a1, R0, r)}" class="bw-fill" fill="url(#bwg${i})" style="--c:${col};--d:${(i * 0.08).toFixed(2)}s"/>`;
+    // кончик лепестка — светлая кромка
+    if (fr[i] > 0.1) { const [tx0, ty0] = pol(r - 1, a0 + 0.02), [tx1, ty1] = pol(r - 1, a1 - 0.02); fill += `<path d="M${f(tx0)} ${f(ty0)} A${r - 1} ${r - 1} 0 0 1 ${f(tx1)} ${f(ty1)}" class="bw-tip-line"/>`; }
+    const [cx, cy] = pol(CHIP, mid);
+    const above = Math.sin(mid) < -0.3;
+    const lx = cx, ly = above ? cy - 24 : cy + 31;
+    const anchor = 'middle';
+    chips += `<g class="bw-chip" style="--c:${col};--d:${(0.4 + i * 0.06).toFixed(2)}s"><circle cx="${f(cx)}" cy="${f(cy)}" r="17" class="bw-chip-c"/><text x="${f(cx)}" y="${f(cy + 6)}" text-anchor="middle" class="bw-emoji">${sp.emoji || '⭐'}</text>
+      <text x="${f(lx)}" y="${f(ly)}" text-anchor="${anchor}" class="bw-label">${escBw(sp.name || sp.key)}</text>
+      <text x="${f(lx)}" y="${f(ly + 12)}" text-anchor="${anchor}" class="bw-count">${sp.count || 0}</text></g>`;
   });
-  const svg = `<svg viewBox="-20 -20 ${W + 40} ${W + 40}" class="bw-svg" role="img" aria-label="${label}: ${score} из 10">${defs}
-    <circle cx="${C}" cy="${C}" r="${R0}" class="bw-core"/>${body}
-    <text x="${C}" y="${C + 4}" text-anchor="middle" class="bw-score"><tspan class="bw-score-n">${String(score).replace('.', ',')}</tspan><tspan class="bw-score-d">/10</tspan></text>
-    <text x="${C}" y="${C + 26}" text-anchor="middle" class="bw-score-l">баланс</text></svg>`;
+  const rings = [0.25, 0.5, 0.75].map(k => `<circle cx="${C}" cy="${C}" r="${f(R0 + (R1 - R0) * k)}" class="bw-ring"/>`).join('');
+  const svg = `<svg viewBox="0 0 ${W} ${W}" class="bw-svg" role="img" aria-label="${label}: ${score} из 10"><defs>${defs}</defs>
+    <circle cx="${C}" cy="${C}" r="${R1 + 8}" fill="url(#bwBg)" filter="url(#bwSoft)"/>
+    ${back}${rings}${fill}
+    <circle cx="${C}" cy="${C}" r="${R1}" class="bw-outer"/>
+    <circle cx="${C}" cy="${C}" r="${R0 - 3}" class="bw-core" filter="url(#bwSoft)"/>
+    <text x="${C}" y="${C + 5}" text-anchor="middle" class="bw-score"><tspan class="bw-score-n">${String(score).replace('.', ',')}</tspan></text>
+    <text x="${C}" y="${C + 16}" text-anchor="middle" class="bw-score-l">из 10</text>
+    ${chips}</svg>`;
   const wrap = document.createElement('div'); wrap.className = 'bw'; wrap.innerHTML = svg;
   const tip = n ? (score >= 8 ? 'Сферы в балансе — редкость, горжусь! ✨' : score >= 5 ? 'Хороший баланс. Подтяни самые тихие лепестки 🌱'
     : 'Перекос в одну сторону — возьми квест из тихой сферы 🎲') : 'Сделай первый квест — колесо оживёт';
